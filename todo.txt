@@ -1,7 +1,10 @@
 // todo
 
 Security
-  for(var i=10764, arr = []; i<10781; i++, arr.push(i));
+  var arr = [];
+  for(var i=8747; i<8756; arr.push(i++));
+  arr.push(255);
+  for(var i=10764; i<10781; arr.push(i++));
   new TextDecoder('utf-16').decode(new Uint16Array(arr));
 
 Username storage/rejection
