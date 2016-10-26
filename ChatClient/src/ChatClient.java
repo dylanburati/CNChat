@@ -91,8 +91,10 @@ public class ChatClient extends JFrame {
     public static void main(String[] args) throws IOException {
         InetAddress host = InetAddress.getByName("0.0.0.0");
         int portNumber = 4444;
-        String[] userNames = {"Dylan", "Marissa", "Mom", "Dad"};
-        userName = userNames[new Random().nextInt(4)];
+        String[] userNames = {"Lil B", "KenM", "Ken Bone", "Tai Lopez", "Hugh Mungus",
+                              "Donald Trump", "Hillary Clinton", "Jesus", "VN", "Uncle Phil"
+                              "Watery Westin", "A Wild KB"};
+        userName = userNames[new Random().nextInt(12)];
 
         Socket connection = new Socket(host, portNumber);
         out = new PrintWriter(connection.getOutputStream(), true);
