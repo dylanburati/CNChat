@@ -7,6 +7,11 @@ Security
   for(var i=10764; i<10781; arr.push(i++));
   new TextDecoder('utf-16').decode(new Uint16Array(arr));
 
+Icon
+  import javax.imageio.ImageIO;
+  import java.io.File;
+  setIconImage(ImageIO.read(new File("Icon.png")));
+
 Username storage/rejection
   DMs, :message
 
