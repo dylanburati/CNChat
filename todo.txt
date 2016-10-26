@@ -2,8 +2,9 @@
 
 Security
   var arr = [];
-  for(var i=8746; i<8756; arr.push(i++));
-  for(var i=10763; i<10780; arr.push(i++));
+  for(var i=8747; i<8756; arr.push(i++));
+  arr.push(255);
+  for(var i=10764; i<10781; arr.push(i++));
   new TextDecoder('utf-16').decode(new Uint16Array(arr));
 
 Username storage/rejection
