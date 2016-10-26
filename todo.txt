@@ -1,0 +1,12 @@
+// todo
+
+Security
+  for(var i=10764, arr = []; i<10781; i++, arr.push(i));
+  new TextDecoder('utf-16').decode(new Uint16Array(arr));
+
+Username storage/rejection
+  DMs, :message
+
+Checkboxes
+  Trump bot
+  HTML/Markdown (http://daringfireball.net/projects/markdown/syntax)
