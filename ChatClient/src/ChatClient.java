@@ -92,7 +92,7 @@ public class ChatClient extends JFrame {
         InetAddress host = InetAddress.getByName("0.0.0.0");
         int portNumber = 4444;
         String[] userNames = {"Lil B", "KenM", "Ken Bone", "Tai Lopez", "Hugh Mungus",
-                              "Donald Trump", "Hillary Clinton", "Jesus", "VN", "Uncle Phil"
+                              "Donald Trump", "Hillary Clinton", "Jesus", "VN", "Uncle Phil",
                               "Watery Westin", "A Wild KB"};
         userName = userNames[new Random().nextInt(12)];
 
