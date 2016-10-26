@@ -1,7 +1,7 @@
 ##	 Cyber Naysh Chat	 ##
 
 
-backtick + sha512 $(cat "22, A Million - unicode.mp3").filter(str.isalnum)
+backtick + (sha512 $(cat "22, A Million - unicode.mp3")).filter(str.isalnum)
 
 cmd < s.png > nul
 
