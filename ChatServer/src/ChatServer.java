@@ -14,18 +14,19 @@ interface peerUpdateCompat<T> {
 public class ChatServer {
 
     private static boolean up = true;
+    private static List<String> userNames = new ArrayList<>();
 
     public static void main(String[] args) throws IOException {
 
         class ClientThread extends Thread {
 
-            private final String first;
+            private final String first = "\nWelcome to the Cyber Naysh Chat Room\ntype ':help' for help\n";
             private final peerUpdateCompat<ClientThread> peerMessage;
             private PrintWriter out = null;
             private BufferedReader in = null;
+            private String userName;
 
             private ClientThread(Socket clientSocket, peerUpdateCompat<ClientThread> peerMessage) {
-                this.first = "\nWelcome to the Cyber Naysh Chat Room\ntype ':help' for help\n";
                 this.peerMessage = peerMessage;
                 try {
                     this.out = new PrintWriter(clientSocket.getOutputStream(), true);
@@ -53,15 +54,33 @@ public class ChatServer {
                             "\n:serverquit ends the chat" + (char)5 + "\n";
                         }
                         else if (outputLine.contains(""+(char)6)) {
-                            messageMe = false;
-                            outputLine = "<< " + outputLine + " joined the chat >>";
+                            String nameRequest = outputLine.replace(""+(char)6,"");
+                            if(userNames.contains(nameRequest)) {
+                                messageAll = false;
+                                outputLine = ""+(char)21;
+                            } else {
+                                messageMe = false;
+                                userName = nameRequest;
+                                userNames.add(userName);
+                                outputLine = "<< " + outputLine + " joined the chat >>";
+                            }
                         }
                         else if (outputLine.contains(""+(char)26)) {
-                            messageMe = false;
-                            outputLine = "<< " + outputLine + " >>";
+                            String nameRequest = outputLine.substring(outputLine.lastIndexOf(26)+1);
+                            if(userNames.contains(nameRequest)) {
+                                messageAll = false;
+                                outputLine = outputLine.substring(0,outputLine.indexOf(26))+(char)21;
+                            } else {
+                                messageMe = false;
+                                userNames.remove(userName);
+                                userName = nameRequest;
+                                userNames.add(userName);
+                                outputLine = "<< " + outputLine + " >>";
+                            }
                         }
                         else if (outputLine.contains(""+(char)4)) {
                             messageMe = false;
+                            userNames.remove(userName);
                             outputLine = "<< " + outputLine + " left the chat >>";
                         }
                         if(messageMe) out.println(outputLine);

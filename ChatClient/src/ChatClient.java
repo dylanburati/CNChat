@@ -13,6 +13,8 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Random;
 
 public class ChatClient extends JFrame {
@@ -62,7 +64,7 @@ public class ChatClient extends JFrame {
                     if (input.contains(":username ")) {
                         String changeRequest = input.substring(input.lastIndexOf(":username ") + 10);
                         if (!changeRequest.equals(userName) && !changeRequest.contains("\n")) {
-                            out.println(userName + " is now " + changeRequest + (char) 26);
+                            out.println(userName + (char) 26 + " is now " + (char) 26 + changeRequest);
                             userName = changeRequest;
                             ((JFrame) tp.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
                         }
@@ -91,10 +93,11 @@ public class ChatClient extends JFrame {
     public static void main(String[] args) throws IOException {
         InetAddress host = InetAddress.getByName("0.0.0.0");
         int portNumber = 4444;
-        String[] userNames = {"Lil B", "KenM", "Ken Bone", "Tai Lopez", "Hugh Mungus",
-                              "Donald Trump", "Hillary Clinton", "Jesus", "VN", "Uncle Phil",
-                              "Watery Westin", "A Wild KB"};
-        userName = userNames[new Random().nextInt(12)];
+        java.util.List<String> userNames = new ArrayList<>();
+        Collections.addAll(userNames, "Lil B", "KenM", "Ken Bone", "Tai Lopez", "Hugh Mungus",
+                "Donald Trump", "Hillary Clinton", "Jesus", "VN", "Uncle Phil",
+                "Watery Westin", "A Wild KB");
+        userName = userNames.remove(new Random().nextInt(userNames.size()));
 
         Socket connection = new Socket(host, portNumber);
         out = new PrintWriter(connection.getOutputStream(), true);
@@ -132,10 +135,25 @@ public class ChatClient extends JFrame {
                     StyleConstants.setForeground(serverStyle, new Color(0, 161, 0));
                     while (up) {
                         if ((newMessage = in.readLine()) != null) {
-                            if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x00-\\x1f\\x7f]", "")).length())
+                            if (newMessage.contains("" + (char) 21)) {
+                                int nAckIndex;
+                                if ((nAckIndex = newMessage.indexOf(21)) == 0) {
+                                    if (!userNames.isEmpty())
+                                        userName = userNames.remove(new Random().nextInt(userNames.size()));
+                                    else
+                                        userName = Integer.toString(36 * 36 * 36 + new Random().nextInt(35 * 36 * 36 * 36), 36);
+                                    out.println(userName + (char) 6);
+                                } else {
+                                    userName = newMessage.substring(0, nAckIndex);
+                                }
+                                ((JFrame) chatPane.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
+                                continue;
+                            }
+                            if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x00-\\x1f\\x7f]", "")).length()) {
                                 stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
-                            else stdOut.setLogicalStyle(stdOut.getLength(), peerStyle);
-                            stdOut.insertString(stdOut.getLength(), newMessage + "\n", null);
+                                stdOut.insertString(stdOut.getLength(), newMessage + "\n", serverStyle);
+                                continue;
+                            }
                             String command;
                             if ((command = newMessage.toLowerCase()).contains(":color ")) {
                                 if (rainbow.isAlive()) rainbow.interrupt();
@@ -163,6 +181,8 @@ public class ChatClient extends JFrame {
                                             chatPane.setBackground(new Color(Integer.parseInt(customColor, 16)));
                                     }
                                 }
+                            } else {
+                                stdOut.insertString(stdOut.getLength(), newMessage + "\n", peerStyle);
                             }
                             scrollBar.setValue(scrollBar.getMaximum());
                         }
