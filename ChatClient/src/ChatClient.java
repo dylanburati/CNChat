@@ -27,6 +27,7 @@ public class ChatClient extends JFrame {
 
     private ChatClient() throws HeadlessException {
         super("CN Chat: " + userName);
+        setIconImage(new ImageIcon(getClass().getResource("Icon.png")).getImage());
         setSize(280, 420);
         setResizable(false);
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
