@@ -115,21 +115,7 @@ public class ChatClient extends JFrame {
             @Override
             public void run() {
                 try {
-                    Thread rainbow = new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-                            float h = 0.0f, b = 1.0f, s;
-                            try {
-                                for (int i = 0; i < 361; i++) {
-                                    h += 1.0 / 361.0;
-                                    s = (float) Math.sin(i * Math.PI / 360.0);
-                                    chatPane.setBackground(Color.getHSBColor(h, s, b));
-                                    Thread.sleep(5L);
-                                }
-                            } catch (InterruptedException ignored) {
-                            }
-                        }
-                    });
+                    Thread rainbow = new Thread();
                     out.println(userName + (char) 6);
                     Style peerStyle = stdOut.getLogicalStyle(0);
                     Style serverStyle = stdOut.addStyle("server", null);
@@ -137,8 +123,8 @@ public class ChatClient extends JFrame {
                     while (up) {
                         if ((newMessage = in.readLine()) != null) {
                             if (newMessage.contains("" + (char) 21)) {
-                                int nAckIndex;
-                                if ((nAckIndex = newMessage.indexOf(21)) == 0) {
+                                int nAckIndex = newMessage.indexOf(21);
+                                if (nAckIndex == 0) {
                                     if (!userNames.isEmpty())
                                         userName = userNames.remove(new Random().nextInt(userNames.size()));
                                     else
@@ -146,13 +132,15 @@ public class ChatClient extends JFrame {
                                     out.println(userName + (char) 6);
                                 } else {
                                     userName = newMessage.substring(0, nAckIndex);
+                                    stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
+                                    stdOut.insertString(stdOut.getLength(), "<< That username is taken >>\n", null);
                                 }
                                 ((JFrame) chatPane.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
                                 continue;
                             }
                             if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x00-\\x1f\\x7f]", "")).length()) {
                                 stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
-                                stdOut.insertString(stdOut.getLength(), newMessage + "\n", serverStyle);
+                                stdOut.insertString(stdOut.getLength(), newMessage + "\n", null);
                                 continue;
                             }
                             String command;
@@ -163,6 +151,21 @@ public class ChatClient extends JFrame {
                                 else if (command.contains("white") || command.contains("reset"))
                                     chatPane.setBackground(Color.WHITE);
                                 else if (command.contains("rainbow")) {
+                                    rainbow = new Thread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            float h = 0.0f, b = 1.0f, s;
+                                            try {
+                                                for (int i = 0; i < 361; i++) {
+                                                    h += 1.0 / 361.0;
+                                                    s = (float) Math.sin(i * Math.PI / 360.0);
+                                                    chatPane.setBackground(Color.getHSBColor(h, s, b));
+                                                    Thread.sleep(5L);
+                                                }
+                                            } catch (InterruptedException ignored) {
+                                            }
+                                        }
+                                    });
                                     rainbow.start();
                                 } else {
                                     int ccIndex = command.lastIndexOf(":color ") + 7;
@@ -183,7 +186,8 @@ public class ChatClient extends JFrame {
                                     }
                                 }
                             } else {
-                                stdOut.insertString(stdOut.getLength(), newMessage + "\n", peerStyle);
+                                stdOut.setLogicalStyle(stdOut.getLength(), peerStyle);
+                                stdOut.insertString(stdOut.getLength(), newMessage + "\n", null);
                             }
                             scrollBar.setValue(scrollBar.getMaximum());
                         }

@@ -14,7 +14,8 @@ interface peerUpdateCompat<T> {
 public class ChatServer {
 
     private static boolean up = true;
-    private static List<String> userNames = new ArrayList<>();
+    private static volatile List<String> userNames = new ArrayList<>();
+    private static final Object userNamesLock = new Object();
 
     public static void main(String[] args) throws IOException {
 
@@ -61,7 +62,9 @@ public class ChatServer {
                             } else {
                                 messageMe = false;
                                 userName = nameRequest;
-                                userNames.add(userName);
+                                synchronized (userNamesLock) {
+                                    userNames.add(userName);
+                                }
                                 outputLine = "<< " + outputLine + " joined the chat >>";
                             }
                         }
@@ -72,15 +75,19 @@ public class ChatServer {
                                 outputLine = outputLine.substring(0,outputLine.indexOf(26))+(char)21;
                             } else {
                                 messageMe = false;
-                                userNames.remove(userName);
+                                synchronized (userNamesLock) {
+                                    userNames.remove(userName);
+                                    userNames.add(nameRequest);
+                                }
                                 userName = nameRequest;
-                                userNames.add(userName);
                                 outputLine = "<< " + outputLine + " >>";
                             }
                         }
                         else if (outputLine.contains(""+(char)4)) {
                             messageMe = false;
-                            userNames.remove(userName);
+                            synchronized (userNamesLock) {
+                                userNames.remove(userName);
+                            }
                             outputLine = "<< " + outputLine + " left the chat >>";
                         }
                         if(messageMe) out.println(outputLine);
