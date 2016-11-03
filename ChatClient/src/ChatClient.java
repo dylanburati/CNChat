@@ -1,8 +1,5 @@
 import javax.swing.*;
-import javax.swing.text.BadLocationException;
-import javax.swing.text.Style;
-import javax.swing.text.StyleConstants;
-import javax.swing.text.StyledDocument;
+import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -14,8 +11,11 @@ import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Random;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ChatClient extends JFrame {
     private static PrintWriter out;
@@ -62,16 +62,19 @@ public class ChatClient extends JFrame {
                         return;
                     }
                     String input = tp.getText();
-                    if (input.contains(":username ")) {
+                    if (input.contains(":quit")) {
+                        clientClose();
+                    } else if (input.contains(":username ")) {
                         String changeRequest = input.substring(input.lastIndexOf(":username ") + 10);
-                        if (!changeRequest.equals(userName) && !changeRequest.contains("\n")) {
+                        if (!changeRequest.equals(userName) && changeRequest.matches("[^\\n:]+")) {
                             out.println(userName + (char) 26 + " is now " + (char) 26 + changeRequest);
                             userName = changeRequest;
                             ((JFrame) tp.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
                         }
-                    } else if (input.contains(":quit")) {
-                        clientClose();
                     } else if (!input.matches("[\\h\\v]*")) {
+                        if (input.startsWith(":dm ")) {
+                            input = (char) 150 + input + (char) 151;
+                        }
                         out.println(userName + ": " + input);
                     }
                 }
@@ -114,21 +117,50 @@ public class ChatClient extends JFrame {
 
             @Override
             public void run() {
+                class MarkdownUtils {
+                    private int[] genFormatMap(String text) {
+                        int textLen = text.length();
+                        if(textLen == 0) return new int[0];
+                        int[] map = new int[textLen];
+                        Arrays.fill(map, 0);
+                        for(String regex : new String[]{"(?<!\\\\|\\*)(\\*)[^\\*]+(?<!\\\\|\\*)(\\*)", "(?<!\\\\|_)(_)[^_]+(?<!\\\\|_)(_)",
+                                "(?<!\\\\)(\\*\\*).+?(?<!\\\\)(\\*\\*)", "(?<!\\\\)(__).+?(?<!\\\\)(__)", "(?<!\\\\)(`).+?(?<!\\\\)(`)"}) {
+                            Matcher m = Pattern.compile(regex).matcher(text);
+                            boolean backtick = regex.contains("`");
+                            while (m.find()) {
+                                int currentAction = backtick ? 4 : m.end(1) - m.start();
+                                for (int i = m.start(); i < m.end(1); i++) map[i] |= -1;
+                                for (int i = m.end(1); i < m.start(2); i++) map[i] |= currentAction;
+                                for (int i = m.start(2); i < m.end(); i++) map[i] |= -1;
+                            }
+                        }
+                        Matcher esc = Pattern.compile("\\\\(?=\\*{1,2}|_{1,2}|`)").matcher(text);
+                        while(esc.find()) {
+                            map[esc.start()] = -1;
+                        }
+                        return map;
+                    }
+                }
+
                 try {
+                    MarkdownUtils mdUtils = new MarkdownUtils();
                     Thread rainbow = new Thread();
                     out.println(userName + (char) 6);
                     Style peerStyle = stdOut.getLogicalStyle(0);
                     Style serverStyle = stdOut.addStyle("server", null);
                     StyleConstants.setForeground(serverStyle, new Color(0, 161, 0));
+                    Style directStyle = stdOut.addStyle("direct", peerStyle);
+                    StyleConstants.setForeground(directStyle, new Color(81, 0, 241));
                     while (up) {
                         if ((newMessage = in.readLine()) != null) {
-                            if (newMessage.contains("" + (char) 21)) {
-                                int nAckIndex = newMessage.indexOf(21);
+                            final int nAckIndex = newMessage.indexOf(21);
+                            if (nAckIndex != -1) {
                                 if (nAckIndex == 0) {
-                                    if (!userNames.isEmpty())
+                                    if (!userNames.isEmpty()) {
                                         userName = userNames.remove(new Random().nextInt(userNames.size()));
-                                    else
+                                    } else {
                                         userName = Integer.toString(36 * 36 * 36 + new Random().nextInt(35 * 36 * 36 * 36), 36);
+                                    }
                                     out.println(userName + (char) 6);
                                 } else {
                                     userName = newMessage.substring(0, nAckIndex);
@@ -138,18 +170,24 @@ public class ChatClient extends JFrame {
                                 ((JFrame) chatPane.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
                                 continue;
                             }
-                            if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x00-\\x1f\\x7f]", "")).length()) {
+                            stdOut.setLogicalStyle(stdOut.getLength(), peerStyle);
+                            if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x00-\\x07\\x0e-\\x1f]", "")).length()) {
                                 stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
                                 stdOut.insertString(stdOut.getLength(), newMessage + "\n", null);
                                 continue;
                             }
-                            String command;
-                            if ((command = newMessage.toLowerCase()).contains(":color ")) {
+                            if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x7f-\\x9f]", "")).length()) {
+                                stdOut.setLogicalStyle(stdOut.getLength(), directStyle);
+                            }
+                            final String command = newMessage.toLowerCase();
+                            if (command.contains(":color ")) {
                                 if (rainbow.isAlive()) rainbow.interrupt();
-                                if (command.contains("blue")) chatPane.setBackground(Color.BLUE);
-                                else if (command.contains("red")) chatPane.setBackground(Color.RED);
-                                else if (command.contains("white") || command.contains("reset"))
+                                if (command.contains("white") || command.contains("reset"))
                                     chatPane.setBackground(Color.WHITE);
+                                else if (command.contains("blue"))
+                                    chatPane.setBackground(Color.BLUE);
+                                else if (command.contains("red"))
+                                    chatPane.setBackground(Color.RED);
                                 else if (command.contains("rainbow")) {
                                     rainbow = new Thread(new Runnable() {
                                         @Override
@@ -168,9 +206,9 @@ public class ChatClient extends JFrame {
                                     });
                                     rainbow.start();
                                 } else {
-                                    int ccIndex = command.lastIndexOf(":color ") + 7;
+                                    final int ccIndex = command.lastIndexOf(":color ") + 7;
                                     if (command.contains(",")) {
-                                        String[] rgb = command.substring(ccIndex).replaceAll("[^,0-9]", "").split(",");
+                                        final String[] rgb = command.substring(ccIndex).replaceAll("[^,0-9]", "").split(",");
                                         if (rgb.length == 3) {
                                             int r = Integer.parseInt(rgb[0]);
                                             int g = Integer.parseInt(rgb[1]);
@@ -180,14 +218,22 @@ public class ChatClient extends JFrame {
                                         }
                                     }
                                     if (command.length() >= ccIndex + 6) {
-                                        String customColor = command.substring(ccIndex, ccIndex + 6);
+                                        final String customColor = command.substring(ccIndex, ccIndex + 6);
                                         if (customColor.matches("[0-9a-f]{6}"))
                                             chatPane.setBackground(new Color(Integer.parseInt(customColor, 16)));
                                     }
                                 }
                             } else {
-                                stdOut.setLogicalStyle(stdOut.getLength(), peerStyle);
-                                stdOut.insertString(stdOut.getLength(), newMessage + "\n", null);
+                                int[] format = mdUtils.genFormatMap(newMessage);
+                                for(int i=0; i<format.length; i++) {
+                                    if(format[i] == -1) continue;
+                                    SimpleAttributeSet fmt = new SimpleAttributeSet();
+                                    if((format[i] & 1) != 0) StyleConstants.setItalic(fmt, true);
+                                    if((format[i] & 2) != 0) StyleConstants.setBold(fmt, true);
+                                    if((format[i] & 4) != 0) StyleConstants.setFontFamily(fmt, "Lucida Console");
+                                    stdOut.insertString(stdOut.getLength(), ""+newMessage.charAt(i), fmt);
+                                }
+                                stdOut.insertString(stdOut.getLength(), "\n", null);
                             }
                             scrollBar.setValue(scrollBar.getMaximum());
                         }
