@@ -67,15 +67,19 @@ public class ChatClient extends JFrame {
                     } else if (input.contains(":username ")) {
                         String changeRequest = input.substring(input.lastIndexOf(":username ") + 10);
                         if (!changeRequest.equals(userName) && changeRequest.matches("[^\\n:]+")) {
-                            out.println(userName + (char) 26 + " is now " + (char) 26 + changeRequest);
+                            out.println((char) 26 + userName + (char) 26 + changeRequest);
                             userName = changeRequest;
                             ((JFrame) tp.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
                         }
+                    } else if(input.contains(":format")) {
+                        out.println("" + (char) 147);
+                    } else if(input.contains(":unformat")) {
+                        out.println("" + (char) 147 + (char) 147);
                     } else if (!input.matches("[\\h\\v]*")) {
                         if (input.startsWith(":dm ")) {
-                            input = (char) 150 + input + (char) 151;
+                            out.println((char)150 + userName + ": " + input + (char)151);
                         }
-                        out.println(userName + ": " + input);
+                        else out.println(userName + ": " + input);
                     }
                 }
             }
@@ -92,6 +96,35 @@ public class ChatClient extends JFrame {
 
     private void clientClose() {
         dispatchEvent(new WindowEvent(this, WindowEvent.WINDOW_CLOSING));
+    }
+
+    private static class MarkdownUtils {
+        private static boolean format = false;
+        private static int[] genFormatMap(String text) {
+            int textLen = text.length();
+            if(textLen == 0) return new int[0];
+            int[] map = new int[textLen];
+            Arrays.fill(map, 0);
+            text = text.replaceAll("\\\\(?=\\*{1,2}|_{1,2}|`)", "\\\u001b");
+            for(String regex : new String[]{"(?<!\\\\|\\*)(\\*)[^\\*]+(?<!\\\\|\\*)(\\*)", "(?<!\\\\|_)(_)[^_]+(?<!\\\\|_)(_)",
+                    "(?<!\\\\)(\\*\\*).+?(?<!\\\\)(\\*\\*)", "(?<!\\\\)(__).+?(?<!\\\\)(__)", "(?<!\\\\|`)(`).+?(?<!\\\\|`)(`)"}) {
+                Matcher m = Pattern.compile(regex).matcher(text);
+                boolean backtick = regex.contains("`");
+                while (m.find()) {
+                    int currentAction = backtick ? 4 : m.end(1) - m.start();
+                    for (int i = m.start(); i < m.end(1); i++) map[i] |= -1;
+                    for (int i = m.end(1); i < m.start(2); i++) map[i] |= currentAction;
+                    for (int i = m.start(2); i < m.end(); i++) map[i] |= -1;
+                }
+            }
+            for (String escregex : new String[]{"\\\\(?=\\*{1,2}|_{1,2}|`)", "\u001b"}) {
+                Matcher esc = Pattern.compile(escregex).matcher(text);
+                while (esc.find()) {
+                    map[esc.start()] = -1;
+                }
+            }
+            return map;
+        }
     }
 
     public static void main(String[] args) throws IOException {
@@ -117,35 +150,9 @@ public class ChatClient extends JFrame {
 
             @Override
             public void run() {
-                class MarkdownUtils {
-                    private int[] genFormatMap(String text) {
-                        int textLen = text.length();
-                        if(textLen == 0) return new int[0];
-                        int[] map = new int[textLen];
-                        Arrays.fill(map, 0);
-                        for(String regex : new String[]{"(?<!\\\\|\\*)(\\*)[^\\*]+(?<!\\\\|\\*)(\\*)", "(?<!\\\\|_)(_)[^_]+(?<!\\\\|_)(_)",
-                                "(?<!\\\\)(\\*\\*).+?(?<!\\\\)(\\*\\*)", "(?<!\\\\)(__).+?(?<!\\\\)(__)", "(?<!\\\\)(`).+?(?<!\\\\)(`)"}) {
-                            Matcher m = Pattern.compile(regex).matcher(text);
-                            boolean backtick = regex.contains("`");
-                            while (m.find()) {
-                                int currentAction = backtick ? 4 : m.end(1) - m.start();
-                                for (int i = m.start(); i < m.end(1); i++) map[i] |= -1;
-                                for (int i = m.end(1); i < m.start(2); i++) map[i] |= currentAction;
-                                for (int i = m.start(2); i < m.end(); i++) map[i] |= -1;
-                            }
-                        }
-                        Matcher esc = Pattern.compile("\\\\(?=\\*{1,2}|_{1,2}|`)").matcher(text);
-                        while(esc.find()) {
-                            map[esc.start()] = -1;
-                        }
-                        return map;
-                    }
-                }
-
                 try {
-                    MarkdownUtils mdUtils = new MarkdownUtils();
                     Thread rainbow = new Thread();
-                    out.println(userName + (char) 6);
+                    out.println((char) 6 + userName);
                     Style peerStyle = stdOut.getLogicalStyle(0);
                     Style serverStyle = stdOut.addStyle("server", null);
                     StyleConstants.setForeground(serverStyle, new Color(0, 161, 0));
@@ -153,17 +160,17 @@ public class ChatClient extends JFrame {
                     StyleConstants.setForeground(directStyle, new Color(81, 0, 241));
                     while (up) {
                         if ((newMessage = in.readLine()) != null) {
-                            final int nAckIndex = newMessage.indexOf(21);
-                            if (nAckIndex != -1) {
-                                if (nAckIndex == 0) {
+                            final int header = newMessage.isEmpty() ? -1 : newMessage.codePointAt(0);
+                            if (header == 21) {
+                                if (newMessage.length() == 1) {
                                     if (!userNames.isEmpty()) {
                                         userName = userNames.remove(new Random().nextInt(userNames.size()));
                                     } else {
                                         userName = Integer.toString(36 * 36 * 36 + new Random().nextInt(35 * 36 * 36 * 36), 36);
                                     }
-                                    out.println(userName + (char) 6);
+                                    out.println((char) 6 + userName);
                                 } else {
-                                    userName = newMessage.substring(0, nAckIndex);
+                                    userName = newMessage.substring(1);
                                     stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
                                     stdOut.insertString(stdOut.getLength(), "<< That username is taken >>\n", null);
                                 }
@@ -176,6 +183,7 @@ public class ChatClient extends JFrame {
                                 stdOut.insertString(stdOut.getLength(), newMessage + "\n", null);
                                 continue;
                             }
+                            MarkdownUtils.format = newMessage.length() != (newMessage = newMessage.replace("\u0093", "")).length();
                             if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x7f-\\x9f]", "")).length()) {
                                 stdOut.setLogicalStyle(stdOut.getLength(), directStyle);
                             }
@@ -224,16 +232,27 @@ public class ChatClient extends JFrame {
                                     }
                                 }
                             } else {
-                                int[] format = mdUtils.genFormatMap(newMessage);
-                                for(int i=0; i<format.length; i++) {
-                                    if(format[i] == -1) continue;
-                                    SimpleAttributeSet fmt = new SimpleAttributeSet();
-                                    if((format[i] & 1) != 0) StyleConstants.setItalic(fmt, true);
-                                    if((format[i] & 2) != 0) StyleConstants.setBold(fmt, true);
-                                    if((format[i] & 4) != 0) StyleConstants.setFontFamily(fmt, "Lucida Console");
-                                    stdOut.insertString(stdOut.getLength(), ""+newMessage.charAt(i), fmt);
+                                if(MarkdownUtils.format) {
+                                    int[] format = MarkdownUtils.genFormatMap(newMessage);
+                                    for (int i = 0, cl = stdOut.getLength(); i < format.length; i++, cl++) {
+                                        if (format[i] == -1) {
+                                            cl--;
+                                            continue;
+                                        }
+                                        if (format[i] == 0) {
+                                            stdOut.insertString(cl, "" + newMessage.charAt(i), null);
+                                            continue;
+                                        }
+                                        SimpleAttributeSet fmt = new SimpleAttributeSet();
+                                        if ((format[i] & 1) != 0) StyleConstants.setItalic(fmt, true);
+                                        if ((format[i] & 2) != 0) StyleConstants.setBold(fmt, true);
+                                        if ((format[i] & 4) != 0) StyleConstants.setFontFamily(fmt, "Lucida Console");
+                                        stdOut.insertString(cl, "" + newMessage.charAt(i), fmt);
+                                    }
+                                    stdOut.insertString(stdOut.getLength(), "\n", null);
+                                } else {
+                                    stdOut.insertString(stdOut.getLength(), newMessage+"\n", null);
                                 }
-                                stdOut.insertString(stdOut.getLength(), "\n", null);
                             }
                             scrollBar.setValue(scrollBar.getMaximum());
                         }
@@ -251,7 +270,7 @@ public class ChatClient extends JFrame {
                 new Runnable() {
                     @Override
                     public void run() {
-                        out.println(userName + (char) 4);
+                        out.println((char) 4 + userName);
                         up = false;
                     }
                 }

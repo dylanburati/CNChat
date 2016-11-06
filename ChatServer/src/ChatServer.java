@@ -28,7 +28,7 @@ public class ChatServer {
             private PrintWriter out = null;
             private BufferedReader in = null;
             private String userName, dmUser = "";
-            private boolean endDm = false;
+            private boolean endDm = false, markDown = false;
 
             private ClientThread(Socket clientSocket, peerUpdateCompat<ClientThread> peerMessage) {
                 this.peerMessage = peerMessage;
@@ -58,59 +58,68 @@ public class ChatServer {
                                     "\n:dm <user> sends a direct message" + (char) 5 +
                                     "\n:quit closes your chat box" + (char) 5 +
                                     "\n:serverquit ends the chat" + (char) 5 + "\n";
-                        } else if (outputLine.contains("" + (char) 6)) {
-                            String nameRequest = outputLine.replace("" + (char) 6, "");
-                            if (userNames.contains(nameRequest)) {
-                                messageAll = false;
-                                outputLine = "" + (char) 21;
-                            } else {
-                                messageMe = false;
-                                userName = nameRequest;
-                                synchronized (userNamesLock) {
-                                    userNames.add(userName);
+                        } else {
+                            final int command = outputLine.isEmpty() ? -1 : outputLine.codePointAt(0);
+                            if (command == 6) {
+                                String nameRequest = outputLine.substring(1);
+                                if (userNames.contains(nameRequest)) {
+                                    messageAll = false;
+                                    outputLine = "" + (char) 21;
+                                } else {
+                                    messageMe = false;
+                                    userName = nameRequest;
+                                    synchronized (userNamesLock) {
+                                        userNames.add(userName);
+                                    }
+                                    outputLine = "<< " + userName + " joined the chat >>" + (char)5;
                                 }
-                                outputLine = "<< " + outputLine + " joined the chat >>";
-                            }
-                        } else if (outputLine.contains("" + (char) 4)) {
-                            messageMe = false;
-                            synchronized (userNamesLock) {
-                                userNames.remove(userName);
-                            }
-                            outputLine = "<< " + outputLine + " left the chat >>";
-                        } else if (outputLine.contains("" + (char) 26)) {
-                            String nameRequest = outputLine.substring(outputLine.lastIndexOf(26) + 1);
-                            if (userNames.contains(nameRequest)) {
-                                messageAll = false;
-                                outputLine = outputLine.substring(0, outputLine.indexOf(26)) + (char) 21;
-                            } else {
+                            } else if (command == 4) {
                                 messageMe = false;
                                 synchronized (userNamesLock) {
                                     userNames.remove(userName);
-                                    userNames.add(nameRequest);
                                 }
-                                userName = nameRequest;
-                                outputLine = "<< " + outputLine + " >>";
-                            }
-                        }
-                        if (outputLine.contains("" + (char) 150)) {
-                            if(outputLine.contains(":dm ") && dmUser.equals("")) {
-                                if (outputLine.contains("" + (char) 151)) {
+                                outputLine = "<< " + outputLine + " left the chat >>" + (char)5;
+                            } else if (command == 26) {
+                                final int delimiter = outputLine.lastIndexOf(26);
+                                String nameRequest = outputLine.substring(delimiter + 1);
+                                if (userNames.contains(nameRequest)) {
                                     messageAll = false;
-                                    outputLine = "<< Can't send empty DM >>" + (char) 5;
+                                    outputLine = (char) 21 + outputLine.substring(1, delimiter);
                                 } else {
-                                    String dmRequest = outputLine.substring(outputLine.indexOf(150) + 5);
-                                    if (userNames.contains(dmRequest)) {
-                                        dmUser = dmRequest;
-                                        outputLine = userName + ": << DM to " + dmUser + " >>";
-                                    } else {
-                                        dmUser = ""+(char)24;
+                                    messageMe = false;
+                                    synchronized (userNamesLock) {
+                                        userNames.remove(userName);
+                                        userNames.add(nameRequest);
+                                    }
+                                    outputLine = "<< " + userName + " is now " + nameRequest + " >>" + (char)5;
+                                    userName = nameRequest;
+                                }
+                            }
+                            if (command == 150) {
+                                final int rcvIndex = outputLine.indexOf(":dm ");
+                                if (rcvIndex != -1 && dmUser.equals("")) {
+                                    if (outputLine.contains("" + (char) 151)) {
                                         messageAll = false;
-                                        outputLine = "<< User not found >>" + (char) 5;
+                                        outputLine = "<< Can't send empty DM >>" + (char) 5;
+                                    } else {
+                                        String dmRequest = outputLine.substring(rcvIndex + 4);
+                                        if (userNames.contains(dmRequest)) {
+                                            dmUser = dmRequest;
+                                            outputLine = userName + ": << DM to " + dmUser + " >>";
+                                        } else {
+                                            dmUser = "" + (char) 24;
+                                            messageAll = false;
+                                            outputLine = "<< User not found >>" + (char) 5;
+                                        }
                                     }
                                 }
+                            } else if (outputLine.endsWith("" + (char) 151)) {
+                                endDm = true;
                             }
-                        } else if (outputLine.contains("" + (char) 151)) {
-                            endDm = true;
+                            if(command == 147) {
+                                messageAll = messageMe = false;
+                                markDown = outputLine.length() == 1;
+                            }
                         }
                         if (dmUser.equals(""+(char)24)) {
                             messageMe = !messageAll;
@@ -118,6 +127,7 @@ public class ChatServer {
                         } else if (!dmUser.isEmpty() && !endDm) {
                             outputLine += (char) 150;
                         }
+                        if(markDown) outputLine += (char)147;
                         if (messageMe) out.println(outputLine);
                         if (messageAll) peerMessage.execute(this, outputLine, dmUser);
                         if (endDm) {
