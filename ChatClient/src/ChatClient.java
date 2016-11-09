@@ -72,12 +72,12 @@ public class ChatClient extends JFrame {
                             ((JFrame) tp.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
                         }
                     } else if(input.contains(":format")) {
-                        out.println("" + (char) 147);
+                        out.println("" + (char) 17);
                     } else if(input.contains(":unformat")) {
-                        out.println("" + (char) 147 + (char) 147);
+                        out.println("" + (char) 17 + (char) 17);
                     } else if (!input.matches("[\\h\\v]*")) {
                         if (input.startsWith(":dm ")) {
-                            out.println((char)150 + userName + ": " + input + (char)151);
+                            out.println((char)15 + userName + ": " + input + (char)14);
                         }
                         else out.println(userName + ": " + input);
                     }
@@ -178,13 +178,13 @@ public class ChatClient extends JFrame {
                                 continue;
                             }
                             stdOut.setLogicalStyle(stdOut.getLength(), peerStyle);
-                            if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x00-\\x07\\x0e-\\x1f]", "")).length()) {
+                            if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x00-\\x07\\x10\\x12-\\x1f]", "")).length()) {
                                 stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
                                 stdOut.insertString(stdOut.getLength(), newMessage + "\n", null);
                                 continue;
                             }
-                            MarkdownUtils.format = newMessage.length() != (newMessage = newMessage.replace("\u0093", "")).length();
-                            if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x7f-\\x9f]", "")).length()) {
+                            MarkdownUtils.format = newMessage.length() != (newMessage = newMessage.replace(""+(char)17, "")).length();
+                            if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x0e\\x0f\\x7f-\\x9f]", "")).length()) {
                                 stdOut.setLogicalStyle(stdOut.getLength(), directStyle);
                             }
                             final String command = newMessage.toLowerCase();
@@ -192,10 +192,6 @@ public class ChatClient extends JFrame {
                                 if (rainbow.isAlive()) rainbow.interrupt();
                                 if (command.contains("white") || command.contains("reset"))
                                     chatPane.setBackground(Color.WHITE);
-                                else if (command.contains("blue"))
-                                    chatPane.setBackground(Color.BLUE);
-                                else if (command.contains("red"))
-                                    chatPane.setBackground(Color.RED);
                                 else if (command.contains("rainbow")) {
                                     rainbow = new Thread(new Runnable() {
                                         @Override

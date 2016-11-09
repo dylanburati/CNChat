@@ -54,10 +54,26 @@ public class ChatServer {
                         } else if (outputLine.contains(":help")) {
                             messageAll = false;
                             outputLine = "\nCommands start with a colon (:)" + (char) 5 +
-                                    "\n:username <new username>" + (char) 5 +
+                                    "\n:status sends you key info" + (char) 5 +
                                     "\n:dm <user> sends a direct message" + (char) 5 +
+                                    "\n:username <new username>" + (char) 5 +
                                     "\n:quit closes your chat box" + (char) 5 +
                                     "\n:serverquit ends the chat" + (char) 5 + "\n";
+                        } else if (outputLine.contains(":status")) {
+                            messageAll = false;
+                            outputLine = "<< Status >>" + (char) 5 +
+                                    "\nUsername: " + userName + (char) 5 +
+                                    "\nFormat: " + (markDown ? "Markdown" : "plain text") + (char) 5 +
+                                    "\n :format for Markdown" + (char) 5 +
+                                    "\n :unformat for plain text" + (char) 5;
+                            if(userNames.size() > 1) {
+                                outputLine += "\nUsers here now:" + (char) 5 + "\n";
+                                for (String usr : userNames) {
+                                    if (!usr.equals(userName)) outputLine += " " + usr + (char) 5 + "\n";
+                                }
+                            } else {
+                                outputLine += "No one else is here" + (char) 5 + "\n";
+                            }
                         } else {
                             final int command = outputLine.isEmpty() ? -1 : outputLine.codePointAt(0);
                             if (command == 6) {
@@ -95,10 +111,10 @@ public class ChatServer {
                                     userName = nameRequest;
                                 }
                             }
-                            if (command == 150) {
+                            if (command == 15) {
                                 final int rcvIndex = outputLine.indexOf(":dm ");
-                                if (rcvIndex != -1 && dmUser.equals("")) {
-                                    if (outputLine.contains("" + (char) 151)) {
+                                if (rcvIndex != -1 && dmUser.isEmpty()) {
+                                    if (outputLine.contains("" + (char) 14)) {
                                         messageAll = false;
                                         outputLine = "<< Can't send empty DM >>" + (char) 5;
                                     } else {
@@ -113,10 +129,10 @@ public class ChatServer {
                                         }
                                     }
                                 }
-                            } else if (outputLine.endsWith("" + (char) 151)) {
+                            } else if (outputLine.endsWith("" + (char) 14)) {
                                 endDm = true;
                             }
-                            if(command == 147) {
+                            if(command == 17) {
                                 messageAll = messageMe = false;
                                 markDown = outputLine.length() == 1;
                             }
@@ -125,9 +141,9 @@ public class ChatServer {
                             messageMe = !messageAll;
                             messageAll = false;
                         } else if (!dmUser.isEmpty() && !endDm) {
-                            outputLine += (char) 150;
+                            outputLine += (char) 15;
                         }
-                        if(markDown) outputLine += (char)147;
+                        if(markDown) outputLine += (char)17;
                         if (messageMe) out.println(outputLine);
                         if (messageAll) peerMessage.execute(this, outputLine, dmUser);
                         if (endDm) {
