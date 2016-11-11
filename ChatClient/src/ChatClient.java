@@ -100,17 +100,13 @@ public class ChatClient extends JFrame {
 
     private static String base16encode(String in) {
         byte[] b256 = in.getBytes();
-        int[] b16 = new int[2*b256.length];
+        byte[] b16 = new byte[2 * b256.length];
         int idx = 0;
-        for(int cp : b256) {
-            b16[idx++] = (cp & (15 << 4)) >> 4;
-            b16[idx++] = cp & 15;
+        for (int cp : b256) {
+            b16[idx++] = (byte) (((cp & (15 << 4)) >> 4)+64);
+            b16[idx++] = (byte) ((cp & 15)+64);
         }
-        StringBuilder out = new StringBuilder();
-        for(int nibble : b16) {
-            out.append((char)(64+nibble));
-        }
-        return out.toString();
+        return new String(b16);
     }
 
     private static String base16decode(String in) {
