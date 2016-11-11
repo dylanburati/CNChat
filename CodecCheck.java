@@ -125,5 +125,11 @@ public class CodecCheck {
         System.out.println(longTest);
         System.out.println(longTestEnc);
         System.out.println(longTestDec);
+
+        long t0 = System.nanoTime();
+        for (int i = 0; i < 1000; i++) {
+            base16decode(base16encode(longTest));
+        }
+        System.out.println((System.nanoTime() - t0) / 1e6 + " us");
     }
 }
