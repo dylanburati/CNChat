@@ -67,19 +67,19 @@ public class ChatClient extends JFrame {
                     } else if (input.contains(":username ")) {
                         String changeRequest = input.substring(input.lastIndexOf(":username ") + 10);
                         if (!changeRequest.equals(userName) && changeRequest.matches("[^\\n:]+")) {
-                            out.println((char) 26 + userName + (char) 26 + changeRequest);
+                            out.println(base16encode((char) 26 + userName + (char) 26 + changeRequest));
                             userName = changeRequest;
                             ((JFrame) tp.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
                         }
                     } else if(input.contains(":format")) {
-                        out.println("" + (char) 17);
+                        out.println(base16encode("" + (char) 17));
                     } else if(input.contains(":unformat")) {
-                        out.println("" + (char) 17 + (char) 17);
+                        out.println(base16encode("" + (char) 17 + (char) 17));
                     } else if (!input.matches("[\\h\\v]*")) {
                         if (input.startsWith(":dm ")) {
-                            out.println((char)15 + userName + ": " + input + (char)14);
+                            out.println(base16encode((char)15 + userName + ": " + input + (char)14));
                         }
-                        else out.println(userName + ": " + input);
+                        else out.println(base16encode(userName + ": " + input));
                     }
                 }
             }
@@ -96,6 +96,30 @@ public class ChatClient extends JFrame {
 
     private void clientClose() {
         dispatchEvent(new WindowEvent(this, WindowEvent.WINDOW_CLOSING));
+    }
+
+    private static String base16encode(String in) {
+        byte[] b256 = in.getBytes();
+        int[] b16 = new int[2*b256.length];
+        int idx = 0;
+        for(int cp : b256) {
+            b16[idx++] = (cp & (15 << 4)) >> 4;
+            b16[idx++] = cp & 15;
+        }
+        StringBuilder out = new StringBuilder();
+        for(int nibble : b16) {
+            out.append((char)(64+nibble));
+        }
+        return out.toString();
+    }
+
+    private static String base16decode(String in) {
+        byte[] b16 = in.getBytes();
+        byte[] b256 = new byte[b16.length / 2];
+        for (int i = 0; i < b16.length; i += 2) {
+            b256[i / 2] = (byte) (((b16[i] - 64) << 4) + (b16[i + 1] - 64));
+        }
+        return new String(b256);
     }
 
     private static class MarkdownUtils {
@@ -142,7 +166,6 @@ public class ChatClient extends JFrame {
 
         class MessageDaemon implements Runnable {
             private final BufferedReader in;
-            private String newMessage;
 
             private MessageDaemon(BufferedReader in) {
                 this.in = in;
@@ -151,15 +174,18 @@ public class ChatClient extends JFrame {
             @Override
             public void run() {
                 try {
+                    String newMessage;
                     Thread rainbow = new Thread();
-                    out.println((char) 6 + userName);
+                    out.println(base16encode((char) 6 + userName));
                     Style peerStyle = stdOut.getLogicalStyle(0);
                     Style serverStyle = stdOut.addStyle("server", null);
                     StyleConstants.setForeground(serverStyle, new Color(0, 161, 0));
+                    StyleConstants.setFontFamily(serverStyle, "Lucida Console");
                     Style directStyle = stdOut.addStyle("direct", peerStyle);
                     StyleConstants.setForeground(directStyle, new Color(81, 0, 241));
                     while (up) {
                         if ((newMessage = in.readLine()) != null) {
+                            newMessage = base16decode(newMessage);
                             final int header = newMessage.isEmpty() ? -1 : newMessage.codePointAt(0);
                             if (header == 21) {
                                 if (newMessage.length() == 1) {
@@ -168,7 +194,7 @@ public class ChatClient extends JFrame {
                                     } else {
                                         userName = Integer.toString(36 * 36 * 36 + new Random().nextInt(35 * 36 * 36 * 36), 36);
                                     }
-                                    out.println((char) 6 + userName);
+                                    out.println(base16encode((char) 6 + userName));
                                 } else {
                                     userName = newMessage.substring(1);
                                     stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
@@ -178,14 +204,14 @@ public class ChatClient extends JFrame {
                                 continue;
                             }
                             stdOut.setLogicalStyle(stdOut.getLength(), peerStyle);
-                            if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x00-\\x07\\x10\\x12-\\x1f]", "")).length()) {
-                                stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
-                                stdOut.insertString(stdOut.getLength(), newMessage + "\n", null);
-                                continue;
-                            }
                             MarkdownUtils.format = newMessage.length() != (newMessage = newMessage.replace(""+(char)17, "")).length();
                             if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x0e\\x0f\\x7f-\\x9f]", "")).length()) {
                                 stdOut.setLogicalStyle(stdOut.getLength(), directStyle);
+                            }
+                            if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x00-\\x07\\x10-\\x1f]", "")).length()) {
+                                stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
+                                stdOut.insertString(stdOut.getLength(), newMessage + "\n", null);
+                                continue;
                             }
                             final String command = newMessage.toLowerCase();
                             if (command.contains(":color ")) {
@@ -266,7 +292,7 @@ public class ChatClient extends JFrame {
                 new Runnable() {
                     @Override
                     public void run() {
-                        out.println((char) 4 + userName);
+                        out.println(base16encode((char) 4 + userName));
                         up = false;
                     }
                 }
