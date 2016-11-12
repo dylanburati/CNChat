@@ -1,23 +1,19 @@
 import java.nio.charset.Charset;
+import java.util.Arrays;
 
-public class CodecCheck {
 
-    static String base64encode(String in) {
-        byte[] b256 = in.getBytes();
+public class scratch_5 {
+    private static final Charset cset = Charset.forName("UTF-8");
+
+    private static String base64encode(String in) {
+        byte[] b256 = in.getBytes(cset);
+        int field;
         int tail = b256.length % 3;
-        int length64 = (b256.length / 3 * 4) + 1;
-        switch (tail) {
-            case 1:
-                length64 += 2;
-                break;
-            case 2:
-                length64 += 3;
-                break;
-        }
+        int length64 = (b256.length / 3 * 4) + new int[]{1,3,4}[tail];
         byte[] b64 = new byte[length64];
         int i256, i64;
         for (i256 = i64 = 0; i256 < b256.length - tail; i256 += 3) {
-            int field = (Byte.toUnsignedInt(b256[i256]) << 16) |
+            field = (Byte.toUnsignedInt(b256[i256]) << 16) |
                     (Byte.toUnsignedInt(b256[i256 + 1]) << 8) |
                     Byte.toUnsignedInt(b256[i256 + 2]);
             b64[i64++] = (byte) (((field & (63 << 18)) >> 18) + 63);
@@ -27,7 +23,7 @@ public class CodecCheck {
         }
         switch (tail) {
             case 1:
-                int field = Byte.toUnsignedInt(b256[i256]);
+                field = Byte.toUnsignedInt(b256[i256]);
                 b64[i64++] = (byte) (((field & (63 << 2)) >> 2) + 63);
                 b64[i64++] = (byte) ((field & 3) + 63);
                 break;
@@ -39,26 +35,19 @@ public class CodecCheck {
                 b64[i64++] = (byte) ((field & 15) + 63);
         }
         b64[i64] = (byte) (tail + 63);
-        return new String(b64);
+        return new String(b64, cset);
     }
 
-    static String base64decode(String in) {
-        byte[] b64 = in.getBytes();
+    private static String base64decode(String in) {
+        byte[] b64 = in.getBytes(cset);
+        int field;
         int tail256 = (int) b64[b64.length - 1] - 63;
-        int tail64 = 1;
-        switch (tail256) {
-            case 1:
-                tail64 += 2;
-                break;
-            case 2:
-                tail64 += 3;
-                break;
-        }
+        int tail64 = new int[]{1,3,4}[tail256];
         int length256 = (b64.length - tail64) * 3 / 4 + tail256;
         byte[] b256 = new byte[length256];
         int i256, i64;
         for (i64 = i256 = 0; i64 < b64.length - tail64; i64 += 4) {
-            int field = ((Byte.toUnsignedInt(b64[i64]) - 63) << 18) |
+            field = ((Byte.toUnsignedInt(b64[i64]) - 63) << 18) |
                     ((Byte.toUnsignedInt(b64[i64 + 1]) - 63) << 12) |
                     ((Byte.toUnsignedInt(b64[i64 + 2]) - 63) << 6) |
                     (Byte.toUnsignedInt(b64[i64 + 3]) - 63);
@@ -68,7 +57,7 @@ public class CodecCheck {
         }
         switch (tail256) {
             case 1:
-                int field = ((Byte.toUnsignedInt(b64[i64]) - 63) << 2) |
+                field = ((Byte.toUnsignedInt(b64[i64]) - 63) << 2) |
                         (Byte.toUnsignedInt(b64[i64 + 1]) - 63);
                 b256[i256] = (byte) field;
                 break;
@@ -79,7 +68,7 @@ public class CodecCheck {
                 b256[i256++] = (byte) ((field & (255 << 8)) >> 8);
                 b256[i256] = (byte) (field & 255);
         }
-        return new String(b256);
+        return new String(b256, cset);
     }
 
     private static String base16encode(String in) {
@@ -103,10 +92,11 @@ public class CodecCheck {
     }
 
     public static void main(String[] args) {
-        System.out.println(Charset.availableCharsets());
+        System.out.println(Charset.availableCharsets() + "\n");
+        System.out.println(Charset.defaultCharset() + "\n");
         String shortTest = "Vn";
-        String shortTestEnc = base16encode(shortTest);
-        String shortTestDec = base16decode(shortTestEnc);
+        String shortTestEnc = base64encode(shortTest);
+        String shortTestDec = base64decode(shortTestEnc);
         String longTest = "22 (OVER S\u221e\u221eN)\n" +
                 "10 d E A T h b R E a s T \u2684 \u2684\n" +
                 "715 - CR\u2211\u2211KS\n" +
@@ -117,19 +107,30 @@ public class CodecCheck {
                 "8 (circle)\n" +
                 "____45_____\n" +
                 "00000 Million";
-        String longTestEnc = base16encode(longTest);
-        String longTestDec = base16decode(longTestEnc);
+        String longTestEnc = base64encode(longTest);
+        String longTestDec = base64decode(longTestEnc);
         System.out.println(shortTest);
         System.out.println(shortTestEnc);
         System.out.println(shortTestDec);
         System.out.println(longTest);
         System.out.println(longTestEnc);
         System.out.println(longTestDec);
-
+        System.out.print("Base64: ");
+        long[] dts = new long[10];
         long t0 = System.nanoTime();
-        for (int i = 0; i < 1000; i++) {
-            base16decode(base16encode(longTest));
+        for (int i = 0; i < 10; i++) {
+            base64decode(base64encode(longTest));
+            dts[i] = System.nanoTime() - t0;
+            t0 += dts[i];
         }
-        System.out.println((System.nanoTime() - t0) / 1e6 + " us");
+        System.out.println(Arrays.toString(dts));
+        System.out.print("Base16: ");
+        t0 = System.nanoTime();
+        for (int i = 0; i < 10; i++) {
+            base16decode(base16encode(longTest));
+            dts[i] = System.nanoTime() - t0;
+            t0 += dts[i];
+        }
+        System.out.println(Arrays.toString(dts));
     }
 }
