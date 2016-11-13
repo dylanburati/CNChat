@@ -1,20 +1,86 @@
 // todo
 
-Security
-  var arr = [];
-  for(var i=8747; i<8756; arr.push(i++));
-  arr.push(255);
-  for(var i=10764; i<10781; arr.push(i++));
-  new TextDecoder('utf-16').decode(new Uint16Array(arr));
+Trump bot
 
-Icon
-  import javax.imageio.ImageIO;
-  import java.io.File;
-  setIconImage(ImageIO.read(new File("Icon.png")));
+./ChatUtils/Codecs.java
+import java.nio.charset.Charset;
+package ChatUtils;
 
-Username storage/rejection
-  DMs, :message
+public class Codecs {
+    private final Charset cset;
 
-Checkboxes
-  Trump bot
-  HTML/Markdown (http://daringfireball.net/projects/markdown/syntax)
+    public Codecs() {
+        this.cset = Charset.defaultCharset();
+    }
+
+    public Codecs(Charset cset) {
+        this.cset = cset;
+    }
+
+    public String base64encode(String in) {
+        byte[] b256 = in.getBytes(cset);
+        int field;
+        int tail = b256.length % 3;
+        int length64 = (b256.length / 3 * 4) + new int[]{1,3,4}[tail];
+        byte[] b64 = new byte[length64];
+        int i256, i64;
+        for (i256 = i64 = 0; i256 < b256.length - tail; i256 += 3) {
+            field = (Byte.toUnsignedInt(b256[i256]) << 16) |
+                    (Byte.toUnsignedInt(b256[i256 + 1]) << 8) |
+                    Byte.toUnsignedInt(b256[i256 + 2]);
+            b64[i64++] = (byte) (((field & (63 << 18)) >> 18) + 63);
+            b64[i64++] = (byte) (((field & (63 << 12)) >> 12) + 63);
+            b64[i64++] = (byte) (((field & (63 << 6)) >> 6) + 63);
+            b64[i64++] = (byte) ((field & 63) + 63);
+        }
+        switch (tail) {
+            case 1:
+                field = Byte.toUnsignedInt(b256[i256]);
+                b64[i64++] = (byte) (((field & (63 << 2)) >> 2) + 63);
+                b64[i64++] = (byte) ((field & 3) + 63);
+                break;
+            case 2:
+                field = (Byte.toUnsignedInt(b256[i256]) << 8) |
+                        Byte.toUnsignedInt(b256[i256 + 1]);
+                b64[i64++] = (byte) (((field & (63 << 10)) >> 10) + 63);
+                b64[i64++] = (byte) (((field & (63 << 4)) >> 4) + 63);
+                b64[i64++] = (byte) ((field & 15) + 63);
+        }
+        b64[i64] = (byte) (tail + 63);
+        return new String(b64, cset);
+    }
+
+    public String base64decode(String in) {
+        byte[] b64 = in.getBytes(cset);
+        int field;
+        int tail256 = (int) b64[b64.length - 1] - 63;
+        int tail64 = new int[]{1,3,4}[tail256];
+        int length256 = (b64.length - tail64) * 3 / 4 + tail256;
+        byte[] b256 = new byte[length256];
+        int i256, i64;
+        for (i64 = i256 = 0; i64 < b64.length - tail64; i64 += 4) {
+            field = ((Byte.toUnsignedInt(b64[i64]) - 63) << 18) |
+                    ((Byte.toUnsignedInt(b64[i64 + 1]) - 63) << 12) |
+                    ((Byte.toUnsignedInt(b64[i64 + 2]) - 63) << 6) |
+                    (Byte.toUnsignedInt(b64[i64 + 3]) - 63);
+            b256[i256++] = (byte) ((field & (255 << 16)) >> 16);
+            b256[i256++] = (byte) ((field & (255 << 8)) >> 8);
+            b256[i256++] = (byte) (field & 255);
+        }
+        switch (tail256) {
+            case 1:
+                field = ((Byte.toUnsignedInt(b64[i64]) - 63) << 2) |
+                        (Byte.toUnsignedInt(b64[i64 + 1]) - 63);
+                b256[i256] = (byte) field;
+                break;
+            case 2:
+                field = ((Byte.toUnsignedInt(b64[i64]) - 63) << 10) |
+                        ((Byte.toUnsignedInt(b64[i64 + 1]) - 63) << 4) |
+                        (Byte.toUnsignedInt(b64[i64 + 2]) - 63);
+                b256[i256++] = (byte) ((field & (255 << 8)) >> 8);
+                b256[i256] = (byte) (field & 255);
+        }
+        return new String(b256, cset);
+    }
+
+}
