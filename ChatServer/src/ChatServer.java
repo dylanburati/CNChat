@@ -120,7 +120,8 @@ public class ChatServer {
                                         messageAll = false;
                                         outputLine = "<< Can't send empty DM >>" + (char) 5;
                                     } else {
-                                        int delimiter = Math.min(outputLine.indexOf("\r"), outputLine.indexOf("\n"));
+                                        int delimiter = outputLine.indexOf("\r");
+                                        if(delimiter == -1) delimiter = outputLine.indexOf("\n");
                                         String dmRequest = outputLine.substring(rcvIndex + 4, delimiter);
                                         if (userNames.contains(dmRequest)) {
                                             dmUser = dmRequest;
