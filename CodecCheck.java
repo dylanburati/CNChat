@@ -10,25 +10,25 @@ public class CodecCheck {
         byte[] b64 = new byte[length64];
         int i256, i64;
         for (i256 = i64 = 0; i256 < b256.length - tail; i256 += 3) {
-            field = (Byte.toUnsignedInt(b256[i256]) << 16) |
-                    (Byte.toUnsignedInt(b256[i256 + 1]) << 8) |
-                    Byte.toUnsignedInt(b256[i256 + 2]);
-            b64[i64++] = (byte) (((field & (63 << 18)) >> 18) + 63);
-            b64[i64++] = (byte) (((field & (63 << 12)) >> 12) + 63);
-            b64[i64++] = (byte) (((field & (63 << 6)) >> 6) + 63);
+            field = ((b256[i256] & 255) << 16) |
+                    ((b256[i256 + 1] & 255) << 8) |
+                    (b256[i256 + 2] & 255);
+            b64[i64++] = (byte) (((field >>> 18) & 63) + 63);
+            b64[i64++] = (byte) (((field >>> 12) & 63) + 63);
+            b64[i64++] = (byte) (((field >>> 6) & 63) + 63);
             b64[i64++] = (byte) ((field & 63) + 63);
         }
         switch (tail) {
             case 1:
-                field = Byte.toUnsignedInt(b256[i256]);
-                b64[i64++] = (byte) (((field & (63 << 2)) >> 2) + 63);
+                field = b256[i256] & 255;
+                b64[i64++] = (byte) (((field >>> 2) & 63) + 63);
                 b64[i64] = (byte) ((field & 3) + 63);
                 break;
             case 2:
-                field = (Byte.toUnsignedInt(b256[i256]) << 8) |
-                        Byte.toUnsignedInt(b256[i256 + 1]);
-                b64[i64++] = (byte) (((field & (63 << 10)) >> 10) + 63);
-                b64[i64++] = (byte) (((field & (63 << 4)) >> 4) + 63);
+                field = ((b256[i256] & 255) << 8) |
+                        (b256[i256 + 1] & 255);
+                b64[i64++] = (byte) (((field >>> 10) & 63) + 63);
+                b64[i64++] = (byte) (((field >>> 4) & 63) + 63);
                 b64[i64] = (byte) ((field & 15) + 63);
         }
         return new String(b64, UTF_8);
@@ -47,8 +47,8 @@ public class CodecCheck {
                     ((b64[i64 + 1] - 63) << 12) |
                     ((b64[i64 + 2] - 63) << 6) |
                     (b64[i64 + 3] - 63);
-            b256[i256++] = (byte) ((field & (255 << 16)) >> 16);
-            b256[i256++] = (byte) ((field & (255 << 8)) >> 8);
+            b256[i256++] = (byte) ((field >>> 16) & 255);
+            b256[i256++] = (byte) ((field >>> 8) & 255);
             b256[i256++] = (byte) (field & 255);
         }
         switch (tail256) {
@@ -61,7 +61,7 @@ public class CodecCheck {
                 field = ((b64[i64] - 63) << 10) |
                         ((b64[i64 + 1] - 63) << 4) |
                         (b64[i64 + 2] - 63);
-                b256[i256++] = (byte) ((field & (255 << 8)) >> 8);
+                b256[i256++] = (byte) ((field >>> 8) & 255);
                 b256[i256] = (byte) (field & 255);
         }
         return new String(b256, UTF_8);
