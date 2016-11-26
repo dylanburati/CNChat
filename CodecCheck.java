@@ -13,22 +13,22 @@ public class CodecCheck {
             field = ((b256[i256] & 255) << 16) |
                     ((b256[i256 + 1] & 255) << 8) |
                     (b256[i256 + 2] & 255);
-            b64[i64++] = (byte) (((field >>> 18) & 63) + 63);
-            b64[i64++] = (byte) (((field >>> 12) & 63) + 63);
-            b64[i64++] = (byte) (((field >>> 6) & 63) + 63);
+            b64[i64++] = (byte) (((field >> 18) & 63) + 63);
+            b64[i64++] = (byte) (((field >> 12) & 63) + 63);
+            b64[i64++] = (byte) (((field >> 6) & 63) + 63);
             b64[i64++] = (byte) ((field & 63) + 63);
         }
         switch (tail) {
             case 1:
                 field = b256[i256] & 255;
-                b64[i64++] = (byte) (((field >>> 2) & 63) + 63);
+                b64[i64++] = (byte) (((field >> 2) & 63) + 63);
                 b64[i64] = (byte) ((field & 3) + 63);
                 break;
             case 2:
                 field = ((b256[i256] & 255) << 8) |
                         (b256[i256 + 1] & 255);
-                b64[i64++] = (byte) (((field >>> 10) & 63) + 63);
-                b64[i64++] = (byte) (((field >>> 4) & 63) + 63);
+                b64[i64++] = (byte) (((field >> 10) & 63) + 63);
+                b64[i64++] = (byte) (((field >> 4) & 63) + 63);
                 b64[i64] = (byte) ((field & 15) + 63);
         }
         return new String(b64, UTF_8);
@@ -47,8 +47,8 @@ public class CodecCheck {
                     ((b64[i64 + 1] - 63) << 12) |
                     ((b64[i64 + 2] - 63) << 6) |
                     (b64[i64 + 3] - 63);
-            b256[i256++] = (byte) ((field >>> 16) & 255);
-            b256[i256++] = (byte) ((field >>> 8) & 255);
+            b256[i256++] = (byte) ((field >> 16) & 255);
+            b256[i256++] = (byte) ((field >> 8) & 255);
             b256[i256++] = (byte) (field & 255);
         }
         switch (tail256) {
@@ -61,7 +61,7 @@ public class CodecCheck {
                 field = ((b64[i64] - 63) << 10) |
                         ((b64[i64 + 1] - 63) << 4) |
                         (b64[i64 + 2] - 63);
-                b256[i256++] = (byte) ((field >>> 8) & 255);
+                b256[i256++] = (byte) ((field >> 8) & 255);
                 b256[i256] = (byte) (field & 255);
         }
         return new String(b256, UTF_8);
