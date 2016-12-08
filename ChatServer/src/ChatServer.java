@@ -74,7 +74,7 @@ public class ChatServer {
                                     if (!usr.equals(userName)) outputLine += " " + usr + "\n";
                                 }
                             } else {
-                                outputLine += "No one else is here" + "\n";
+                                outputLine += "\nNo one else is here" + "\n";
                             }
                         } else {
                             final int command = outputLine.isEmpty() ? -1 : outputLine.codePointAt(0);
