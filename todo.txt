@@ -1,10 +1,4 @@
-// todo
-
 Trump bot
 
-// before review
-
-Bad input checks for base64decode
-Usernames
-
 http://jsfiddle.net/0wv1mn42/7/show
+
