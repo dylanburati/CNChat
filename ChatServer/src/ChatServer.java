@@ -180,7 +180,10 @@ public class ChatServer {
             private String receive() throws IOException {
                 String input = in.readLine();
                 try {
-                    byte[] data = cipherD.doFinal(base64decode(input));
+                    byte[] data;
+                    synchronized(cipherLock) {
+                        data = cipherD.doFinal(base64decode(input));
+                    }
                     return new String(data, UTF_8);
                 } catch (IllegalBlockSizeException | BadPaddingException e) {
                     e.printStackTrace();

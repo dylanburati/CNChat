@@ -30,6 +30,7 @@ public class ChatClient extends JFrame {
     private static boolean up = true;
     private static JTextPane chatPane;
     private static Cipher cipherD, cipherE;
+    private static final Object cipherLock = new Object();
 
     private ChatClient() throws HeadlessException {
         super("CN Chat: " + userName);
@@ -104,7 +105,11 @@ public class ChatClient extends JFrame {
     private static void send(String outputLine) {
         byte[] data = outputLine.getBytes(UTF_8);
         try {
-            out.println(base64encode(cipherE.doFinal(data)));
+            byte[] enc;
+            synchronized(cipherLock) {
+                enc = cipherE.doFinal(data);
+            }
+            out.println(base64encode(enc));
         } catch (IllegalBlockSizeException | BadPaddingException e) {
             e.printStackTrace();
             out.println(base64encode("<< Error with encryption >>".getBytes(UTF_8)));
@@ -114,7 +119,10 @@ public class ChatClient extends JFrame {
     private static String receive(BufferedReader in) throws IOException {
         String input = in.readLine();
         try {
-            byte[] data = cipherD.doFinal(base64decode(input));
+            byte[] data;
+            synchronized(cipherLock) {
+                data = cipherD.doFinal(base64decode(input));
+            }
             return new String(data, UTF_8);
         } catch (IllegalBlockSizeException | BadPaddingException e) {
             e.printStackTrace();
@@ -177,9 +185,11 @@ public class ChatClient extends JFrame {
             @Override
             public void run() {
                 try {
-                    ClientCrypto clientCrypto = new ClientCrypto(in, out);
-                    cipherD = clientCrypto.cipherD;
-                    cipherE = clientCrypto.cipherE;
+                    synchronized(cipherLock) {
+                        ClientCrypto clientCrypto = new ClientCrypto(in, out);
+                        cipherD = clientCrypto.cipherD;
+                        cipherE = clientCrypto.cipherE;
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
