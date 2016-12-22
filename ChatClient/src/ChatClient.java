@@ -156,7 +156,7 @@ public class ChatClient extends JFrame {
     public static void main(String[] args) throws IOException {
         InetAddress host = InetAddress.getByName("0.0.0.0");
         int portNumber = 4444;
-        java.util.List<String> userNames = new ArrayList<>();
+        final java.util.List<String> userNames = new ArrayList<>();
         Collections.addAll(userNames, "Lil B", "KenM", "Ken Bone", "Tai Lopez", "Hugh Mungus",
                 "Donald Trump", "Hillary Clinton", "Jesus", "VN", "Uncle Phil",
                 "Watery Westin", "A Wild KB");

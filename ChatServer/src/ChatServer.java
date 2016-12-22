@@ -23,13 +23,23 @@ public class ChatServer {
     private static volatile List<String> userNames = new ArrayList<>();
     private static final Object userNamesLock = new Object();
 
+    private static String stringJoin(String delimiter, Iterable<? extends String> elements) {
+        StringBuilder retval = new StringBuilder();
+        for(String el : elements) {
+            retval.append(el);
+            retval.append(delimiter);
+        }
+        return retval.toString();
+    }
+
     public static void main(String[] args) throws IOException {
 
         class ClientThread extends Thread {
 
             private final String first = "\nWelcome to Cyber Naysh Chat\ntype ':help' for help\n\n"
-                    + (!userNames.isEmpty() ? "<< Here now >>\n " + String.join("\n ", userNames) : "<< No one else is here >>")
+                    + (!userNames.isEmpty() ? "<< Here now >>\n " + stringJoin("\n ", userNames) : "<< No one else is here >>")
                     + (char) 5 + (char) 17 + "\n";
+
             private final peerUpdateCompat<ClientThread> peerMessage;
             private PrintWriter out = null;
             private BufferedReader in = null;
@@ -195,7 +205,7 @@ public class ChatServer {
         int portNumber = 4444;
         ServerSocket serverSocket = new ServerSocket(portNumber);
         System.out.println(serverSocket.getInetAddress());
-        List<ClientThread> threads = new ArrayList<>();
+        final List<ClientThread> threads = new ArrayList<>();
         peerUpdateCompat<ClientThread> messenger = new peerUpdateCompat<ClientThread>() {
             @Override
             public void execute(ClientThread skip, String message, String user) {

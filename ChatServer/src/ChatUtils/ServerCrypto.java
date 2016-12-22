@@ -99,13 +99,12 @@ public class ServerCrypto {
         cipherD = Cipher.getInstance("AES/CTR/PKCS5Padding");
         cipherE = Cipher.getInstance("AES/CTR/PKCS5Padding");
 
+        cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES);
         self.cipherParamsEnc = cipherE.getParameters().getEncoded();
         send(self.cipherParamsEnc);
 
         self.cipherParams = AlgorithmParameters.getInstance("AES");
         self.cipherParams.init(self.cipherParamsEnc);
-
-        cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES, self.cipherParams);
         cipherD.init(Cipher.DECRYPT_MODE, self.keyAES, self.cipherParams);
     }
 

@@ -167,10 +167,10 @@ public class CryptoCheck {
         Cipher bobCipher = Cipher.getInstance("AES/CTR/PKCS5Padding");
 
         // Prepare to use ciphers
+        bobCipher.init(Cipher.ENCRYPT_MODE, bobAES);
         byte[] encodedParams = bobCipher.getParameters().getEncoded();
         AlgorithmParameters params = AlgorithmParameters.getInstance("AES");
         params.init(encodedParams);
-        bobCipher.init(Cipher.ENCRYPT_MODE, bobAES, params);
         aliceCipher.init(Cipher.DECRYPT_MODE, aliceAES, params);
 
         // Test
