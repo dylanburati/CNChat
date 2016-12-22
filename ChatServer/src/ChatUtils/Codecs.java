@@ -3,8 +3,7 @@ package ChatUtils;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class Codecs {
-    public static String base64encode(String in) {
-        byte[] b256 = in.getBytes(UTF_8);
+    public static String base64encode(byte[] b256) {
         int field;
         int tail = b256.length % 3;
         int length64 = (b256.length / 3 * 4) + new int[]{0, 2, 3}[tail];
@@ -35,7 +34,7 @@ public class Codecs {
         return new String(b64, UTF_8);
     }
 
-    public static String base64decode(String in) {
+    public static byte[] base64decode(String in) {
         byte[] b64 = in.getBytes(UTF_8);
         int field;
         int tail64 = b64.length % 4;
@@ -65,6 +64,6 @@ public class Codecs {
                 b256[i256++] = (byte) ((field >> 8) & 255);
                 b256[i256] = (byte) (field & 255);
         }
-        return new String(b256, UTF_8);
+        return b256;
     }
 }

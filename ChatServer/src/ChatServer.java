@@ -1,10 +1,16 @@
+import ChatUtils.ServerCrypto;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
-import static ChatUtils.Codecs.*;
+import static ChatUtils.Codecs.base64decode;
+import static ChatUtils.Codecs.base64encode;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 interface peerUpdateCompat<T> {
@@ -27,6 +33,7 @@ public class ChatServer {
             private final peerUpdateCompat<ClientThread> peerMessage;
             private PrintWriter out = null;
             private BufferedReader in = null;
+            private Cipher cipherE, cipherD;
             private String userName, dmUser = "";
             private boolean markDown = false;
 
@@ -42,12 +49,18 @@ public class ChatServer {
 
             @Override
             public void run() {
+                try {
+                    ServerCrypto serverCrypto = new ServerCrypto(in, out);
+                    cipherD = serverCrypto.cipherD;
+                    cipherE = serverCrypto.cipherE;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
                 boolean messageAll, messageMe;
                 String outputLine;
                 try {
-                    out.println(base64encode(first));
-                    while ((outputLine = in.readLine()) != null) {
-                        outputLine = base64decode(outputLine);
+                    send(first);
+                    while ((outputLine = receive()) != null) {
                         messageAll = messageMe = true;
                         dmUser = "";
                         if (outputLine.contains(":serverquit")) {
@@ -142,7 +155,7 @@ public class ChatServer {
                             outputLine += (char) 15;
                         }
                         if(markDown) outputLine += (char)17;
-                        if (messageMe) out.println(base64encode(outputLine));
+                        if (messageMe) send(outputLine);
                         if (messageAll) peerMessage.execute(this, outputLine, dmUser);
                         if (!up) System.exit(0);
                     }
@@ -151,8 +164,26 @@ public class ChatServer {
                 }
             }
 
-            private void peerMessage(String outputLine) {
-                out.println(base64encode(outputLine));
+            private String receive() throws IOException {
+                String input = in.readLine();
+                try {
+                    byte[] data = cipherD.doFinal(base64decode(input));
+                    return new String(data, UTF_8);
+                } catch (IllegalBlockSizeException | BadPaddingException e) {
+                    e.printStackTrace();
+                    return "<< Error with encryption >>" + (char) 5;
+                }
+            }
+
+            private void send(String outputLine) {
+                byte[] data = outputLine.getBytes(UTF_8);
+                try {
+                    byte[] enc = cipherE.doFinal(data);
+                    out.println(base64encode(enc));
+                } catch (IllegalBlockSizeException | BadPaddingException e) {
+                    e.printStackTrace();
+                    out.println(base64encode("<< Error with encryption >>\005".getBytes(UTF_8)));
+                }
             }
 
             String getUserName() {
@@ -171,7 +202,7 @@ public class ChatServer {
                 boolean everyone = user.isEmpty();
                 for (ClientThread currentThread : threads) {
                     if (everyone || user.equals(currentThread.getUserName())) {
-                        if (!currentThread.equals(skip)) currentThread.peerMessage(message);
+                        if (!currentThread.equals(skip)) currentThread.send(message);
                     }
                 }
             }

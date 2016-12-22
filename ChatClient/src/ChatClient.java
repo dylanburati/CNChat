@@ -1,3 +1,8 @@
+import ChatUtils.ClientCrypto;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
 import javax.swing.*;
 import javax.swing.text.*;
 import java.awt.*;
@@ -13,8 +18,9 @@ import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static ChatUtils.Codecs.base64decode;
+import static ChatUtils.Codecs.base64encode;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static ChatUtils.Codecs.*;
 
 public class ChatClient extends JFrame {
     private static PrintWriter out;
@@ -23,6 +29,7 @@ public class ChatClient extends JFrame {
     private static String userName;
     private static boolean up = true;
     private static JTextPane chatPane;
+    private static Cipher cipherD, cipherE;
 
     private ChatClient() throws HeadlessException {
         super("CN Chat: " + userName);
@@ -66,19 +73,19 @@ public class ChatClient extends JFrame {
                     } else if (input.contains(":username ")) {
                         String changeRequest = input.substring(input.lastIndexOf(":username ") + 10);
                         if (!changeRequest.equals(userName) && changeRequest.matches("[^\\n:]+")) {
-                            out.println(base64encode((char) 26 + userName + (char) 26 + changeRequest));
+                            send((char) 26 + userName + (char) 26 + changeRequest);
                             userName = changeRequest;
                             ((JFrame) tp.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
                         }
                     } else if(input.contains(":format")) {
-                        out.println(base64encode("" + (char) 17));
+                        send("" + (char) 17);
                     } else if(input.contains(":unformat")) {
-                        out.println(base64encode("" + (char) 17 + (char) 17));
+                        send("" + (char) 17 + (char) 17);
                     } else if (!input.matches("[\\h\\v]*")) {
                         if (input.startsWith(":dm ")) {
-                            out.println(base64encode((char)15 + userName + ": " + input));
+                            send((char)15 + userName + ": " + input);
                         }
-                        else out.println(base64encode(userName + ": " + input));
+                        else send(userName + ": " + input);
                     }
                 }
             }
@@ -91,6 +98,27 @@ public class ChatClient extends JFrame {
             }
         });
         add(new JScrollPane(textPane));
+    }
+
+    private static void send(String outputLine) {
+        byte[] data = outputLine.getBytes(UTF_8);
+        try {
+            out.println(base64encode(cipherE.doFinal(data)));
+        } catch (IllegalBlockSizeException | BadPaddingException e) {
+            e.printStackTrace();
+            out.println(base64encode("<< Error with encryption >>".getBytes(UTF_8)));
+        }
+    }
+
+    private static String receive(BufferedReader in) throws IOException {
+        String input = in.readLine();
+        try {
+            byte[] data = cipherD.doFinal(base64decode(input));
+            return new String(data, UTF_8);
+        } catch (IllegalBlockSizeException | BadPaddingException e) {
+            e.printStackTrace();
+            return "<< Error with encryption >>" + (char) 5;
+        }
     }
 
     private void clientClose() {
@@ -137,6 +165,7 @@ public class ChatClient extends JFrame {
         Socket connection = new Socket(host, portNumber);
         out = new PrintWriter(new OutputStreamWriter(connection.getOutputStream(), UTF_8), true);
         BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream(), UTF_8));
+
         class MessageDaemon implements Runnable {
             private final BufferedReader in;
 
@@ -147,9 +176,16 @@ public class ChatClient extends JFrame {
             @Override
             public void run() {
                 try {
+                    ClientCrypto clientCrypto = new ClientCrypto(in, out);
+                    cipherD = clientCrypto.cipherD;
+                    cipherE = clientCrypto.cipherE;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                try {
                     String newMessage;
                     Thread rainbow = new Thread();
-                    out.println(base64encode((char) 6 + userName));
+                    send((char) 6 + userName);
                     Style peerStyle = stdOut.getLogicalStyle(0);
                     Style serverStyle = stdOut.addStyle("server", null);
                     StyleConstants.setForeground(serverStyle, new Color(0, 161, 0));
@@ -157,8 +193,7 @@ public class ChatClient extends JFrame {
                     Style directStyle = stdOut.addStyle("direct", peerStyle);
                     StyleConstants.setForeground(directStyle, new Color(81, 0, 241));
                     while (up) {
-                        if ((newMessage = in.readLine()) != null) {
-                            newMessage = base64decode(newMessage);
+                        if ((newMessage = receive(in)) != null) {
                             final int header = newMessage.isEmpty() ? -1 : newMessage.codePointAt(0);
                             if (header == 21) {
                                 if (newMessage.length() == 1) {
@@ -167,7 +202,7 @@ public class ChatClient extends JFrame {
                                     } else {
                                         userName = Integer.toString(36 * 36 * 36 + new Random().nextInt(35 * 36 * 36 * 36), 36);
                                     }
-                                    out.println(base64encode((char) 6 + userName));
+                                    send((char) 6 + userName);
                                 } else {
                                     userName = newMessage.substring(1);
                                     stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
@@ -265,7 +300,7 @@ public class ChatClient extends JFrame {
                 new Runnable() {
                     @Override
                     public void run() {
-                        out.println(base64encode((char) 4 + userName));
+                        send((char) 4 + userName);
                         up = false;
                     }
                 }
