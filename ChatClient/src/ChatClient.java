@@ -81,7 +81,8 @@ public class ChatClient extends JFrame {
                         send("" + (char) 17);
                     } else if(input.contains(":unformat")) {
                         send("" + (char) 17 + (char) 17);
-                    } else if (!input.matches("[\\h\\v]*")) {
+                    } else if (!input.matches("[ \\t\\xA0\\u1680\\u180e\\u2000-\\u200a\\u202f\\u205f\\u3000" +
+                            "\\n\\x0B\\f\\r\\x85\\u2028\\u2029]*")) {
                         if (input.startsWith(":dm ")) {
                             send((char)15 + userName + ": " + input);
                         }
