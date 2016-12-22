@@ -44,6 +44,7 @@ public class ChatServer {
             private PrintWriter out = null;
             private BufferedReader in = null;
             private Cipher cipherE, cipherD;
+            private final Object cipherLock = new Object();
             private String userName, dmUser = "";
             private boolean markDown = false;
 
@@ -60,9 +61,11 @@ public class ChatServer {
             @Override
             public void run() {
                 try {
-                    ServerCrypto serverCrypto = new ServerCrypto(in, out);
-                    cipherD = serverCrypto.cipherD;
-                    cipherE = serverCrypto.cipherE;
+                    synchronized(cipherLock) {
+                        ServerCrypto serverCrypto = new ServerCrypto(in, out);
+                        cipherD = serverCrypto.cipherD;
+                        cipherE = serverCrypto.cipherE;
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -188,7 +191,10 @@ public class ChatServer {
             private void send(String outputLine) {
                 byte[] data = outputLine.getBytes(UTF_8);
                 try {
-                    byte[] enc = cipherE.doFinal(data);
+                    byte[] enc;
+                    synchronized(cipherLock) {
+                        enc = cipherE.doFinal(data);
+                    }
                     out.println(base64encode(enc));
                 } catch (IllegalBlockSizeException | BadPaddingException e) {
                     e.printStackTrace();
