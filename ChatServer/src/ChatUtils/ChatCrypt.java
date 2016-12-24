@@ -16,7 +16,7 @@ import java.util.Arrays;
 import static ChatUtils.Codecs.base64decode;
 import static ChatUtils.Codecs.base64encode;
 
-public class ClientCrypto {
+public class ChatCrypt {
 
     private static final BigInteger otr1536Modulus = new BigInteger(
             "FFFFFFFFFFFFFFFFC90FDAA22168C234" +
@@ -40,6 +40,24 @@ public class ClientCrypto {
     public Cipher cipherD;
     public Cipher cipherE;
 
+    private class Self {
+        private KeyPairGenerator keyPairGen;
+        private KeyPair keyPair;
+        private KeyAgreement keyAgree;
+        private byte[] pubKeyEnc;
+        private KeyFactory keyFactory;
+        private X509EncodedKeySpec keySpec;
+        private byte[] key;
+        private SecretKey keyAES;
+        private byte[] cipherParamsEnc;
+        private AlgorithmParameters cipherParams;
+    }
+
+    private class Party2 {
+        private byte[] pubKeyEnc;
+        private PublicKey pubKey;
+    }
+
     private void send(byte[] data) {
         out.println(base64encode(data));
     }
@@ -49,59 +67,55 @@ public class ClientCrypto {
         return base64decode(data);
     }
 
-    public ClientCrypto(BufferedReader in, PrintWriter out) throws Exception {
+    public ChatCrypt(BufferedReader in, PrintWriter out, boolean serverMode) throws Exception {
 
         this.in = in;
         this.out = out;
 
-        class Self {
-            private KeyPairGenerator keyPairGen;
-            private KeyPair keyPair;
-            private KeyAgreement keyAgree;
-            private byte[] pubKeyEnc;
-            private KeyFactory keyFactory;
-            private X509EncodedKeySpec keySpec;
-            private byte[] key;
-            private SecretKey keyAES;
-            private byte[] cipherParamsEnc;
-            private AlgorithmParameters cipherParams;
-        }
-        class Server {
-            private byte[] pubKeyEnc;
-            private PublicKey pubKey;
-        }
         Self self = new Self();
-        Server serv = new Server();
+        Party2 party2 = new Party2();
 
-        DHParameterSpec dhSkipParamSpec = new DHParameterSpec(otr1536Modulus, otr1536Base);
+        DHParameterSpec dhParamSpec = new DHParameterSpec(otr1536Modulus, otr1536Base);
         MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
 
         self.keyPairGen = KeyPairGenerator.getInstance("DH");
-        self.keyPairGen.initialize(dhSkipParamSpec);
+        self.keyPairGen.initialize(dhParamSpec);
         self.keyPair = self.keyPairGen.generateKeyPair();
         self.keyAgree = KeyAgreement.getInstance("DH");
         self.keyAgree.init(self.keyPair.getPrivate());
         self.pubKeyEnc = self.keyPair.getPublic().getEncoded();
 
-        send(self.pubKeyEnc);
-        serv.pubKeyEnc = receive();
-
+        if(serverMode) {
+            party2.pubKeyEnc = receive();
+            send(self.pubKeyEnc);
+        } else {
+            send(self.pubKeyEnc);
+            party2.pubKeyEnc = receive();
+        }
+            
         self.keyFactory = KeyFactory.getInstance("DH");
-        self.keySpec = new X509EncodedKeySpec(serv.pubKeyEnc);
-        serv.pubKey = self.keyFactory.generatePublic(self.keySpec);
+        self.keySpec = new X509EncodedKeySpec(party2.pubKeyEnc);
+        party2.pubKey = self.keyFactory.generatePublic(self.keySpec);
 
-        self.keyAgree.doPhase(serv.pubKey, true);
+        self.keyAgree.doPhase(party2.pubKey, true);
         self.key = self.keyAgree.generateSecret();
         self.keyAES = new SecretKeySpec(Arrays.copyOf(sha256.digest(self.key), 16), "AES");
 
         cipherD = Cipher.getInstance("AES/CTR/PKCS5Padding");
         cipherE = Cipher.getInstance("AES/CTR/PKCS5Padding");
 
-        self.cipherParamsEnc = receive();
+        if(serverMode) {
+            cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES);
+            self.cipherParamsEnc = cipherE.getParameters().getEncoded();
+            send(self.cipherParamsEnc);
+        } else {
+            self.cipherParamsEnc = receive();
+        }
+
         self.cipherParams = AlgorithmParameters.getInstance("AES");
         self.cipherParams.init(self.cipherParamsEnc);
 
-        cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES, self.cipherParams);
+        if(!serverMode) cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES, self.cipherParams);
         cipherD.init(Cipher.DECRYPT_MODE, self.keyAES, self.cipherParams);
     }
 

@@ -1,4 +1,52 @@
-Trump bot
+Feature and fix log
+
+Format is Version; Status; Description (status is 0 for removed, 1 for active in latest version)
+4.2.0; 1; Trump bot -> The Trump bot was added in version 4.2.0, and is also in the current version
+
+1.0.0; 1; Send messages between any number of users
+1.1.0; 1; Swing GUI
+1.1.1; 1; The :color command
+1.1.1; 1; The :username command
+1.1.1; 1; Enter sends messages, Ctrl+Enter and Shift+Enter add a line break to the message 
+1.1.1; 1; The hex code form of the :color command
+1.1.2; 1; The RGB code form of the :color command
+1.1.2; 1; The "rainbow", "white", and "reset" forms of the :color command
+1.1.2; 0; The "red" and "blue" forms of the :color command
+1.1.2; 1; Users are assigned a random username from a list
+1.2.0; 1; The :help command
+1.2.0; 1; The :quit command
+1.2.0; 1; The :serverquit command
+1.2.0; 1; Users in the chat are notified when a user enters, leaves or uses :username
+1.2.1; 1; Server messages appear in green
+1.2.1; 0; Server messages appear in Courier font
+1.2.1; 1; Entry, exit and username change notifications go to everyone but the user causing them
+1.2.1; 1; The window title for users is "CNChat: " + <current username>
+1.2.2; 1; The :username command fails if the new username is empty or contains a colon
+1.2.2; 1; The tab, vertical tab and form feed characters no longer result in a green server message
+1.3.0; 1; The server resolves username conflicts on join
+1.3.0; 1; The :username command fails if another user already has the requested name
+1.3.0; 1; The classic VN icon
+1.3.1; 0; The bold, italic, and monospace notations in Markdown work by default.
+1.3.1; 1; Server messages appear in Lucida Console
+1.3.2; 1; The :dm command and capability
+1.3.2; 1; The :dm command fails if the message body is empty or the user is not found, and the server tells the sender the reason
+1.3.2; 1; Direct messages appear in blue
+1.3.3; 1; The :format and :unformat commands
+1.3.3; 0; The bold, italic, and monospace notations in Markdown work after :format is run
+1.3.3; 1; The bold, italic, and monospace notations in Markdown do nothing by default and after :unformat is run.
+1.4.0; 1; All features of the chat work even if the system charset is ASCII or Windows-1252
+1.4.1; 1; The chat uses the UTF-8 charset, available in Java 7-8 for all platforms
+1.5.0; 0; Communications are encoded in base16 (non-compliant with RFC 4648)
+1.5.0; 1; Each message is read as one block instead of as one or more lines
+1.5.1; 1; Communications are encoded in base64 (non-compliant with RFC 4648)
+1.5.1; 1; Markdown notations work over multiple lines
+1.5.2; 1; All features of the chat work on Linux and Mac OS X
+2.0.0; 0; The client and server get a shared secret from a 1024-bit Diffie-Hellman exchange
+2.0.0; 1; Communications are encrypted with an AES-128 key generated from the secret, then encoded with base64
+2.0.0; 1; Communications are decoded from base64 and then decrypted with AES-128-CTR
+2.0.1; 1; The client and server get a shared secret from a 1536-bit Diffie-Hellman exchange, using the parameters from the Off The Record protocol
+2.0.1; 1; All features of the chat work when the source is built and run with Java 7
+
 
 http://jsfiddle.net/0wv1mn42/7/show
 

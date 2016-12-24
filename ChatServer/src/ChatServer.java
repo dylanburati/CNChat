@@ -1,4 +1,4 @@
-import ChatUtils.ServerCrypto;
+import ChatUtils.ChatCrypt;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -62,9 +62,9 @@ public class ChatServer {
             public void run() {
                 try {
                     synchronized(cipherLock) {
-                        ServerCrypto serverCrypto = new ServerCrypto(in, out);
-                        cipherD = serverCrypto.cipherD;
-                        cipherE = serverCrypto.cipherE;
+                        ChatCrypt chatCrypt = new ChatCrypt(in, out, true);
+                        cipherD = chatCrypt.cipherD;
+                        cipherE = chatCrypt.cipherE;
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
