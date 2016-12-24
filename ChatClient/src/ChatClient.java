@@ -204,6 +204,7 @@ public class ChatClient extends JFrame {
                     Style directStyle = stdOut.addStyle("direct", peerStyle);
                     StyleConstants.setForeground(directStyle, new Color(81, 0, 241));
                     while (up) {
+                        scrollBar.setValue(scrollBar.getMaximum());
                         if ((newMessage = receive(in)) != null) {
                             final int header = newMessage.isEmpty() ? -1 : newMessage.codePointAt(0);
                             if (header == 21) {
@@ -295,7 +296,6 @@ public class ChatClient extends JFrame {
                                     stdOut.insertString(stdOut.getLength(), newMessage+"\n", null);
                                 }
                             }
-                            scrollBar.setValue(scrollBar.getMaximum());
                         }
                     }
                 } catch (IOException | BadLocationException | NumberFormatException e) {

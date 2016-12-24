@@ -18,24 +18,22 @@ import static ChatUtils.Codecs.base64encode;
 
 public class ServerCrypto {
 
-    private static final BigInteger skip1024Modulus = new BigInteger(
-            "F488FD584E49DBCD" +
-            "20B49DE49107366B" +
-            "336C380D451D0F7C" +
-            "88B31C7C5B2D8EF6" +
-            "F3C923C043F0A55B" +
-            "188D8EBB558CB85D" +
-            "38D334FD7C175743" +
-            "A31D186CDE33212C" +
-            "B52AFF3CE1B12940" +
-            "18118D7C84A70A72" +
-            "D686C40319C80729" +
-            "7ACA950CD9969FAB" +
-            "D00A509B0246D308" +
-            "3D66A45D419F9C7C" +
-            "BD894B221926BAAB" +
-            "A25EC355E92F78C7", 16);
-    private static final BigInteger skip1024Base = BigInteger.valueOf(2);
+    private static final BigInteger otr1536Modulus = new BigInteger(
+            "FFFFFFFFFFFFFFFFC90FDAA22168C234" +
+            "C4C6628B80DC1CD129024E088A67CC74" +
+            "020BBEA63B139B22514A08798E3404DD" +
+            "EF9519B3CD3A431B302B0A6DF25F1437" +
+            "4FE1356D6D51C245E485B576625E7EC6" +
+            "F44C42E9A637ED6B0BFF5CB6F406B7ED" +
+            "EE386BFB5A899FA5AE9F24117C4B1FE6" +
+            "49286651ECE45B3DC2007CB8A163BF05" +
+            "98DA48361C55D39A69163FA8FD24CF5F" +
+            "83655D23DCA3AD961C62F356208552BB" +
+            "9ED529077096966D670C354E4ABC9804" +
+            "F1746C08CA237327FFFFFFFFFFFFFFFF", 16);
+
+    private static final BigInteger otr1536Base = BigInteger.valueOf(2);
+
     private BufferedReader in;
     private PrintWriter out;
 
@@ -75,7 +73,7 @@ public class ServerCrypto {
         Self self = new Self();
         Client user = new Client();
 
-        DHParameterSpec dhSkipParamSpec = new DHParameterSpec(skip1024Modulus, skip1024Base);
+        DHParameterSpec dhSkipParamSpec = new DHParameterSpec(otr1536Modulus, otr1536Base);
         MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
 
         self.keyPairGen = KeyPairGenerator.getInstance("DH");
