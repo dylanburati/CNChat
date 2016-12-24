@@ -119,9 +119,9 @@ public class ChatClient extends JFrame {
     private static String receive(BufferedReader in) throws IOException {
         String input = in.readLine();
         try {
-            byte[] data;
+            byte[] data = base64decode(input);
             synchronized(cipherLock) {
-                data = cipherD.doFinal(base64decode(input));
+                data = cipherD.doFinal(data);
             }
             return new String(data, UTF_8);
         } catch (IllegalBlockSizeException | BadPaddingException e) {
