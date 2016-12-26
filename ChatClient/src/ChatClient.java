@@ -163,14 +163,29 @@ public class ChatClient extends JFrame {
     }
 
     public static void main(String[] args) throws IOException {
-        InetAddress host = InetAddress.getByName("0.0.0.0");
+        String hostName = "0.0.0.0";
+        try {
+            BufferedReader config = new BufferedReader(new FileReader(ChatClient.class.getResource("config.txt").getFile()));
+            Pattern noComment = Pattern.compile("^\\p{javaWhitespace}*.");
+            String remote;
+            while((remote = config.readLine()) != null) {
+                Matcher m = noComment.matcher(remote);
+                if (m.find() && !remote.startsWith("#", m.end() - 1)) {
+                    hostName = remote.substring(m.end() - 1);
+                    break;
+                }
+            }
+        } catch(IOException ignored) {
+        }
         int portNumber = 4444;
+
         final java.util.List<String> userNames = new ArrayList<>();
         Collections.addAll(userNames, "Lil B", "KenM", "Ken Bone", "Tai Lopez", "Hugh Mungus",
                 "Donald Trump", "Hillary Clinton", "Jesus", "VN", "Uncle Phil",
                 "Watery Westin", "A Wild KB");
         userName = userNames.remove(new Random().nextInt(userNames.size()));
 
+        InetAddress host = InetAddress.getByName(hostName);
         Socket connection = new Socket(host, portNumber);
         out = new PrintWriter(new OutputStreamWriter(connection.getOutputStream(), UTF_8), true);
         BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream(), UTF_8));

@@ -213,7 +213,7 @@ public class ChatServer {
 
         int portNumber = 4444;
         ServerSocket serverSocket = new ServerSocket(portNumber);
-        System.out.println(serverSocket.getInetAddress());
+        System.out.println("Server @ " + serverSocket.getInetAddress().getHostAddress() + ":" + serverSocket.getLocalPort());
         final List<ClientThread> threads = new ArrayList<>();
         peerUpdateCompat<ClientThread> messenger = new peerUpdateCompat<ClientThread>() {
             @Override
@@ -228,6 +228,7 @@ public class ChatServer {
         };
         while (up) {
             Socket socket = serverSocket.accept();
+            System.out.println("Client @ " + socket.getInetAddress().getHostAddress() + ":" + socket.getPort());
             ClientThread thread = new ClientThread(socket, messenger);
             threads.add(thread);
             thread.start();
