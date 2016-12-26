@@ -118,6 +118,7 @@ public class ChatClient extends JFrame {
 
     private static String receive(BufferedReader in) throws IOException {
         String input = in.readLine();
+        if(input == null) return null;
         try {
             byte[] data = base64decode(input);
             synchronized(cipherLock) {

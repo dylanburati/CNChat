@@ -179,6 +179,7 @@ public class ChatServer {
 
             private String receive() throws IOException {
                 String input = in.readLine();
+                if(input == null) return null;
                 try {
                     byte[] data = base64decode(input);
                     synchronized(cipherLock) {
