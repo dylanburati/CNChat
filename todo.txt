@@ -49,6 +49,8 @@ Format is Version; Status; Description (status is 0 for removed, 1 for active in
 2.0.0; 1; Communications are decoded from base64 and then decrypted with AES-128-CTR
 2.0.1; 1; The client and server get a shared secret from a 1536-bit Diffie-Hellman exchange, using the parameters from the Off The Record protocol
 2.0.1; 1; All features of the chat work when the source is built and run with Java 7
+2.1.0; 1; The server prints the host IP and port for each new connection
+2.1.0; 1; The config.txt file can be used to set an alternate host server
 
 
 http://jsfiddle.net/0wv1mn42/7/show
