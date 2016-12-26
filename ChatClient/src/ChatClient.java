@@ -166,7 +166,9 @@ public class ChatClient extends JFrame {
     public static void main(String[] args) throws IOException {
         String hostName = "0.0.0.0";
         try {
-            BufferedReader config = new BufferedReader(new FileReader(ChatClient.class.getResource("config.txt").getFile()));
+            String path = new File(ChatClient.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
+                    getParent() + System.getProperty("file.separator") + "config.txt";
+            BufferedReader config = new BufferedReader(new FileReader(path));
             Pattern noComment = Pattern.compile("^\\p{javaWhitespace}*.");
             String remote;
             while((remote = config.readLine()) != null) {
