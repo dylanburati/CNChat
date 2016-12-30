@@ -86,11 +86,11 @@ public class ChatCrypt {
         self.pubKeyEnc = self.keyPair.getPublic().getEncoded();
 
         if(serverMode) {
-            party2.pubKeyEnc = receive();
             send(self.pubKeyEnc);
+            party2.pubKeyEnc = receive();
         } else {
-            send(self.pubKeyEnc);
             party2.pubKeyEnc = receive();
+            send(self.pubKeyEnc);
         }
             
         self.keyFactory = KeyFactory.getInstance("DH");
