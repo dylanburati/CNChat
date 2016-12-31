@@ -141,19 +141,29 @@ public class ChatClient extends JFrame {
             int textLen = text.length();
             if(textLen == 0) return new int[0];
             int[] map = new int[textLen];
-            text = text.replaceAll("\\\\(?=\\*{1,2}|_{1,2}|`)", "\\\u001b");
-            for(String regex : new String[]{"(?<!\\\\|\\*)(\\*)[^\\*]+(?<!\\\\|\\*)(\\*)", "(?<!\\\\|_)(_)[^_]+(?<!\\\\|_)(_)",
-                    "(?<!\\\\)(\\*\\*).+?(?<!\\\\)(\\*\\*)", "(?<!\\\\)(__).+?(?<!\\\\)(__)", "(?<!\\\\|`)(`).+?(?<!\\\\|`)(`)"}) {
-                Matcher m = Pattern.compile(regex, Pattern.DOTALL).matcher(text);
+            text = text.replaceAll("\\\\\\\\(?=\\*{1,2}|_{1,2}|`)", "\\\\\000");
+            StringBuilder mkText = new StringBuilder(text);
+            for(String regex : new String[]{"(?<!\\\\)(\\*\\*).+?(?<!\\\\)(\\*\\*)", "(?<!\\\\)(__).+?(?<!\\\\)(__)",
+                    "(?<!\\\\|\\*)(\\*)[^\\*]+(?<!\\\\|\\*)(\\*)", "(?<!\\\\|_)(_)[^_]+(?<!\\\\|_)(_)",
+                    "(?<!\\\\)(`).+?(?<!\\\\)(`)"}) {
+                Matcher m = Pattern.compile(regex, Pattern.DOTALL).matcher(mkText);
                 boolean backtick = regex.contains("`");
                 while (m.find()) {
                     int currentAction = backtick ? 4 : m.end(1) - m.start();
-                    for (int i = m.start(); i < m.end(1); i++) map[i] |= -1;
-                    for (int i = m.end(1); i < m.start(2); i++) map[i] |= currentAction;
-                    for (int i = m.start(2); i < m.end(); i++) map[i] |= -1;
+                    for (int i = m.start(); i < m.end(1); i++) {
+                        map[i] |= -1;
+                        mkText.replace(i, i+1, "\000");
+                    }
+                    for (int i = m.end(1); i < m.start(2); i++) {
+                        map[i] |= currentAction;
+                    }
+                    for (int i = m.start(2); i < m.end(); i++) {
+                        map[i] |= -1;
+                        mkText.replace(i, i+1, "\000");
+                    }
                 }
             }
-            for (String escregex : new String[]{"\\\\(?=\\*{1,2}|_{1,2}|`)", "\u001b"}) {
+            for (String escregex : new String[]{"\\\\(?=\\*{1,2}|_{1,2}|`)", "\000"}) {
                 Matcher esc = Pattern.compile(escregex).matcher(text);
                 while (esc.find()) {
                     map[esc.start()] = -1;
