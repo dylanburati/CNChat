@@ -100,6 +100,12 @@ public class ChatClient extends JFrame {
             }
         });
         add(new JScrollPane(textPane));
+        try {
+            Font mono = Font.createFont(Font.TRUETYPE_FONT, new File(getClass().getResource("Inconsolata-Regular.ttf").getFile()));
+            GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(mono);
+        } catch (IOException | FontFormatException e) {
+            e.printStackTrace();
+        }
     }
 
     private static void send(String outputLine) {
@@ -233,7 +239,7 @@ public class ChatClient extends JFrame {
                     Style peerStyle = stdOut.getLogicalStyle(0);
                     Style serverStyle = stdOut.addStyle("server", null);
                     StyleConstants.setForeground(serverStyle, new Color(0, 161, 0));
-                    StyleConstants.setFontFamily(serverStyle, "Lucida Console");
+                    StyleConstants.setFontFamily(serverStyle, "Inconsolata");
                     Style directStyle = stdOut.addStyle("direct", peerStyle);
                     StyleConstants.setForeground(directStyle, new Color(81, 0, 241));
                     while (up) {
@@ -321,7 +327,7 @@ public class ChatClient extends JFrame {
                                         SimpleAttributeSet fmt = new SimpleAttributeSet();
                                         if ((format[i] & 1) != 0) StyleConstants.setItalic(fmt, true);
                                         if ((format[i] & 2) != 0) StyleConstants.setBold(fmt, true);
-                                        if ((format[i] & 4) != 0) StyleConstants.setFontFamily(fmt, "Lucida Console");
+                                        if ((format[i] & 4) != 0) StyleConstants.setFontFamily(fmt, "Inconsolata");
                                         stdOut.insertString(cl, "" + newMessage.charAt(i), fmt);
                                     }
                                     stdOut.insertString(stdOut.getLength(), "\n", null);
