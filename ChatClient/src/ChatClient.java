@@ -143,13 +143,18 @@ public class ChatClient extends JFrame {
             int[] map = new int[textLen];
             text = text.replaceAll("\\\\\\\\(?=\\*{1,2}|_{1,2}|`)", "\\\\\000");
             StringBuilder mkText = new StringBuilder(text);
-            for(String regex : new String[]{"(?<!\\\\)(\\*\\*).+?(?<!\\\\)(\\*\\*)", "(?<!\\\\)(__).+?(?<!\\\\)(__)",
-                    "(?<!\\\\|\\*)(\\*)[^\\*]+(?<!\\\\|\\*)(\\*)", "(?<!\\\\|_)(_)[^_]+(?<!\\\\|_)(_)",
-                    "(?<!\\\\)(`).+?(?<!\\\\)(`)"}) {
+            for(String regex : new String[]{"(?<!\\\\)(\\*\\*).+(?<!\\\\)(\\*\\*)", "(?<!\\\\)(__).+(?<!\\\\)(__)",
+                    "(?<!\\\\)(\\*)[^\\*]+(?<!\\\\|\\*)(\\*)", "(?<!\\\\)(_)[^_]+(?<!\\\\|_)(_)",
+                    "(?<!\\\\)(`)[^`]+(?<!\\\\)(`)"}) {
                 Matcher m = Pattern.compile(regex, Pattern.DOTALL).matcher(mkText);
                 boolean backtick = regex.contains("`");
                 while (m.find()) {
                     int currentAction = backtick ? 4 : m.end(1) - m.start();
+                    boolean redundant = !backtick;
+                    for(int i = m.end(1); redundant && i < m.start(2); i++) {
+                        redundant = ((map[i] & currentAction) != 0);
+                    }
+                    if(redundant) continue;
                     for (int i = m.start(); i < m.end(1); i++) {
                         map[i] |= -1;
                         mkText.replace(i, i+1, "\000");
