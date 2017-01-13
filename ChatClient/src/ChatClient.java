@@ -101,7 +101,7 @@ public class ChatClient extends JFrame {
         });
         add(new JScrollPane(textPane));
         try {
-            Font mono = Font.createFont(Font.TRUETYPE_FONT, new File(getClass().getResource("Inconsolata-Regular.ttf").getFile()));
+            Font mono = Font.createFont(Font.TRUETYPE_FONT, getClass().getResourceAsStream("Inconsolata-Regular.ttf"));
             GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(mono);
         } catch (IOException | FontFormatException e) {
             e.printStackTrace();
