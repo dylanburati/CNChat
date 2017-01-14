@@ -204,6 +204,7 @@ public class ChatClient extends JFrame {
         userName = userNames.remove(new Random().nextInt(userNames.size()));
 
         InetAddress host = InetAddress.getByName(hostName);
+        System.out.println("Connecting to " + host.getHostAddress() + ":" + portNumber);
         Socket connection = new Socket(host, portNumber);
         out = new PrintWriter(new OutputStreamWriter(connection.getOutputStream(), UTF_8), true);
         BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream(), UTF_8));
