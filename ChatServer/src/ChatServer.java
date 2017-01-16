@@ -58,6 +58,15 @@ public class ChatServer {
                 }
             }
 
+            private void close() {
+                if(out != null) out.close();
+                try {
+                    if(in != null) in.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
             @Override
             public void run() {
                 try {
@@ -174,6 +183,8 @@ public class ChatServer {
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
+                } finally {
+                    close();
                 }
             }
 
