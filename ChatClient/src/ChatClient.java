@@ -27,7 +27,6 @@ public class ChatClient extends JFrame {
     private static StyledDocument stdOut;
     private static JScrollBar scrollBar;
     private static String userName;
-    private static boolean up = true;
     private static JTextPane chatPane;
     private static Cipher cipherD, cipherE;
     private static final Object cipherLock = new Object();
@@ -350,6 +349,7 @@ public class ChatClient extends JFrame {
         String newMessage;
         while((newMessage = receive(in)) != null) {
             try {
+                scrollBar.setValue(scrollBar.getMaximum());
                 md.handleMessage(newMessage);
             } catch (BadLocationException e) {
                 e.printStackTrace();
