@@ -27,7 +27,6 @@ public class ChatClient extends JFrame {
     private static StyledDocument stdOut;
     private static JScrollBar scrollBar;
     private static String userName;
-    private static boolean up = true;
     private static JTextPane chatPane;
     private static Cipher cipherD, cipherE;
     private static final Object cipherLock = new Object();
