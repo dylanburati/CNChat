@@ -55,4 +55,5 @@ Format is Version; Status; Description (status is 0 for removed, 1 for active in
 
 http://jsfiddle.net/0wv1mn42/7/show
 http://ideone.com/gtbE6M
+PECS producer->extends consumer->super
 
