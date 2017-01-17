@@ -208,151 +208,148 @@ public class ChatClient extends JFrame {
         out = new PrintWriter(new OutputStreamWriter(connection.getOutputStream(), UTF_8), true);
         BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream(), UTF_8));
 
-        class MessageDaemon implements Runnable {
-            private final BufferedReader in;
-
-            private MessageDaemon(BufferedReader in) {
-                this.in = in;
+        try {
+            synchronized(cipherLock) {
+                ChatCrypt chatCrypt = new ChatCrypt(in, out, false);
+                cipherD = chatCrypt.cipherD;
+                cipherE = chatCrypt.cipherE;
             }
-
-            @Override
-            public void run() {
-                try {
-                    synchronized(cipherLock) {
-                        ChatCrypt chatCrypt = new ChatCrypt(in, out, false);
-                        cipherD = chatCrypt.cipherD;
-                        cipherE = chatCrypt.cipherE;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        send((char) 6 + userName);
+        
+        class MessageHandler {
+            private final Runnable rainbowRun = new Runnable() {
+                @Override
+                public void run() {
+                    float h = 0.0f, b = 1.0f, s;
+                    try {
+                        for (int i = 0; i < 361; i++) {
+                            h += 1.0 / 361.0;
+                            s = (float) Math.sin(i * Math.PI / 360.0);
+                            chatPane.setBackground(Color.getHSBColor(h, s, b));
+                            Thread.sleep(5L);
+                        }
+                    } catch (InterruptedException ignored) {
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
                 }
-                try {
-                    String newMessage;
-                    Thread rainbow = new Thread();
-                    send((char) 6 + userName);
-                    Style peerStyle = stdOut.getLogicalStyle(0);
-                    Style serverStyle = stdOut.addStyle("server", null);
-                    StyleConstants.setForeground(serverStyle, new Color(0, 161, 0));
-                    StyleConstants.setFontFamily(serverStyle, "Lucida Console");
-                    Style directStyle = stdOut.addStyle("direct", peerStyle);
-                    StyleConstants.setForeground(directStyle, new Color(81, 0, 241));
-                    while (up) {
-                        scrollBar.setValue(scrollBar.getMaximum());
-                        if ((newMessage = receive(in)) != null) {
-                            final int header = newMessage.isEmpty() ? -1 : newMessage.codePointAt(0);
-                            if (header == 21) {
-                                if (newMessage.length() == 1) {
-                                    if (!userNames.isEmpty()) {
-                                        userName = userNames.remove(new Random().nextInt(userNames.size()));
-                                    } else {
-                                        userName = Integer.toString(36 * 36 * 36 + new Random().nextInt(35 * 36 * 36 * 36), 36);
-                                    }
-                                    send((char) 6 + userName);
-                                } else {
-                                    userName = newMessage.substring(1);
-                                    stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
-                                    stdOut.insertString(stdOut.getLength(), "<< That username is taken >>\n", null);
-                                }
-                                ((JFrame) chatPane.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
-                                continue;
-                            }
-                            stdOut.setLogicalStyle(stdOut.getLength(), peerStyle);
-                            MarkdownUtils.format = newMessage.length() != (newMessage = newMessage.replace(""+(char)17, "")).length();
-                            if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x0e\\x0f\\x7f-\\x9f]", "")).length()) {
-                                stdOut.setLogicalStyle(stdOut.getLength(), directStyle);
-                            }
-                            if (newMessage.length() != (newMessage = newMessage.replaceAll("[\\x00-\\x07\\x10-\\x1f]", "")).length()) {
-                                stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
-                                stdOut.insertString(stdOut.getLength(), newMessage + "\n", null);
-                                continue;
-                            }
-                            final String command = newMessage.toLowerCase();
-                            if (command.contains(":color ")) {
-                                if (rainbow.isAlive()) rainbow.interrupt();
-                                if (command.contains("white") || command.contains("reset"))
-                                    chatPane.setBackground(Color.WHITE);
-                                else if (command.contains("rainbow")) {
-                                    rainbow = new Thread(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            float h = 0.0f, b = 1.0f, s;
-                                            try {
-                                                for (int i = 0; i < 361; i++) {
-                                                    h += 1.0 / 361.0;
-                                                    s = (float) Math.sin(i * Math.PI / 360.0);
-                                                    chatPane.setBackground(Color.getHSBColor(h, s, b));
-                                                    Thread.sleep(5L);
-                                                }
-                                            } catch (InterruptedException ignored) {
-                                            }
-                                        }
-                                    });
-                                    rainbow.start();
-                                } else {
-                                    final int ccIndex = command.lastIndexOf(":color ") + 7;
-                                    if (command.contains(",")) {
-                                        final String[] rgb = command.substring(ccIndex).replaceAll("[^,0-9]", "").split(",");
-                                        if (rgb.length == 3) {
-                                            int r = Integer.parseInt(rgb[0]);
-                                            int g = Integer.parseInt(rgb[1]);
-                                            int b = Integer.parseInt(rgb[2]);
-                                            if (r / 256 == 0 && g / 256 == 0 && b / 256 == 0)
-                                                chatPane.setBackground(new Color(r, g, b));
-                                        }
-                                    }
-                                    if (command.length() >= ccIndex + 6) {
-                                        final String customColor = command.substring(ccIndex, ccIndex + 6);
-                                        if (customColor.matches("[0-9a-f]{6}"))
-                                            chatPane.setBackground(new Color(Integer.parseInt(customColor, 16)));
-                                    }
-                                }
-                            } else {
-                                if(MarkdownUtils.format) {
-                                    int[] format = MarkdownUtils.genFormatMap(newMessage);
-                                    for (int i = 0, cl = stdOut.getLength(); i < format.length; i++, cl++) {
-                                        if (format[i] == -1) {
-                                            cl--;
-                                            continue;
-                                        }
-                                        if (format[i] == 0) {
-                                            stdOut.insertString(cl, "" + newMessage.charAt(i), null);
-                                            continue;
-                                        }
-                                        SimpleAttributeSet fmt = new SimpleAttributeSet();
-                                        if ((format[i] & 1) != 0) StyleConstants.setItalic(fmt, true);
-                                        if ((format[i] & 2) != 0) StyleConstants.setBold(fmt, true);
-                                        if ((format[i] & 4) != 0) StyleConstants.setFontFamily(fmt, "Lucida Console");
-                                        stdOut.insertString(cl, "" + newMessage.charAt(i), fmt);
-                                    }
-                                    stdOut.insertString(stdOut.getLength(), "\n", null);
-                                } else {
-                                    stdOut.insertString(stdOut.getLength(), newMessage+"\n", null);
-                                }
+            };
+            
+            private Thread rainbow = new Thread();
+            private Style peerStyle;
+            private Style serverStyle;
+            private Style directStyle;
+
+            private MessageHandler() {
+                this.peerStyle = stdOut.getLogicalStyle(0);
+                this.serverStyle = stdOut.addStyle("server", null);
+                StyleConstants.setForeground(serverStyle, new Color(0, 161, 0));
+                StyleConstants.setFontFamily(serverStyle, "Lucida Console");
+                this.directStyle = stdOut.addStyle("direct", peerStyle);
+                StyleConstants.setForeground(directStyle, new Color(81, 0, 241));
+            }
+            
+            private void handleMessage(String message) throws IOException, BadLocationException, NumberFormatException {
+                final int header = message.isEmpty() ? -1 : message.codePointAt(0);
+                if (header == 21) {
+                    if (message.length() == 1) {
+                        if (!userNames.isEmpty()) {
+                            userName = userNames.remove(new Random().nextInt(userNames.size()));
+                        } else {
+                            userName = Integer.toString(36 * 36 * 36 + new Random().nextInt(35 * 36 * 36 * 36), 36);
+                        }
+                        send((char) 6 + userName);
+                    } else {
+                        userName = message.substring(1);
+                        stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
+                        stdOut.insertString(stdOut.getLength(), "<< That username is taken >>\n", null);
+                    }
+                    ((JFrame) chatPane.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
+                    return;
+                }
+                stdOut.setLogicalStyle(stdOut.getLength(), peerStyle);
+                MarkdownUtils.format = message.length() != (message = message.replace(""+(char)17, "")).length();
+                if (message.length() != (message = message.replaceAll("[\\x0e\\x0f\\x7f-\\x9f]", "")).length()) {
+                    stdOut.setLogicalStyle(stdOut.getLength(), directStyle);
+                }
+                if (message.length() != (message = message.replaceAll("[\\x00-\\x07\\x10-\\x1f]", "")).length()) {
+                    stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
+                    stdOut.insertString(stdOut.getLength(), message + "\n", null);
+                    return;
+                }
+                final String command = message.toLowerCase();
+                if (command.contains(":color ")) {
+                    if (rainbow.isAlive()) rainbow.interrupt();
+                    if (command.contains("white") || command.contains("reset"))
+                        chatPane.setBackground(Color.WHITE);
+                    else if (command.contains("rainbow")) {
+                        rainbow = new Thread(rainbowRun);
+                        rainbow.start();
+                    } else {
+                        final int ccIndex = command.lastIndexOf(":color ") + 7;
+                        if (command.contains(",")) {
+                            final String[] rgb = command.substring(ccIndex).replaceAll("[^,0-9]", "").split(",");
+                            if (rgb.length == 3) {
+                                int r = Integer.parseInt(rgb[0]);
+                                int g = Integer.parseInt(rgb[1]);
+                                int b = Integer.parseInt(rgb[2]);
+                                if (r / 256 == 0 && g / 256 == 0 && b / 256 == 0)
+                                    chatPane.setBackground(new Color(r, g, b));
                             }
                         }
+                        if (command.length() >= ccIndex + 6) {
+                            final String customColor = command.substring(ccIndex, ccIndex + 6);
+                            if (customColor.matches("[0-9a-f]{6}"))
+                                chatPane.setBackground(new Color(Integer.parseInt(customColor, 16)));
+                        }
                     }
-                } catch (IOException | BadLocationException | NumberFormatException e) {
-                    e.printStackTrace();
+                } else {
+                    if(MarkdownUtils.format) {
+                        int[] format = MarkdownUtils.genFormatMap(message);
+                        for (int i = 0, cl = stdOut.getLength(); i < format.length; i++, cl++) {
+                            if (format[i] == -1) {
+                                cl--;
+                                continue;
+                            }
+                            if (format[i] == 0) {
+                                stdOut.insertString(cl, "" + message.charAt(i), null);
+                                continue;
+                            }
+                            SimpleAttributeSet fmt = new SimpleAttributeSet();
+                            if ((format[i] & 1) != 0) StyleConstants.setItalic(fmt, true);
+                            if ((format[i] & 2) != 0) StyleConstants.setBold(fmt, true);
+                            if ((format[i] & 4) != 0) StyleConstants.setFontFamily(fmt, "Lucida Console");
+                            stdOut.insertString(cl, "" + message.charAt(i), fmt);
+                        }
+                        stdOut.insertString(stdOut.getLength(), "\n", null);
+                    } else {
+                        stdOut.insertString(stdOut.getLength(), message+"\n", null);
+                    }
                 }
             }
         }
 
         new ChatClient().setVisible(true);
-        Thread clientThread = new Thread(new MessageDaemon(in));
-        clientThread.start();
         Runtime.getRuntime().addShutdownHook(new Thread(
                 new Runnable() {
                     @Override
                     public void run() {
                         send((char) 4 + userName);
-                        up = false;
                     }
                 }
         ));
-        try {
-            clientThread.join();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+
+        MessageHandler md = new MessageHandler();
+        String newMessage;
+        while((newMessage = receive(in)) != null) {
+            try {
+                scrollBar.setValue(scrollBar.getMaximum());
+                md.handleMessage(newMessage);
+            } catch (BadLocationException e) {
+                e.printStackTrace();
+            }
         }
+        
     }
 }
