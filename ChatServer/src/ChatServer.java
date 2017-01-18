@@ -40,155 +40,151 @@ public class ChatServer {
                     + (!userNames.isEmpty() ? "<< Here now >>\n " + stringJoin("\n ", userNames) : "<< No one else is here >>")
                     + (char) 5 + (char) 17 + "\n";
 
+            private Socket clientSocket;
             private final peerUpdateCompat<ClientThread> peerMessage;
-            private PrintWriter out = null;
-            private BufferedReader in = null;
+            private List<String> outQueue = new ArrayList<>();
+            private final Object outQueueLock = new Object();
             private Cipher cipherE, cipherD;
             private final Object cipherLock = new Object();
             private String userName, dmUser = "";
             private boolean markDown = false;
 
             private ClientThread(Socket clientSocket, peerUpdateCompat<ClientThread> peerMessage) {
+                this.clientSocket = clientSocket;
                 this.peerMessage = peerMessage;
-                try {
-                    this.out = new PrintWriter(new OutputStreamWriter(clientSocket.getOutputStream(), UTF_8), true);
-                    this.in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream(), UTF_8));
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
             }
 
-            private void close() {
-                if(out != null) out.close();
-                try {
-                    if(in != null) in.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
+            private void handleMessage(String outputLine) {
+                boolean messageAll = true;
+                boolean messageMe = true;
+                dmUser = "";
+                if (outputLine.contains(":serverquit")) {
+                    up = false;
+                    outputLine = "<< " + userName + " ended the chat >>" + (char) 5;
+                } else if (outputLine.contains(":help")) {
+                    messageAll = false;
+                    outputLine = "Commands start with a colon (:)" +
+                            "\n:status sends you key info" +
+                            "\n:dm <user> sends a direct message" +
+                            "\n:username <new username>" +
+                            "\n:quit closes your chat box" +
+                            "\n:serverquit ends the chat" + (char) 5 + "\n";
+                } else if (outputLine.contains(":status")) {
+                    messageAll = false;
+                    outputLine = "<< Status >>" +
+                            "\nUsername: " + userName +
+                            "\nFormat: " + (markDown ? "Markdown" : "plain text") +
+                            "\n :format for Markdown" +
+                            "\n :unformat for plain text" + (char) 5;
+                    if(userNames.size() > 1) {
+                        outputLine += "\nUsers here now:" + "\n";
+                        for (String usr : userNames) {
+                            if (!usr.equals(userName)) outputLine += " " + usr + "\n";
+                        }
+                    } else {
+                        outputLine += "\nNo one else is here" + "\n";
+                    }
+                } else {
+                    final int command = outputLine.isEmpty() ? -1 : outputLine.codePointAt(0);
+                    if (command == 6) {
+                        String nameRequest = outputLine.substring(1);
+                        if (userNames.contains(nameRequest)) {
+                            messageAll = false;
+                            outputLine = "" + (char) 21;
+                        } else {
+                            messageMe = false;
+                            userName = nameRequest;
+                            synchronized (userNamesLock) {
+                                userNames.add(userName);
+                            }
+                            outputLine = "<< " + userName + " joined the chat >>" + (char)5;
+                        }
+                    } else if (command == 4) {
+                        messageMe = false;
+                        synchronized (userNamesLock) {
+                            userNames.remove(userName);
+                        }
+                        outputLine = "<< " + outputLine + " left the chat >>" + (char)5;
+                    } else if (command == 26) {
+                        final int delimiter = outputLine.lastIndexOf(26);
+                        String nameRequest = outputLine.substring(delimiter + 1);
+                        if (userNames.contains(nameRequest)) {
+                            messageAll = false;
+                            outputLine = (char) 21 + outputLine.substring(1, delimiter);
+                        } else {
+                            messageMe = false;
+                            synchronized (userNamesLock) {
+                                userNames.remove(userName);
+                                userNames.add(nameRequest);
+                            }
+                            outputLine = "<< " + userName + " is now " + nameRequest + " >>" + (char)5;
+                            userName = nameRequest;
+                        }
+                    }
+                    if (command == 15) {
+                        final int rcvIndex = outputLine.indexOf(":dm ");
+                        if (rcvIndex != -1 && dmUser.isEmpty()) {
+                            if (!outputLine.contains("\n")) {
+                                messageAll = false;
+                                outputLine = "<< Can't send empty DM >>" + (char) 5;
+                            } else {
+                                int delimiter = outputLine.indexOf("\r");
+                                if(delimiter == -1) delimiter = outputLine.indexOf("\n");
+                                String dmRequest = outputLine.substring(rcvIndex + 4, delimiter);
+                                if (userNames.contains(dmRequest)) {
+                                    dmUser = dmRequest;
+                                    outputLine = userName + ": << DM to " + dmUser + " >>" + outputLine.substring(delimiter);
+                                } else {
+                                    messageAll = false;
+                                    outputLine = "<< User not found >>" + (char) 5;
+                                }
+                            }
+                        }
+                    }
+                    if(command == 17) {
+                        messageAll = messageMe = false;
+                        markDown = outputLine.length() == 1;
+                    }
                 }
+                if (!dmUser.isEmpty()) {
+                    outputLine += (char) 15;
+                }
+                if(markDown) outputLine += (char)17;
+                if (messageMe) send(outputLine);
+                if (messageAll) peerMessage.execute(this, outputLine, dmUser);
+                if (!up) System.exit(0);
             }
 
             @Override
             public void run() {
-                try {
-                    synchronized(cipherLock) {
-                        ChatCrypt chatCrypt = new ChatCrypt(in, out, true);
-                        cipherD = chatCrypt.cipherD;
-                        cipherE = chatCrypt.cipherE;
+                try (PrintWriter out = new PrintWriter(new OutputStreamWriter(clientSocket.getOutputStream(), UTF_8), true);
+                     BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream(), UTF_8));
+                ) {
+                    try {
+                        synchronized(cipherLock) {
+                            ChatCrypt chatCrypt = new ChatCrypt(in, out, true);
+                            cipherD = chatCrypt.cipherD;
+                            cipherE = chatCrypt.cipherE;
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                boolean messageAll, messageMe;
-                String outputLine;
-                try {
+                    String outputLine;
                     send(first);
-                    while ((outputLine = receive()) != null) {
-                        messageAll = messageMe = true;
-                        dmUser = "";
-                        if (outputLine.contains(":serverquit")) {
-                            up = false;
-                            outputLine = "<< " + userName + " ended the chat >>" + (char) 5;
-                        } else if (outputLine.contains(":help")) {
-                            messageAll = false;
-                            outputLine = "Commands start with a colon (:)" +
-                                    "\n:status sends you key info" +
-                                    "\n:dm <user> sends a direct message" +
-                                    "\n:username <new username>" +
-                                    "\n:quit closes your chat box" +
-                                    "\n:serverquit ends the chat" + (char) 5 + "\n";
-                        } else if (outputLine.contains(":status")) {
-                            messageAll = false;
-                            outputLine = "<< Status >>" +
-                                    "\nUsername: " + userName +
-                                    "\nFormat: " + (markDown ? "Markdown" : "plain text") +
-                                    "\n :format for Markdown" +
-                                    "\n :unformat for plain text" + (char) 5;
-                            if(userNames.size() > 1) {
-                                outputLine += "\nUsers here now:" + "\n";
-                                for (String usr : userNames) {
-                                    if (!usr.equals(userName)) outputLine += " " + usr + "\n";
-                                }
-                            } else {
-                                outputLine += "\nNo one else is here" + "\n";
-                            }
-                        } else {
-                            final int command = outputLine.isEmpty() ? -1 : outputLine.codePointAt(0);
-                            if (command == 6) {
-                                String nameRequest = outputLine.substring(1);
-                                if (userNames.contains(nameRequest)) {
-                                    messageAll = false;
-                                    outputLine = "" + (char) 21;
-                                } else {
-                                    messageMe = false;
-                                    userName = nameRequest;
-                                    synchronized (userNamesLock) {
-                                        userNames.add(userName);
-                                    }
-                                    outputLine = "<< " + userName + " joined the chat >>" + (char)5;
-                                }
-                            } else if (command == 4) {
-                                messageMe = false;
-                                synchronized (userNamesLock) {
-                                    userNames.remove(userName);
-                                }
-                                outputLine = "<< " + outputLine + " left the chat >>" + (char)5;
-                            } else if (command == 26) {
-                                final int delimiter = outputLine.lastIndexOf(26);
-                                String nameRequest = outputLine.substring(delimiter + 1);
-                                if (userNames.contains(nameRequest)) {
-                                    messageAll = false;
-                                    outputLine = (char) 21 + outputLine.substring(1, delimiter);
-                                } else {
-                                    messageMe = false;
-                                    synchronized (userNamesLock) {
-                                        userNames.remove(userName);
-                                        userNames.add(nameRequest);
-                                    }
-                                    outputLine = "<< " + userName + " is now " + nameRequest + " >>" + (char)5;
-                                    userName = nameRequest;
-                                }
-                            }
-                            if (command == 15) {
-                                final int rcvIndex = outputLine.indexOf(":dm ");
-                                if (rcvIndex != -1 && dmUser.isEmpty()) {
-                                    if (!outputLine.contains("\n")) {
-                                        messageAll = false;
-                                        outputLine = "<< Can't send empty DM >>" + (char) 5;
-                                    } else {
-                                        int delimiter = outputLine.indexOf("\r");
-                                        if(delimiter == -1) delimiter = outputLine.indexOf("\n");
-                                        String dmRequest = outputLine.substring(rcvIndex + 4, delimiter);
-                                        if (userNames.contains(dmRequest)) {
-                                            dmUser = dmRequest;
-                                            outputLine = userName + ": << DM to " + dmUser + " >>" + outputLine.substring(delimiter);
-                                        } else {
-                                            messageAll = false;
-                                            outputLine = "<< User not found >>" + (char) 5;
-                                        }
-                                    }
-                                }
-                            }
-                            if(command == 17) {
-                                messageAll = messageMe = false;
-                                markDown = outputLine.length() == 1;
+                    while ((outputLine = receive(in)) != null) {
+                        handleMessage(outputLine);
+                        synchronized (outQueueLock) {
+                            while(outQueue.size() > 0) {
+                                out.println(outQueue.remove(0));
                             }
                         }
-                        if (!dmUser.isEmpty()) {
-                            outputLine += (char) 15;
-                        }
-                        if(markDown) outputLine += (char)17;
-                        if (messageMe) send(outputLine);
-                        if (messageAll) peerMessage.execute(this, outputLine, dmUser);
-                        if (!up) System.exit(0);
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
-                } finally {
-                    close();
                 }
             }
 
-            private String receive() throws IOException {
+            private String receive(BufferedReader in) throws IOException {
                 String input = in.readLine();
                 if(input == null) return null;
                 try {
@@ -199,7 +195,7 @@ public class ChatServer {
                     return new String(data, UTF_8);
                 } catch (IllegalBlockSizeException | BadPaddingException e) {
                     e.printStackTrace();
-                    return "<< Error with encryption >>" + (char) 5;
+                    return null;
                 }
             }
 
@@ -210,10 +206,11 @@ public class ChatServer {
                     synchronized(cipherLock) {
                         enc = cipherE.doFinal(data);
                     }
-                    out.println(base64encode(enc));
+                    synchronized(outQueueLock) {
+                        outQueue.add(base64encode(enc));
+                    }
                 } catch (IllegalBlockSizeException | BadPaddingException e) {
                     e.printStackTrace();
-                    out.println(base64encode("<< Error with encryption >>\005".getBytes(UTF_8)));
                 }
             }
 
@@ -223,7 +220,7 @@ public class ChatServer {
 
         }
 
-        int portNumber = 4444;
+        int portNumber = 8080;
         ServerSocket serverSocket = new ServerSocket(portNumber);
         System.out.println("Server @ " + serverSocket.getInetAddress().getHostAddress() + ":" + serverSocket.getLocalPort());
         final List<ClientThread> threads = new ArrayList<>();

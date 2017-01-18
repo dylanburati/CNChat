@@ -23,11 +23,12 @@ import static ChatUtils.Codecs.base64encode;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class ChatClient extends JFrame {
-    private static PrintWriter out;
     private static StyledDocument stdOut;
     private static JScrollBar scrollBar;
     private static String userName;
     private static JTextPane chatPane;
+    private static java.util.List<String> outQueue = new ArrayList<>();
+    private static final Object outQueueLock = new Object();
     private static Cipher cipherD, cipherE;
     private static final Object cipherLock = new Object();
 
@@ -114,10 +115,11 @@ public class ChatClient extends JFrame {
             synchronized(cipherLock) {
                 enc = cipherE.doFinal(data);
             }
-            out.println(base64encode(enc));
+            synchronized(outQueueLock) {
+                outQueue.add(base64encode(enc));
+            }
         } catch (IllegalBlockSizeException | BadPaddingException e) {
             e.printStackTrace();
-            out.println(base64encode("<< Error with encryption >>".getBytes(UTF_8)));
         }
     }
 
@@ -132,7 +134,7 @@ public class ChatClient extends JFrame {
             return new String(data, UTF_8);
         } catch (IllegalBlockSizeException | BadPaddingException e) {
             e.printStackTrace();
-            return "<< Error with encryption >>" + (char) 5;
+            return null;
         }
     }
 
@@ -199,7 +201,7 @@ public class ChatClient extends JFrame {
             }
         } catch(IOException ignored) {
         }
-        int portNumber = 4444;
+        int portNumber = 8080;
 
         final java.util.List<String> userNames = new ArrayList<>();
         Collections.addAll(userNames, "Lil B", "KenM", "Ken Bone", "Tai Lopez", "Hugh Mungus",
@@ -210,19 +212,6 @@ public class ChatClient extends JFrame {
         InetAddress host = InetAddress.getByName(hostName);
         System.out.println("Connecting to " + host.getHostAddress() + ":" + portNumber);
         Socket connection = new Socket(host, portNumber);
-        out = new PrintWriter(new OutputStreamWriter(connection.getOutputStream(), UTF_8), true);
-        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream(), UTF_8));
-
-        try {
-            synchronized(cipherLock) {
-                ChatCrypt chatCrypt = new ChatCrypt(in, out, false);
-                cipherD = chatCrypt.cipherD;
-                cipherE = chatCrypt.cipherE;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        send((char) 6 + userName);
         
         class MessageHandler {
             private final Runnable rainbowRun = new Runnable() {
@@ -255,7 +244,8 @@ public class ChatClient extends JFrame {
                 StyleConstants.setForeground(directStyle, new Color(81, 0, 241));
             }
             
-            private void handleMessage(String message) throws IOException, BadLocationException, NumberFormatException {
+            private boolean handleMessage(String message) throws IOException, BadLocationException, NumberFormatException {
+                if(message == null) return false;
                 final int header = message.isEmpty() ? -1 : message.codePointAt(0);
                 if (header == 21) {
                     if (message.length() == 1) {
@@ -271,7 +261,7 @@ public class ChatClient extends JFrame {
                         stdOut.insertString(stdOut.getLength(), "<< That username is taken >>\n", null);
                     }
                     ((JFrame) chatPane.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
-                    return;
+                    return true;
                 }
                 stdOut.setLogicalStyle(stdOut.getLength(), peerStyle);
                 MarkdownUtils.format = message.length() != (message = message.replace(""+(char)17, "")).length();
@@ -281,7 +271,7 @@ public class ChatClient extends JFrame {
                 if (message.length() != (message = message.replaceAll("[\\x00-\\x07\\x10-\\x1f]", "")).length()) {
                     stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
                     stdOut.insertString(stdOut.getLength(), message + "\n", null);
-                    return;
+                    return true;
                 }
                 final String command = message.toLowerCase();
                 if (command.contains(":color ")) {
@@ -332,29 +322,49 @@ public class ChatClient extends JFrame {
                         stdOut.insertString(stdOut.getLength(), message+"\n", null);
                     }
                 }
+                return true;
             }
         }
 
-        new ChatClient().setVisible(true);
-        Runtime.getRuntime().addShutdownHook(new Thread(
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        send((char) 4 + userName);
-                    }
-                }
-        ));
-        
-        MessageHandler md = new MessageHandler();
-        String newMessage;
-        while((newMessage = receive(in)) != null) {
+        try(PrintWriter out = new PrintWriter(new OutputStreamWriter(connection.getOutputStream(), UTF_8), true);
+            BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream(), UTF_8));
+        ) {
             try {
-                scrollBar.setValue(scrollBar.getMaximum());
-                md.handleMessage(newMessage);
-            } catch (BadLocationException e) {
+                synchronized(cipherLock) {
+                    ChatCrypt chatCrypt = new ChatCrypt(in, out, false);
+                    cipherD = chatCrypt.cipherD;
+                    cipherE = chatCrypt.cipherE;
+                }
+            } catch (Exception e) {
                 e.printStackTrace();
             }
+            send((char) 6 + userName);
+
+            new ChatClient().setVisible(true);
+            Runtime.getRuntime().addShutdownHook(new Thread(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            send((char) 4 + userName);
+                        }
+                    }
+            ));
+
+            MessageHandler md = new MessageHandler();
+            String newMessage;
+            boolean up = true;
+            while(up) {
+                scrollBar.setValue(scrollBar.getMaximum());
+                synchronized(outQueueLock) {
+                    while(outQueue.size() > 0) {
+                        out.println(outQueue.remove(0));
+                    }
+                }
+                newMessage = receive(in);
+                up = md.handleMessage(newMessage);
+            }
+        } catch(BadLocationException | NumberFormatException e) {
+            e.printStackTrace();
         }
-        
     }
 }

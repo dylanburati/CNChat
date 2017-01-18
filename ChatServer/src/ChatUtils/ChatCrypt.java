@@ -86,11 +86,11 @@ public class ChatCrypt {
         self.pubKeyEnc = self.keyPair.getPublic().getEncoded();
 
         if(serverMode) {
-            send(self.pubKeyEnc);
             party2.pubKeyEnc = receive();
+            send(self.pubKeyEnc);
         } else {
-            party2.pubKeyEnc = receive();
             send(self.pubKeyEnc);
+            party2.pubKeyEnc = receive();
         }
             
         self.keyFactory = KeyFactory.getInstance("DH");
@@ -105,17 +105,17 @@ public class ChatCrypt {
         cipherE = Cipher.getInstance("AES/CTR/PKCS5Padding");
 
         if(serverMode) {
+            self.cipherParamsEnc = receive();
+        } else {
             cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES);
             self.cipherParamsEnc = cipherE.getParameters().getEncoded();
             send(self.cipherParamsEnc);
-        } else {
-            self.cipherParamsEnc = receive();
         }
 
         self.cipherParams = AlgorithmParameters.getInstance("AES");
         self.cipherParams.init(self.cipherParamsEnc);
 
-        if(!serverMode) cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES, self.cipherParams);
+        if(serverMode) cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES, self.cipherParams);
         cipherD.init(Cipher.DECRYPT_MODE, self.keyAES, self.cipherParams);
     }
 
