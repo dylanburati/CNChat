@@ -10,8 +10,9 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowEvent;
 import java.io.*;
+import java.net.HttpURLConnection;
 import java.net.InetAddress;
-import java.net.Socket;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Random;
@@ -27,6 +28,10 @@ public class ChatClient extends JFrame {
     private static JScrollBar scrollBar;
     private static String userName;
     private static JTextPane chatPane;
+    private static URL host;
+    private static HttpURLConnection conn;
+    private static String uuid;
+
     private static java.util.List<String> outQueue = new ArrayList<>();
     private static final Object outQueueLock = new Object();
     private static Cipher cipherD, cipherE;
@@ -74,20 +79,20 @@ public class ChatClient extends JFrame {
                     } else if (input.contains(":username ")) {
                         String changeRequest = input.substring(input.lastIndexOf(":username ") + 10);
                         if (!changeRequest.equals(userName) && changeRequest.matches("[^\\n:]+")) {
-                            send((char) 26 + userName + (char) 26 + changeRequest);
+                            enqueue((char) 26 + userName + (char) 26 + changeRequest);
                             userName = changeRequest;
                             ((JFrame) tp.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
                         }
                     } else if(input.contains(":format")) {
-                        send("" + (char) 17);
+                        enqueue("" + (char) 17);
                     } else if(input.contains(":unformat")) {
-                        send("" + (char) 17 + (char) 17);
+                        enqueue("" + (char) 17 + (char) 17);
                     } else if (!input.matches("[ \\t\\xA0\\u1680\\u180e\\u2000-\\u200a\\u202f\\u205f\\u3000" +
                             "\\n\\x0B\\f\\r\\x85\\u2028\\u2029]*")) {
                         if (input.startsWith(":dm ")) {
-                            send((char)15 + userName + ": " + input);
+                            enqueue((char)15 + userName + ": " + input);
                         }
-                        else send(userName + ": " + input);
+                        else enqueue(userName + ": " + input);
                     }
                 }
             }
@@ -108,7 +113,7 @@ public class ChatClient extends JFrame {
         }
     }
 
-    private static void send(String outputLine) {
+    private static void enqueue(String outputLine) {
         byte[] data = outputLine.getBytes(UTF_8);
         try {
             byte[] enc;
@@ -123,9 +128,7 @@ public class ChatClient extends JFrame {
         }
     }
 
-    private static String receive(BufferedReader in) throws IOException {
-        String input = in.readLine();
-        if(input == null) return null;
+    private static String decrypt(String input) throws IOException {
         try {
             byte[] data = base64decode(input);
             synchronized(cipherLock) {
@@ -136,6 +139,10 @@ public class ChatClient extends JFrame {
             e.printStackTrace();
             return null;
         }
+    }
+
+    private static void refresh() throws IOException {
+        conn = (HttpURLConnection) host.openConnection();
     }
 
     private void clientClose() {
@@ -209,10 +216,9 @@ public class ChatClient extends JFrame {
                 "Watery Westin", "A Wild KB");
         userName = userNames.remove(new Random().nextInt(userNames.size()));
 
-        InetAddress host = InetAddress.getByName(hostName);
-        System.out.println("Connecting to " + host.getHostAddress() + ":" + portNumber);
-        Socket connection = new Socket(host, portNumber);
-        
+        host = new URL("http", hostName, portNumber, "");
+        System.out.println("Connecting to " + InetAddress.getByName(hostName).getHostAddress() + ":" + portNumber);
+
         class MessageHandler {
             private final Runnable rainbowRun = new Runnable() {
                 @Override
@@ -243,7 +249,40 @@ public class ChatClient extends JFrame {
                 this.directStyle = stdOut.addStyle("direct", peerStyle);
                 StyleConstants.setForeground(directStyle, new Color(81, 0, 241));
             }
-            
+
+            private boolean sendAndReceive() throws IOException, BadLocationException {
+                try {
+                    Thread.sleep(25);
+                } catch (InterruptedException ignored) {
+                }
+                refresh();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getOutputStream(), UTF_8), true)
+                ) {
+                    synchronized (outQueueLock) {
+                        while(outQueue.size() > 0) {
+                            out.print(outQueue.remove(0));
+                            if(outQueue.size() > 0) out.print("\r\n");
+                        }
+                    }
+                    out.close();
+                }
+
+                String input;
+                boolean sane = true;
+                try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), UTF_8))
+                ) {
+                    while((input = in.readLine()) != null) {
+                        sane = handleMessage(decrypt(input));
+                        if(sane) scrollBar.setValue(scrollBar.getMaximum());
+                        else break;
+                    }
+                }
+                conn.disconnect();
+                return sane;
+            }
+
             private boolean handleMessage(String message) throws IOException, BadLocationException, NumberFormatException {
                 if(message == null) return false;
                 final int header = message.isEmpty() ? -1 : message.codePointAt(0);
@@ -254,7 +293,7 @@ public class ChatClient extends JFrame {
                         } else {
                             userName = Integer.toString(36 * 36 * 36 + new Random().nextInt(35 * 36 * 36 * 36), 36);
                         }
-                        send((char) 6 + userName);
+                        enqueue((char) 6 + userName);
                     } else {
                         userName = message.substring(1);
                         stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
@@ -326,42 +365,46 @@ public class ChatClient extends JFrame {
             }
         }
 
-        try(PrintWriter out = new PrintWriter(new OutputStreamWriter(connection.getOutputStream(), UTF_8), true);
-            BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream(), UTF_8));
+        refresh();
+        conn.setDoOutput(true);
+        try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), UTF_8))
         ) {
+            uuid = in.readLine();
+        }
+        conn.disconnect();
+        host = new URL(host.getProtocol(), host.getHost(), host.getPort(), "/" + uuid);
+
+        try {
             try {
                 synchronized(cipherLock) {
-                    ChatCrypt chatCrypt = new ChatCrypt(in, out, false);
+                    ChatCrypt chatCrypt = new ChatCrypt(host);
                     cipherD = chatCrypt.cipherD;
                     cipherE = chatCrypt.cipherE;
                 }
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            send((char) 6 + userName);
+            enqueue((char) 6 + userName);
+
 
             new ChatClient().setVisible(true);
+            final MessageHandler md = new MessageHandler();
             Runtime.getRuntime().addShutdownHook(new Thread(
                     new Runnable() {
                         @Override
                         public void run() {
-                            send((char) 4 + userName);
+                            enqueue((char) 4 + userName);
+                            try {
+                                md.sendAndReceive();
+                            } catch (Throwable ignored) {
+                            }
                         }
                     }
             ));
 
-            MessageHandler md = new MessageHandler();
-            String newMessage;
             boolean up = true;
             while(up) {
-                scrollBar.setValue(scrollBar.getMaximum());
-                synchronized(outQueueLock) {
-                    while(outQueue.size() > 0) {
-                        out.println(outQueue.remove(0));
-                    }
-                }
-                newMessage = receive(in);
-                up = md.handleMessage(newMessage);
+                up = md.sendAndReceive();
             }
         } catch(BadLocationException | NumberFormatException e) {
             e.printStackTrace();

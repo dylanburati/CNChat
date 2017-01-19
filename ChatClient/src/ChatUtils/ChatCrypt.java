@@ -5,16 +5,17 @@ import javax.crypto.KeyAgreement;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.DHParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.math.BigInteger;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.security.*;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 
 import static ChatUtils.Codecs.base64decode;
 import static ChatUtils.Codecs.base64encode;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class ChatCrypt {
 
@@ -34,8 +35,8 @@ public class ChatCrypt {
 
     private static final BigInteger otr1536Base = BigInteger.valueOf(2);
 
-    private BufferedReader in;
-    private PrintWriter out;
+    private final URL host;
+    private HttpURLConnection conn;
 
     public Cipher cipherD;
     public Cipher cipherE;
@@ -58,19 +59,32 @@ public class ChatCrypt {
         private PublicKey pubKey;
     }
 
-    private void send(byte[] data) {
-        out.println(base64encode(data));
+    private byte[] sendAndReceive(byte[] data) throws IOException {
+        refresh();
+        conn.setRequestMethod("POST");
+        conn.setDoOutput(true);
+        try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getOutputStream(), UTF_8), true);
+        ) {
+            out.println(base64encode(data));
+        }
+
+        String input;
+        try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), UTF_8));
+        ) {
+            input = in.readLine();
+        }
+        conn.disconnect();
+        return base64decode(input);
     }
 
-    private byte[] receive() throws IOException {
-        String data = in.readLine();
-        return base64decode(data);
+    private void refresh() throws IOException {
+        conn = (HttpURLConnection) host.openConnection();
     }
 
-    public ChatCrypt(BufferedReader in, PrintWriter out, boolean serverMode) throws Exception {
+    public ChatCrypt(URL host) throws Exception {
 
-        this.in = in;
-        this.out = out;
+        this.host = host;
+        this.conn = (HttpURLConnection) host.openConnection();
 
         Self self = new Self();
         Party2 party2 = new Party2();
@@ -85,13 +99,8 @@ public class ChatCrypt {
         self.keyAgree.init(self.keyPair.getPrivate());
         self.pubKeyEnc = self.keyPair.getPublic().getEncoded();
 
-        if(serverMode) {
-            party2.pubKeyEnc = receive();
-            send(self.pubKeyEnc);
-        } else {
-            send(self.pubKeyEnc);
-            party2.pubKeyEnc = receive();
-        }
+        // Client
+        party2.pubKeyEnc = sendAndReceive(self.pubKeyEnc);
             
         self.keyFactory = KeyFactory.getInstance("DH");
         self.keySpec = new X509EncodedKeySpec(party2.pubKeyEnc);
@@ -104,18 +113,14 @@ public class ChatCrypt {
         cipherD = Cipher.getInstance("AES/CTR/PKCS5Padding");
         cipherE = Cipher.getInstance("AES/CTR/PKCS5Padding");
 
-        if(serverMode) {
-            self.cipherParamsEnc = receive();
-        } else {
-            cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES);
-            self.cipherParamsEnc = cipherE.getParameters().getEncoded();
-            send(self.cipherParamsEnc);
-        }
+        // Client
+        cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES);
+        self.cipherParamsEnc = cipherE.getParameters().getEncoded();
+        sendAndReceive(self.cipherParamsEnc);
 
         self.cipherParams = AlgorithmParameters.getInstance("AES");
         self.cipherParams.init(self.cipherParamsEnc);
 
-        if(serverMode) cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES, self.cipherParams);
         cipherD.init(Cipher.DECRYPT_MODE, self.keyAES, self.cipherParams);
     }
 

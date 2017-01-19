@@ -1,13 +1,20 @@
 import ChatUtils.ChatCrypt;
+import ChatUtils.TransactionHandler;
+import com.sun.net.httpserver.HttpContext;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
-import java.io.*;
-import java.net.ServerSocket;
-import java.net.Socket;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import static ChatUtils.Codecs.base64decode;
 import static ChatUtils.Codecs.base64encode;
@@ -19,6 +26,7 @@ interface peerUpdateCompat<T> {
 
 public class ChatServer {
 
+    private static HttpServer server;
     private static boolean up = true;
     private static volatile List<String> userNames = new ArrayList<>();
     private static final Object userNamesLock = new Object();
@@ -40,17 +48,21 @@ public class ChatServer {
                     + (!userNames.isEmpty() ? "<< Here now >>\n " + stringJoin("\n ", userNames) : "<< No one else is here >>")
                     + (char) 5 + (char) 17 + "\n";
 
-            private Socket clientSocket;
+            private final String uuid;
             private final peerUpdateCompat<ClientThread> peerMessage;
-            private List<String> outQueue = new ArrayList<>();
-            private final Object outQueueLock = new Object();
-            private Cipher cipherE, cipherD;
-            private final Object cipherLock = new Object();
+            private HttpContext httpContext = null;
             private String userName, dmUser = "";
             private boolean markDown = false;
 
-            private ClientThread(Socket clientSocket, peerUpdateCompat<ClientThread> peerMessage) {
-                this.clientSocket = clientSocket;
+            private Cipher cipherE, cipherD;
+            private final Object cipherLock = new Object();
+            private List<String> outQueue = new ArrayList<>();
+            private final Object outQueueLock = new Object();
+            private List<String> inQueue = new ArrayList<>();
+            private final Object inQueueLock = new Object();
+
+            private ClientThread(String uuid, peerUpdateCompat<ClientThread> peerMessage) {
+                this.uuid = uuid;
                 this.peerMessage = peerMessage;
             }
 
@@ -150,33 +162,37 @@ public class ChatServer {
                     outputLine += (char) 15;
                 }
                 if(markDown) outputLine += (char)17;
-                if (messageMe) send(outputLine);
+                if (messageMe) enqueue(outputLine);
                 if (messageAll) peerMessage.execute(this, outputLine, dmUser);
                 if (!up) System.exit(0);
             }
 
             @Override
             public void run() {
-                try (PrintWriter out = new PrintWriter(new OutputStreamWriter(clientSocket.getOutputStream(), UTF_8), true);
-                     BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream(), UTF_8));
-                ) {
-                    try {
-                        synchronized(cipherLock) {
-                            ChatCrypt chatCrypt = new ChatCrypt(in, out, true);
-                            cipherD = chatCrypt.cipherD;
-                            cipherE = chatCrypt.cipherE;
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
+                try {
+                    synchronized(cipherLock) {
+                        ChatCrypt chatCrypt = new ChatCrypt(server, uuid);
+                        cipherD = chatCrypt.cipherD;
+                        cipherE = chatCrypt.cipherE;
                     }
-                    String outputLine;
-                    send(first);
-                    while ((outputLine = receive(in)) != null) {
-                        handleMessage(outputLine);
-                        synchronized (outQueueLock) {
-                            while(outQueue.size() > 0) {
-                                out.println(outQueue.remove(0));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                enqueue(first);
+
+                this.httpContext = server.createContext("/" + uuid, new TransactionHandler(inQueue, inQueueLock, outQueue, outQueueLock));
+                try {
+                    String inputLine;
+                    while (up) {
+                        try {
+                            Thread.sleep(10);
+                        } catch(InterruptedException ignored) {
+                        }
+                        if(inQueue.size() > 0) {
+                            synchronized (inQueueLock) {
+                                inputLine = inQueue.remove(0);
                             }
+                            handleMessage(decrypt(inputLine));
                         }
                     }
                 } catch (IOException e) {
@@ -184,9 +200,7 @@ public class ChatServer {
                 }
             }
 
-            private String receive(BufferedReader in) throws IOException {
-                String input = in.readLine();
-                if(input == null) return null;
+            private String decrypt(String input) throws IOException {
                 try {
                     byte[] data = base64decode(input);
                     synchronized(cipherLock) {
@@ -199,7 +213,7 @@ public class ChatServer {
                 }
             }
 
-            private void send(String outputLine) {
+            private void enqueue(String outputLine) {
                 byte[] data = outputLine.getBytes(UTF_8);
                 try {
                     byte[] enc;
@@ -221,8 +235,13 @@ public class ChatServer {
         }
 
         int portNumber = 8080;
-        ServerSocket serverSocket = new ServerSocket(portNumber);
-        System.out.println("Server @ " + serverSocket.getInetAddress().getHostAddress() + ":" + serverSocket.getLocalPort());
+        InetSocketAddress bind = new InetSocketAddress(portNumber);
+        System.out.println("Server @ " + bind.getAddress().getHostAddress() + ":" + bind.getPort());
+
+        server = HttpServer.create(bind, 0);
+        server.setExecutor(null);
+        server.start();
+
         final List<ClientThread> threads = new ArrayList<>();
         peerUpdateCompat<ClientThread> messenger = new peerUpdateCompat<ClientThread>() {
             @Override
@@ -230,19 +249,29 @@ public class ChatServer {
                 boolean everyone = user.isEmpty();
                 for (ClientThread currentThread : threads) {
                     if (everyone || user.equals(currentThread.getUserName())) {
-                        if (!currentThread.equals(skip)) currentThread.send(message);
+                        if (!currentThread.equals(skip)) currentThread.enqueue(message);
                     }
                 }
             }
         };
-        while (up) {
-            Socket socket = serverSocket.accept();
-            System.out.println("Client @ " + socket.getInetAddress().getHostAddress() + ":" + socket.getPort());
-            ClientThread thread = new ClientThread(socket, messenger);
-            threads.add(thread);
-            thread.start();
+
+        class DelegateHandler implements HttpHandler {
+            @Override
+            public void handle(HttpExchange conn) throws IOException {
+                String uuid;
+                try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getResponseBody(), UTF_8), true)
+                ) {
+                    uuid = UUID.randomUUID().toString().replace("-", "");
+                    conn.sendResponseHeaders(200, 32);
+                    out.print(uuid);
+                    out.close();
+                }
+
+                ClientThread thread = new ClientThread(uuid, messenger);
+                threads.add(thread);
+                thread.start();
+            }
         }
-
+        server.createContext("/", new DelegateHandler());
     }
-
 }

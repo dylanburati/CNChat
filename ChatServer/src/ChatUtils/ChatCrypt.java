@@ -1,20 +1,26 @@
 package ChatUtils;
 
+import com.sun.net.httpserver.HttpContext;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
+
 import javax.crypto.Cipher;
 import javax.crypto.KeyAgreement;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.DHParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.math.BigInteger;
 import java.security.*;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import static ChatUtils.Codecs.base64decode;
 import static ChatUtils.Codecs.base64encode;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class ChatCrypt {
 
@@ -34,8 +40,11 @@ public class ChatCrypt {
 
     private static final BigInteger otr1536Base = BigInteger.valueOf(2);
 
-    private BufferedReader in;
-    private PrintWriter out;
+    private List<byte[]> inQueue = new ArrayList<>();
+    private final Object inQueueLock = new Object();
+    private List<byte[]> outQueue = new ArrayList<>();
+    private final Object outQueueLock = new Object();
+    private boolean handshakeDone;
 
     public Cipher cipherD;
     public Cipher cipherE;
@@ -58,65 +67,96 @@ public class ChatCrypt {
         private PublicKey pubKey;
     }
 
-    private void send(byte[] data) {
-        out.println(base64encode(data));
-    }
+    private Self self = new Self();
+    private Party2 party2 = new Party2();
 
-    private byte[] receive() throws IOException {
-        String data = in.readLine();
-        return base64decode(data);
-    }
+    private class CryptHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange conn) throws IOException {
+            try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getRequestBody(), UTF_8))
+            ) {
+                byte[] input = base64decode(in.readLine());
+                synchronized (inQueueLock) {
+                    inQueue.add(input);
+                }
+            }
 
-    public ChatCrypt(BufferedReader in, PrintWriter out, boolean serverMode) throws Exception {
-
-        this.in = in;
-        this.out = out;
-
-        Self self = new Self();
-        Party2 party2 = new Party2();
-
-        DHParameterSpec dhParamSpec = new DHParameterSpec(otr1536Modulus, otr1536Base);
-        MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
-
-        self.keyPairGen = KeyPairGenerator.getInstance("DH");
-        self.keyPairGen.initialize(dhParamSpec);
-        self.keyPair = self.keyPairGen.generateKeyPair();
-        self.keyAgree = KeyAgreement.getInstance("DH");
-        self.keyAgree.init(self.keyPair.getPrivate());
-        self.pubKeyEnc = self.keyPair.getPublic().getEncoded();
-
-        if(serverMode) {
-            party2.pubKeyEnc = receive();
-            send(self.pubKeyEnc);
-        } else {
-            send(self.pubKeyEnc);
-            party2.pubKeyEnc = receive();
-        }
+            try {
+                runStage(inQueue.size());
+            } catch(Exception e) {
+                e.printStackTrace();
+            }
             
-        self.keyFactory = KeyFactory.getInstance("DH");
-        self.keySpec = new X509EncodedKeySpec(party2.pubKeyEnc);
-        party2.pubKey = self.keyFactory.generatePublic(self.keySpec);
-
-        self.keyAgree.doPhase(party2.pubKey, true);
-        self.key = self.keyAgree.generateSecret();
-        self.keyAES = new SecretKeySpec(Arrays.copyOf(sha256.digest(self.key), 16), "AES");
-
-        cipherD = Cipher.getInstance("AES/CTR/PKCS5Padding");
-        cipherE = Cipher.getInstance("AES/CTR/PKCS5Padding");
-
-        if(serverMode) {
-            self.cipherParamsEnc = receive();
-        } else {
-            cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES);
-            self.cipherParamsEnc = cipherE.getParameters().getEncoded();
-            send(self.cipherParamsEnc);
+            try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getResponseBody(), UTF_8), true)
+            ) {
+                String data;
+                synchronized(outQueueLock) {
+                    data = base64encode(outQueue.remove(0));
+                }
+                conn.sendResponseHeaders(200, data.length());  // base64 ensures data.length() == data.getBytes(UTF_8).length
+                out.print(data);
+                out.close();
+            }
         }
+    }
 
-        self.cipherParams = AlgorithmParameters.getInstance("AES");
-        self.cipherParams.init(self.cipherParamsEnc);
+    private void runStage(int stage) throws Exception {
+        switch(stage) {
+            case 0:
+                self.keyPairGen = KeyPairGenerator.getInstance("DH");
+                self.keyPairGen.initialize(new DHParameterSpec(otr1536Modulus, otr1536Base));
+                self.keyPair = self.keyPairGen.generateKeyPair();
+                self.keyAgree = KeyAgreement.getInstance("DH");
+                self.keyAgree.init(self.keyPair.getPrivate());
+                self.pubKeyEnc = self.keyPair.getPublic().getEncoded();
+                synchronized (outQueueLock) {
+                    outQueue.add(self.pubKeyEnc);
+                }
+                break;
+            case 1:
+                synchronized (inQueueLock) {
+                    party2.pubKeyEnc = inQueue.get(0);
+                }
+                MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+                self.keyFactory = KeyFactory.getInstance("DH");
+                self.keySpec = new X509EncodedKeySpec(party2.pubKeyEnc);
+                party2.pubKey = self.keyFactory.generatePublic(self.keySpec);
 
-        if(serverMode) cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES, self.cipherParams);
-        cipherD.init(Cipher.DECRYPT_MODE, self.keyAES, self.cipherParams);
+                self.keyAgree.doPhase(party2.pubKey, true);
+                self.key = self.keyAgree.generateSecret();
+                self.keyAES = new SecretKeySpec(Arrays.copyOf(sha256.digest(self.key), 16), "AES");
+
+                cipherD = Cipher.getInstance("AES/CTR/PKCS5Padding");
+                cipherE = Cipher.getInstance("AES/CTR/PKCS5Padding");
+                outQueue.add("Vn".getBytes(UTF_8));
+                break;
+            case 2:
+                synchronized (inQueueLock) {
+                    self.cipherParamsEnc = inQueue.get(1);
+                }
+                self.cipherParams = AlgorithmParameters.getInstance("AES");
+                self.cipherParams.init(self.cipherParamsEnc);
+
+                cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES, self.cipherParams);
+                cipherD.init(Cipher.DECRYPT_MODE, self.keyAES, self.cipherParams);
+                handshakeDone = true;
+                synchronized (ChatCrypt.this) {
+                    ChatCrypt.this.notify();
+                }
+                break;
+        }
+    }
+
+    public ChatCrypt(HttpServer server, String uuid) throws Exception {
+        handshakeDone = false;
+        runStage(0);
+        HttpContext hc = server.createContext("/" + uuid, new CryptHandler());
+        synchronized (this) {
+            while(!handshakeDone) {
+                wait();
+            }
+        }
+        server.removeContext(hc);
     }
 
 }
