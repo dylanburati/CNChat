@@ -243,7 +243,7 @@ public class ChatServer {
         server.start();
 
         final List<ClientThread> threads = new ArrayList<>();
-        peerUpdateCompat<ClientThread> messenger = new peerUpdateCompat<ClientThread>() {
+        final peerUpdateCompat<ClientThread> messenger = new peerUpdateCompat<ClientThread>() {
             @Override
             public void execute(ClientThread skip, String message, String user) {
                 boolean everyone = user.isEmpty();
