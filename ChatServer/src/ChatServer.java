@@ -267,6 +267,8 @@ public class ChatServer {
                     out.close();
                 }
 
+                InetSocketAddress epoint = conn.getRemoteAddress();
+                System.out.println("Client @ " + epoint.getAddress().getHostAddress() + ":" + epoint.getPort());
                 ClientThread thread = new ClientThread(uuid, messenger);
                 threads.add(thread);
                 thread.start();

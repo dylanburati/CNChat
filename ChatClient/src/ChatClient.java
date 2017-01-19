@@ -357,6 +357,8 @@ public class ChatClient extends JFrame {
                             stdOut.insertString(cl, "" + message.charAt(i), fmt);
                         }
                         stdOut.insertString(stdOut.getLength(), "\n", null);
+                    } else if(message.endsWith(":timestamp")) {
+                        stdOut.insertString(stdOut.getLength(), ""+System.nanoTime()+"\n", null);
                     } else {
                         stdOut.insertString(stdOut.getLength(), message+"\n", null);
                     }

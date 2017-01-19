@@ -1,5 +1,7 @@
 powershell -Command "netsh advfirewall firewall add rule name=\"CNChat\" dir=in action=allow protocol=TCP localport=80"
 
+Trump bot
+Server-side events
 
 Feature and fix log
 
@@ -51,6 +53,7 @@ Format is Version; Status; Description (status is 0 for removed, 1 for active in
 2.0.1; 1; All features of the chat work when the source is built and run with Java 7
 2.1.0; 1; The server prints the host IP and port for each new connection
 2.1.0; 1; The config.txt file can be used to set an alternate host server
+2.2.0; 1; All features of the chat work over http using polling
 
 
 http://jsfiddle.net/0wv1mn42/7/show
