@@ -66,7 +66,8 @@ public class ChatServer {
                 this.peerMessage = peerMessage;
             }
 
-            private void handleMessage(String outputLine) {
+            private boolean handleMessage(String outputLine) {
+                boolean finished = false;
                 boolean messageAll = true;
                 boolean messageMe = true;
                 dmUser = "";
@@ -111,7 +112,7 @@ public class ChatServer {
                             }
                             outputLine = "<< " + userName + " joined the chat >>" + (char)5;
                         }
-                    } else if (command == 4) {
+                    } else if (finished = (command == 4)) {
                         messageMe = false;
                         synchronized (userNamesLock) {
                             userNames.remove(userName);
@@ -165,6 +166,7 @@ public class ChatServer {
                 if (messageMe) enqueue(outputLine);
                 if (messageAll) peerMessage.execute(this, outputLine, dmUser);
                 if (!up) System.exit(0);
+                return finished;
             }
 
             @Override
@@ -180,7 +182,7 @@ public class ChatServer {
                 }
                 enqueue(first);
 
-                this.httpContext = server.createContext("/" + uuid, new TransactionHandler(inQueue, inQueueLock, outQueue, outQueueLock));
+                httpContext = server.createContext("/" + uuid, new TransactionHandler(inQueue, inQueueLock, outQueue, outQueueLock));
                 try {
                     String inputLine;
                     while (up) {
@@ -192,11 +194,14 @@ public class ChatServer {
                             synchronized (inQueueLock) {
                                 inputLine = inQueue.remove(0);
                             }
-                            handleMessage(decrypt(inputLine));
+                            boolean finished = handleMessage(decrypt(inputLine));
+                            if(finished) break;
                         }
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
+                } finally {
+                    server.removeContext(httpContext);
                 }
             }
 
