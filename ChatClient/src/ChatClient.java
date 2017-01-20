@@ -32,7 +32,7 @@ public class ChatClient extends JFrame {
     private static HttpURLConnection conn;
     private static String uuid;
 
-    private static java.util.List<String> outQueue = new ArrayList<>();
+    private static volatile java.util.List<String> outQueue = new ArrayList<>();
     private static final Object outQueueLock = new Object();
     private static Cipher cipherD, cipherE;
     private static final Object cipherLock = new Object();

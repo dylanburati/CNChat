@@ -56,9 +56,9 @@ public class ChatServer {
 
             private Cipher cipherE, cipherD;
             private final Object cipherLock = new Object();
-            private List<String> outQueue = new ArrayList<>();
+            private volatile List<String> outQueue = new ArrayList<>();
             private final Object outQueueLock = new Object();
-            private List<String> inQueue = new ArrayList<>();
+            private volatile List<String> inQueue = new ArrayList<>();
             private final Object inQueueLock = new Object();
 
             private ClientThread(String uuid, peerUpdateCompat<ClientThread> peerMessage) {
