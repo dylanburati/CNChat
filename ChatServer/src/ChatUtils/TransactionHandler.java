@@ -14,7 +14,7 @@ public class TransactionHandler implements HttpHandler {
     private final Object inQueueLock;
     private List<String> outQueue;
     private final Object outQueueLock;
-    
+
     public TransactionHandler(List<String> inQueue, Object inQueueLock,
                               List<String> outQueue, Object outQueueLock) {
         this.inQueue = inQueue;
@@ -22,7 +22,7 @@ public class TransactionHandler implements HttpHandler {
         this.outQueue = outQueue;
         this.outQueueLock = outQueueLock;
     }
-    
+
     @Override
     public void handle(HttpExchange conn) throws IOException {
         try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getRequestBody(), UTF_8))

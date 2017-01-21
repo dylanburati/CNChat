@@ -12,7 +12,7 @@ Format is Version; Status; Description (status is 0 for removed, 1 for active in
 1.1.0; 1; Swing GUI
 1.1.1; 1; The :color command
 1.1.1; 1; The :username command
-1.1.1; 1; Enter sends messages, Ctrl+Enter and Shift+Enter add a line break to the message 
+1.1.1; 1; Enter sends messages, Ctrl+Enter and Shift+Enter add a line break to the message
 1.1.1; 1; The hex code form of the :color command
 1.1.2; 1; The RGB code form of the :color command
 1.1.2; 1; The "rainbow", "white", and "reset" forms of the :color command

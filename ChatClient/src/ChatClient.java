@@ -235,7 +235,7 @@ public class ChatClient extends JFrame {
                     }
                 }
             };
-            
+
             private Thread rainbow = new Thread();
             private Style peerStyle;
             private Style serverStyle;

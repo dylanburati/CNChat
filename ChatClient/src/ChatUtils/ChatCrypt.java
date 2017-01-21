@@ -101,7 +101,7 @@ public class ChatCrypt {
 
         // Client
         party2.pubKeyEnc = sendAndReceive(self.pubKeyEnc);
-            
+
         self.keyFactory = KeyFactory.getInstance("DH");
         self.keySpec = new X509EncodedKeySpec(party2.pubKeyEnc);
         party2.pubKey = self.keyFactory.generatePublic(self.keySpec);
