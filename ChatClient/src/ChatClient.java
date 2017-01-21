@@ -196,7 +196,7 @@ public class ChatClient extends JFrame {
         String hostName = "0.0.0.0";
         String path = new File(ChatClient.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
                 getParent() + System.getProperty("file.separator") + "config.txt";
-        try(BufferedReader config = new BufferedReader(new InputStreamReader(new FileInputStream(path), UTF_8))) {
+        try(BufferedReader config = new BufferedReader(new FileReader(path))) {
             Pattern noComment = Pattern.compile("^\\p{javaWhitespace}*.");
             String remote;
             while((remote = config.readLine()) != null) {
@@ -251,6 +251,10 @@ public class ChatClient extends JFrame {
             }
 
             private boolean sendAndReceive() throws IOException, BadLocationException {
+                try {
+                    Thread.sleep(25);
+                } catch (InterruptedException ignored) {
+                }
                 refresh();
                 conn.setRequestMethod("POST");
                 conn.setDoOutput(true);
@@ -402,10 +406,6 @@ public class ChatClient extends JFrame {
 
             boolean up = true;
             while(up) {
-                try {
-                    Thread.sleep(25);
-                } catch (InterruptedException ignored) {
-                }
                 up = md.sendAndReceive();
             }
         } catch(BadLocationException | NumberFormatException e) {

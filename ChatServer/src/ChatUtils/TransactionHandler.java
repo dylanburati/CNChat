@@ -37,14 +37,13 @@ public class TransactionHandler implements HttpHandler {
 
         try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getResponseBody(), UTF_8), true)
         ) {
-            StringBuilder dataBuilder = new StringBuilder();
+            String data = "";
             synchronized(outQueueLock) {
                 while(outQueue.size() > 0) {
-                    dataBuilder.append(outQueue.remove(0));
-                    if(outQueue.size() > 0) dataBuilder.append("\r\n");
+                    data += outQueue.remove(0);
+                    if(outQueue.size() > 0) data += "\r\n";
                 }
             }
-            String data = dataBuilder.toString();
             conn.sendResponseHeaders(200, data.length());  // base64 ensures data.length() == data.getBytes(UTF_8).length
             out.print(data);
             out.close();
