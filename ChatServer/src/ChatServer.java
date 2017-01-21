@@ -90,15 +90,15 @@ public class ChatServer {
                             "\n :format for Markdown" +
                             "\n :unformat for plain text" + (char) 5;
                     if(userNames.size() > 1) {
-                        StringBuilder outputLineBuilder = new StringBuilder("\nUsers here now:\n");
+                        StringBuilder usersHereBuilder = new StringBuilder("\nUsers here now:\n");
                         for (String usr : userNames) {
                             if (!usr.equals(userName)) {
-                                outputLineBuilder.append(" ");
-                                outputLineBuilder.append(usr);
-                                outputLineBuilder.append("\n");
+                                usersHereBuilder.append(" ");
+                                usersHereBuilder.append(usr);
+                                usersHereBuilder.append("\n");
                             }
                         }
-                        outputLine = outputLineBuilder.toString();
+                        outputLine += usersHereBuilder.toString();
                     } else {
                         outputLine += "\nNo one else is here" + "\n";
                     }
