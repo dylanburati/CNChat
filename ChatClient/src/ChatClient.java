@@ -251,10 +251,6 @@ public class ChatClient extends JFrame {
             }
 
             private boolean sendAndReceive() throws IOException, BadLocationException {
-                try {
-                    Thread.sleep(25);
-                } catch (InterruptedException ignored) {
-                }
                 refresh();
                 conn.setRequestMethod("POST");
                 conn.setDoOutput(true);
@@ -406,6 +402,10 @@ public class ChatClient extends JFrame {
 
             boolean up = true;
             while(up) {
+                try {
+                    Thread.sleep(16);
+                } catch (InterruptedException ignored) {
+                }
                 up = md.sendAndReceive();
             }
         } catch(BadLocationException | NumberFormatException e) {
