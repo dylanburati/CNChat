@@ -41,7 +41,7 @@ public class ChatCrypt {
     public Cipher cipherD;
     public Cipher cipherE;
 
-    private class Self {
+    private static class Self {
         private KeyPairGenerator keyPairGen;
         private KeyPair keyPair;
         private KeyAgreement keyAgree;
@@ -54,7 +54,7 @@ public class ChatCrypt {
         private AlgorithmParameters cipherParams;
     }
 
-    private class Party2 {
+    private static class Party2 {
         private byte[] pubKeyEnc;
         private PublicKey pubKey;
     }
@@ -74,6 +74,9 @@ public class ChatCrypt {
             input = in.readLine();
         }
         conn.disconnect();
+        if(input == null) {
+            throw new RuntimeException("Server did not provide required data for encryption handshake.");
+        }
         return base64decode(input);
     }
 

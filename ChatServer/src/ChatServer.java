@@ -31,11 +31,11 @@ public class ChatServer {
     private static volatile List<String> userNames = new ArrayList<>();
     private static final Object userNamesLock = new Object();
 
-    private static String stringJoin(String delimiter, Iterable<? extends String> elements) {
+    private static String stringJoin(Iterable<? extends String> elements) {
         StringBuilder retval = new StringBuilder();
         for(String el : elements) {
             retval.append(el);
-            retval.append(delimiter);
+            retval.append("\n ");
         }
         return retval.toString();
     }
@@ -45,7 +45,7 @@ public class ChatServer {
         class ClientThread extends Thread {
 
             private final String first = "\nWelcome to Cyber Naysh Chat\ntype ':help' for help\n\n"
-                    + (!userNames.isEmpty() ? "<< Here now >>\n " + stringJoin("\n ", userNames) : "<< No one else is here >>")
+                    + (!userNames.isEmpty() ? "<< Here now >>\n " + stringJoin(userNames) : "<< No one else is here >>")
                     + (char) 5 + (char) 17 + "\n";
 
             private final String uuid;
@@ -90,10 +90,15 @@ public class ChatServer {
                             "\n :format for Markdown" +
                             "\n :unformat for plain text" + (char) 5;
                     if(userNames.size() > 1) {
-                        outputLine += "\nUsers here now:" + "\n";
+                        StringBuilder usersHereBuilder = new StringBuilder("\nUsers here now:\n");
                         for (String usr : userNames) {
-                            if (!usr.equals(userName)) outputLine += " " + usr + "\n";
+                            if (!usr.equals(userName)) {
+                                usersHereBuilder.append(" ");
+                                usersHereBuilder.append(usr);
+                                usersHereBuilder.append("\n");
+                            }
                         }
+                        outputLine += usersHereBuilder.toString();
                     } else {
                         outputLine += "\nNo one else is here" + "\n";
                     }
