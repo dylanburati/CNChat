@@ -49,7 +49,7 @@ public class ChatCrypt {
     public Cipher cipherD;
     public Cipher cipherE;
 
-    private class Self {
+    private static class Self {
         private KeyPairGenerator keyPairGen;
         private KeyPair keyPair;
         private KeyAgreement keyAgree;
@@ -62,7 +62,7 @@ public class ChatCrypt {
         private AlgorithmParameters cipherParams;
     }
 
-    private class Party2 {
+    private static class Party2 {
         private byte[] pubKeyEnc;
         private PublicKey pubKey;
     }
@@ -141,7 +141,7 @@ public class ChatCrypt {
                 cipherD.init(Cipher.DECRYPT_MODE, self.keyAES, self.cipherParams);
                 handshakeDone = true;
                 synchronized (ChatCrypt.this) {
-                    ChatCrypt.this.notify();
+                    ChatCrypt.this.notifyAll();
                 }
                 break;
         }

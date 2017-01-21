@@ -196,7 +196,7 @@ public class ChatClient extends JFrame {
         String hostName = "0.0.0.0";
         String path = new File(ChatClient.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
                 getParent() + System.getProperty("file.separator") + "config.txt";
-        try(BufferedReader config = new BufferedReader(new FileReader(path))) {
+        try(BufferedReader config = new BufferedReader(new InputStreamReader(new FileInputStream(path), UTF_8))) {
             Pattern noComment = Pattern.compile("^\\p{javaWhitespace}*.");
             String remote;
             while((remote = config.readLine()) != null) {
