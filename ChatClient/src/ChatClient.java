@@ -403,7 +403,7 @@ public class ChatClient extends JFrame {
             boolean up = true;
             while(up) {
                 try {
-                    Thread.sleep(16);
+                    Thread.sleep(25);
                 } catch (InterruptedException ignored) {
                 }
                 up = md.sendAndReceive();
