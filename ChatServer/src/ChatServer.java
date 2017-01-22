@@ -11,6 +11,7 @@ import javax.crypto.IllegalBlockSizeException;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 
@@ -257,13 +258,16 @@ public class ChatServer {
             @Override
             public void execute(ClientThread skip, String message, String user) {
                 boolean everyone = user.isEmpty();
-                for (ClientThread currentThread : threads) {
-                    if (everyone || user.equals(currentThread.getUserName())) {
-                        if (!currentThread.isAlive()) {
-                            threads.remove(currentThread);
-                            continue;
+                synchronized(threads) {
+                    for (Iterator<ClientThread> threadIter = threads.iterator(); threadIter.hasNext(); /* nothing */) {
+                        ClientThread currentThread = threadIter.next();
+                        if (everyone || user.equals(currentThread.getUserName())) {
+                            if (!currentThread.isAlive()) {
+                                threadIter.remove();
+                                continue;
+                            }
+                            if (!currentThread.equals(skip)) currentThread.enqueue(message);
                         }
-                        if (!currentThread.equals(skip)) currentThread.enqueue(message);
                     }
                 }
             }
@@ -295,7 +299,9 @@ public class ChatServer {
                 InetSocketAddress epoint = conn.getRemoteAddress();
                 System.out.println("Client @ " + epoint.getAddress().getHostAddress() + ":" + epoint.getPort());
                 ClientThread thread = new ClientThread(uuid, messenger);
-                threads.add(thread);
+                synchronized(threads) {
+                    threads.add(thread);
+                }
                 thread.start();
             }
         }

@@ -368,7 +368,6 @@ public class ChatClient extends JFrame {
         ) {
             long mask = -1L >>> 1;
             String check = String.format("%016x%016x", random.nextLong() & mask, random.nextLong() & mask);
-            System.out.println(check);
             out.print(check);
             out.close();
         }
