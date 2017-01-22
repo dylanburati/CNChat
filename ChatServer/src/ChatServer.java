@@ -71,17 +71,13 @@ public class ChatServer {
                 boolean messageAll = true;
                 boolean messageMe = true;
                 dmUser = "";
-                if (outputLine.contains(":serverquit")) {
-                    up = false;
-                    outputLine = "<< " + userName + " ended the chat >>" + (char) 5;
-                } else if (outputLine.contains(":help")) {
+                if (outputLine.contains(":help")) {
                     messageAll = false;
                     outputLine = "Commands start with a colon (:)" +
                             "\n:status sends you key info" +
                             "\n:dm <user> sends a direct message" +
                             "\n:username <new username>" +
-                            "\n:quit closes your chat box" +
-                            "\n:serverquit ends the chat" + (char) 5 + "\n";
+                            "\n:quit closes your chat box" + (char) 5 + "\n";
                 } else if (outputLine.contains(":status")) {
                     messageAll = false;
                     outputLine = "<< Status >>" +
@@ -170,7 +166,6 @@ public class ChatServer {
                 if(markDown) outputLine += (char)17;
                 if (messageMe) enqueue(outputLine);
                 if (messageAll) peerMessage.execute(this, outputLine, dmUser);
-                if (!up) System.exit(0);
                 return finished;
             }
 
@@ -190,17 +185,19 @@ public class ChatServer {
                 httpContext = server.createContext("/" + uuid, new TransactionHandler(inQueue, inQueueLock, outQueue, outQueueLock));
                 try {
                     String inputLine;
-                    while (up) {
+                    boolean finished = false;
+                    while (!finished) {
                         try {
                             Thread.sleep(10);
                         } catch(InterruptedException ignored) {
                         }
-                        if(inQueue.size() > 0) {
+
+                        while(!finished) {
                             synchronized (inQueueLock) {
-                                inputLine = inQueue.remove(0);
+                                if (inQueue.size() > 0) inputLine = inQueue.remove(0);
+                                else break;
                             }
-                            boolean finished = handleMessage(decrypt(inputLine));
-                            if(finished) break;
+                            finished = handleMessage(decrypt(inputLine));
                         }
                     }
                 } catch (IOException e) {
