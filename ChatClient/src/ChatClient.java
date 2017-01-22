@@ -214,7 +214,8 @@ public class ChatClient extends JFrame {
         Collections.addAll(userNames, "Lil B", "KenM", "Ken Bone", "Tai Lopez", "Hugh Mungus",
                 "Donald Trump", "Hillary Clinton", "Jesus", "VN", "Uncle Phil",
                 "Watery Westin", "A Wild KB");
-        userName = userNames.remove(new Random().nextInt(userNames.size()));
+        final Random random = new Random();
+        userName = userNames.remove(random.nextInt(userNames.size()));
 
         host = new URL("http", hostName, portNumber, "");
         System.out.println("Connecting to " + InetAddress.getByName(hostName).getHostAddress() + ":" + portNumber);
@@ -285,9 +286,9 @@ public class ChatClient extends JFrame {
                 if (header == 21) {
                     if (message.length() == 1) {
                         if (!userNames.isEmpty()) {
-                            userName = userNames.remove(new Random().nextInt(userNames.size()));
+                            userName = userNames.remove(random.nextInt(userNames.size()));
                         } else {
-                            userName = Integer.toString(36 * 36 * 36 + new Random().nextInt(35 * 36 * 36 * 36), 36);
+                            userName = Integer.toString(36 * 36 * 36 + random.nextInt(35 * 36 * 36 * 36), 36);
                         }
                         enqueue((char) 6 + userName);
                     } else {
@@ -363,6 +364,14 @@ public class ChatClient extends JFrame {
 
         refresh();
         conn.setDoOutput(true);
+        try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getOutputStream(), UTF_8), true)
+        ) {
+            long mask = -1L >>> 1;
+            String check = String.format("%016x%016x", random.nextLong() & mask, random.nextLong() & mask);
+            System.out.println(check);
+            out.print(check);
+            out.close();
+        }
         try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), UTF_8))
         ) {
             uuid = in.readLine();

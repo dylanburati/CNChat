@@ -8,9 +8,7 @@ import com.sun.net.httpserver.HttpServer;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +25,6 @@ interface peerUpdateCompat<T> {
 public class ChatServer {
 
     private static HttpServer server;
-    private static boolean up = true;
     private static volatile List<String> userNames = new ArrayList<>();
     private static final Object userNamesLock = new Object();
 
@@ -45,7 +42,7 @@ public class ChatServer {
         class ClientThread extends Thread {
 
             private final String first = "\nWelcome to Cyber Naysh Chat\ntype ':help' for help\n\n"
-                    + (!userNames.isEmpty() ? "<< Here now >>\n " + stringJoin(userNames) : "<< No one else is here >>")
+                    + (!userNames.isEmpty() ? "<< Here now >>\n " + stringJoin(userNames) : "<< No one else is here >>\n")
                     + (char) 5 + (char) 17 + "\n";
 
             private final String uuid;
@@ -67,7 +64,6 @@ public class ChatServer {
             }
 
             private boolean handleMessage(String outputLine) {
-                boolean finished = false;
                 boolean messageAll = true;
                 boolean messageMe = true;
                 dmUser = "";
@@ -113,12 +109,8 @@ public class ChatServer {
                             }
                             outputLine = "<< " + userName + " joined the chat >>" + (char)5;
                         }
-                    } else if (finished = (command == 4)) {
-                        messageMe = false;
-                        synchronized (userNamesLock) {
-                            userNames.remove(userName);
-                        }
-                        outputLine = "<< " + outputLine + " left the chat >>" + (char)5;
+                    } else if (command == 4) {
+                        return true;
                     } else if (command == 26) {
                         final int delimiter = outputLine.lastIndexOf(26);
                         String nameRequest = outputLine.substring(delimiter + 1);
@@ -166,7 +158,18 @@ public class ChatServer {
                 if(markDown) outputLine += (char)17;
                 if (messageMe) enqueue(outputLine);
                 if (messageAll) peerMessage.execute(this, outputLine, dmUser);
-                return finished;
+                return false;
+            }
+
+            private void close() {
+                synchronized (userNamesLock) {
+                    userNames.remove(userName);
+                }
+                String outputLine = "<< " + userName + " left the chat >>" + (char)5;
+                if(markDown) outputLine += (char)17;
+                peerMessage.execute(this, outputLine, "");
+                cipherD = cipherE = null;
+                server.removeContext(httpContext);
             }
 
             @Override
@@ -203,7 +206,7 @@ public class ChatServer {
                 } catch (IOException e) {
                     e.printStackTrace();
                 } finally {
-                    server.removeContext(httpContext);
+                    close();
                 }
             }
 
@@ -256,6 +259,10 @@ public class ChatServer {
                 boolean everyone = user.isEmpty();
                 for (ClientThread currentThread : threads) {
                     if (everyone || user.equals(currentThread.getUserName())) {
+                        if (!currentThread.isAlive()) {
+                            threads.remove(currentThread);
+                            continue;
+                        }
                         if (!currentThread.equals(skip)) currentThread.enqueue(message);
                     }
                 }
@@ -266,6 +273,17 @@ public class ChatServer {
             @Override
             public void handle(HttpExchange conn) throws IOException {
                 String uuid;
+                try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getRequestBody(), UTF_8))
+                ) {
+                    String input = in.readLine();
+                    if(input.length() != 32) return;
+                    for(int i = 0; i < 32; i++) {
+                        if(Character.digit(input.codePointAt(i),16) == -1) {
+                            return;
+                        }
+                    }
+                }
+
                 try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getResponseBody(), UTF_8), true)
                 ) {
                     uuid = UUID.randomUUID().toString().replace("-", "");

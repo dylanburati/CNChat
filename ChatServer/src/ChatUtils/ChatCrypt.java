@@ -44,10 +44,9 @@ public class ChatCrypt {
     private final Object inQueueLock = new Object();
     private List<byte[]> outQueue = new ArrayList<>();
     private final Object outQueueLock = new Object();
-    private boolean handshakeDone;
 
-    public Cipher cipherD;
-    public Cipher cipherE;
+    public Cipher cipherD = null;
+    public Cipher cipherE = null;
 
     private static class Self {
         private KeyPairGenerator keyPairGen;
@@ -139,7 +138,6 @@ public class ChatCrypt {
 
                 cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES, self.cipherParams);
                 cipherD.init(Cipher.DECRYPT_MODE, self.keyAES, self.cipherParams);
-                handshakeDone = true;
                 synchronized (ChatCrypt.this) {
                     ChatCrypt.this.notifyAll();
                 }
@@ -148,11 +146,10 @@ public class ChatCrypt {
     }
 
     public ChatCrypt(HttpServer server, String uuid) throws Exception {
-        handshakeDone = false;
         runStage(0);
         HttpContext hc = server.createContext("/" + uuid, new CryptHandler());
         synchronized (this) {
-            while(!handshakeDone) {
+            while(cipherE == null || cipherD == null) {
                 wait();
             }
         }
