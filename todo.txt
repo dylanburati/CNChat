@@ -10,7 +10,7 @@ Format is Version; Status; Description (status is 0 for removed, 1 for active in
 1.1.0; 1; Swing GUI
 1.1.1; 1; The :color command
 1.1.1; 1; The :username command
-1.1.1; 1; Enter sends messages, Ctrl+Enter and Shift+Enter add a line break to the message 
+1.1.1; 1; Enter sends messages, Ctrl+Enter and Shift+Enter add a line break to the message
 1.1.1; 1; The hex code form of the :color command
 1.1.2; 1; The RGB code form of the :color command
 1.1.2; 1; The "rainbow", "white", and "reset" forms of the :color command
@@ -51,6 +51,7 @@ Format is Version; Status; Description (status is 0 for removed, 1 for active in
 2.0.1; 1; All features of the chat work when the source is built and run with Java 7
 2.1.0; 1; The server prints the host IP and port for each new connection
 2.1.0; 1; The config.txt file can be used to set an alternate host server
+2.2.1; 1; All features of the chat, except :serverquit, work over http using polling
 
 
 http://jsfiddle.net/0wv1mn42/7/show

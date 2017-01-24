@@ -7,6 +7,7 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import static ChatUtils.Codecs.base64decode;
@@ -23,11 +24,11 @@ public class ChatServer {
     private static volatile List<String> userNames = new ArrayList<>();
     private static final Object userNamesLock = new Object();
 
-    private static String stringJoin(String delimiter, Iterable<? extends String> elements) {
+    private static String stringJoin(Iterable<? extends String> elements) {
         StringBuilder retval = new StringBuilder();
         for(String el : elements) {
             retval.append(el);
-            retval.append(delimiter);
+            retval.append("\n ");
         }
         return retval.toString();
     }
@@ -37,7 +38,7 @@ public class ChatServer {
         class ClientThread extends Thread {
 
             private final String first = "\nWelcome to Cyber Naysh Chat\ntype ':help' for help\n\n"
-                    + (!userNames.isEmpty() ? "<< Here now >>\n " + stringJoin("\n ", userNames) : "<< No one else is here >>")
+                    + (!userNames.isEmpty() ? "<< Here now >>\n " + stringJoin(userNames) : "<< No one else is here >>\n")
                     + (char) 5 + (char) 17 + "\n";
 
             private final peerUpdateCompat<ClientThread> peerMessage;
@@ -104,10 +105,15 @@ public class ChatServer {
                                     "\n :format for Markdown" +
                                     "\n :unformat for plain text" + (char) 5;
                             if(userNames.size() > 1) {
-                                outputLine += "\nUsers here now:" + "\n";
+                                StringBuilder usersHereBuilder = new StringBuilder("\nUsers here now:\n");
                                 for (String usr : userNames) {
-                                    if (!usr.equals(userName)) outputLine += " " + usr + "\n";
+                                    if (!usr.equals(userName)) {
+                                        usersHereBuilder.append(" ");
+                                        usersHereBuilder.append(usr);
+                                        usersHereBuilder.append("\n");
+                                    }
                                 }
+                                outputLine += usersHereBuilder.toString();
                             } else {
                                 outputLine += "\nNo one else is here" + "\n";
                             }
@@ -199,7 +205,7 @@ public class ChatServer {
                     return new String(data, UTF_8);
                 } catch (IllegalBlockSizeException | BadPaddingException e) {
                     e.printStackTrace();
-                    return "<< Error with encryption >>" + (char) 5;
+                    return null;
                 }
             }
 
@@ -213,7 +219,6 @@ public class ChatServer {
                     out.println(base64encode(enc));
                 } catch (IllegalBlockSizeException | BadPaddingException e) {
                     e.printStackTrace();
-                    out.println(base64encode("<< Error with encryption >>\005".getBytes(UTF_8)));
                 }
             }
 
@@ -231,9 +236,16 @@ public class ChatServer {
             @Override
             public void execute(ClientThread skip, String message, String user) {
                 boolean everyone = user.isEmpty();
-                for (ClientThread currentThread : threads) {
-                    if (everyone || user.equals(currentThread.getUserName())) {
-                        if (!currentThread.equals(skip)) currentThread.send(message);
+                synchronized (threads) {
+                    for (Iterator<ClientThread> threadIter = threads.iterator(); threadIter.hasNext(); /* nothing */) {
+                        ClientThread currentThread = threadIter.next();
+                        if (everyone || user.equals(currentThread.getUserName())) {
+                            if (!currentThread.isAlive()) {
+                                threadIter.remove();
+                                continue;
+                            }
+                            if (!currentThread.equals(skip)) currentThread.send(message);
+                        }
                     }
                 }
             }
@@ -242,7 +254,9 @@ public class ChatServer {
             Socket socket = serverSocket.accept();
             System.out.println("Client @ " + socket.getInetAddress().getHostAddress() + ":" + socket.getPort());
             ClientThread thread = new ClientThread(socket, messenger);
-            threads.add(thread);
+            synchronized (threads) {
+                threads.add(thread);
+            }
             thread.start();
         }
 

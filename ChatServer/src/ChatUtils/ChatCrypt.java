@@ -40,7 +40,7 @@ public class ChatCrypt {
     public Cipher cipherD;
     public Cipher cipherE;
 
-    private class Self {
+    private static class Self {
         private KeyPairGenerator keyPairGen;
         private KeyPair keyPair;
         private KeyAgreement keyAgree;
@@ -53,7 +53,7 @@ public class ChatCrypt {
         private AlgorithmParameters cipherParams;
     }
 
-    private class Party2 {
+    private static class Party2 {
         private byte[] pubKeyEnc;
         private PublicKey pubKey;
     }
@@ -92,7 +92,7 @@ public class ChatCrypt {
             party2.pubKeyEnc = receive();
             send(self.pubKeyEnc);
         }
-            
+
         self.keyFactory = KeyFactory.getInstance("DH");
         self.keySpec = new X509EncodedKeySpec(party2.pubKeyEnc);
         party2.pubKey = self.keyFactory.generatePublic(self.keySpec);

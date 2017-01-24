@@ -117,7 +117,6 @@ public class ChatClient extends JFrame {
             out.println(base64encode(enc));
         } catch (IllegalBlockSizeException | BadPaddingException e) {
             e.printStackTrace();
-            out.println(base64encode("<< Error with encryption >>".getBytes(UTF_8)));
         }
     }
 
@@ -132,7 +131,7 @@ public class ChatClient extends JFrame {
             return new String(data, UTF_8);
         } catch (IllegalBlockSizeException | BadPaddingException e) {
             e.printStackTrace();
-            return "<< Error with encryption >>" + (char) 5;
+            return null;
         }
     }
 
@@ -187,7 +186,7 @@ public class ChatClient extends JFrame {
         String hostName = "0.0.0.0";
         String path = new File(ChatClient.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
                 getParent() + System.getProperty("file.separator") + "config.txt";
-        try(BufferedReader config = new BufferedReader(new FileReader(path))) {
+        try(BufferedReader config = new BufferedReader(new InputStreamReader(new FileInputStream(path), UTF_8))) {
             Pattern noComment = Pattern.compile("^\\p{javaWhitespace}*.");
             String remote;
             while((remote = config.readLine()) != null) {
@@ -205,7 +204,8 @@ public class ChatClient extends JFrame {
         Collections.addAll(userNames, "Lil B", "KenM", "Ken Bone", "Tai Lopez", "Hugh Mungus",
                 "Donald Trump", "Hillary Clinton", "Jesus", "VN", "Uncle Phil",
                 "Watery Westin", "A Wild KB");
-        userName = userNames.remove(new Random().nextInt(userNames.size()));
+        final Random random = new Random();
+        userName = userNames.remove(random.nextInt(userNames.size()));
 
         InetAddress host = InetAddress.getByName(hostName);
         System.out.println("Connecting to " + host.getHostAddress() + ":" + portNumber);
@@ -223,7 +223,7 @@ public class ChatClient extends JFrame {
             e.printStackTrace();
         }
         send((char) 6 + userName);
-        
+
         class MessageHandler {
             private final Runnable rainbowRun = new Runnable() {
                 @Override
@@ -240,7 +240,7 @@ public class ChatClient extends JFrame {
                     }
                 }
             };
-            
+
             private Thread rainbow = new Thread();
             private Style peerStyle;
             private Style serverStyle;
@@ -254,15 +254,15 @@ public class ChatClient extends JFrame {
                 this.directStyle = stdOut.addStyle("direct", peerStyle);
                 StyleConstants.setForeground(directStyle, new Color(81, 0, 241));
             }
-            
+
             private void handleMessage(String message) throws IOException, BadLocationException, NumberFormatException {
                 final int header = message.isEmpty() ? -1 : message.codePointAt(0);
                 if (header == 21) {
                     if (message.length() == 1) {
                         if (!userNames.isEmpty()) {
-                            userName = userNames.remove(new Random().nextInt(userNames.size()));
+                            userName = userNames.remove(random.nextInt(userNames.size()));
                         } else {
-                            userName = Integer.toString(36 * 36 * 36 + new Random().nextInt(35 * 36 * 36 * 36), 36);
+                            userName = Integer.toString(36 * 36 * 36 + random.nextInt(35 * 36 * 36 * 36), 36);
                         }
                         send((char) 6 + userName);
                     } else {
@@ -344,7 +344,7 @@ public class ChatClient extends JFrame {
                     }
                 }
         ));
-        
+
         MessageHandler md = new MessageHandler();
         String newMessage;
         while((newMessage = receive(in)) != null) {
@@ -355,6 +355,6 @@ public class ChatClient extends JFrame {
                 e.printStackTrace();
             }
         }
-        
+
     }
 }
