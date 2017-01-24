@@ -29,11 +29,14 @@ public class ChatServer {
     private static volatile List<String> userNames = new ArrayList<>();
     private static final Object userNamesLock = new Object();
 
-    private static String stringJoin(Iterable<? extends String> elements) {
+    private static String usersHere() {
         StringBuilder retval = new StringBuilder();
-        for(String el : elements) {
-            retval.append(el);
-            retval.append("\n ");
+        synchronized(userNamesLock) {
+            for (String el : userNames) {
+                retval.append(" ");
+                retval.append(el);
+                retval.append("\n");
+            }
         }
         return retval.toString();
     }
@@ -43,7 +46,7 @@ public class ChatServer {
         class ClientThread extends Thread {
 
             private final String first = "\nWelcome to Cyber Naysh Chat\ntype ':help' for help\n\n"
-                    + (!userNames.isEmpty() ? "<< Here now >>\n " + stringJoin(userNames) : "<< No one else is here >>\n")
+                    + (!userNames.isEmpty() ? "<< Here now >>\n" + usersHere() : "<< No one else is here >>\n")
                     + (char) 5 + (char) 17 + "\n";
 
             private final String uuid;
@@ -83,15 +86,8 @@ public class ChatServer {
                             "\n :format for Markdown" +
                             "\n :unformat for plain text" + (char) 5;
                     if(userNames.size() > 1) {
-                        StringBuilder usersHereBuilder = new StringBuilder("\nUsers here now:\n");
-                        for (String usr : userNames) {
-                            if (!usr.equals(userName)) {
-                                usersHereBuilder.append(" ");
-                                usersHereBuilder.append(usr);
-                                usersHereBuilder.append("\n");
-                            }
-                        }
-                        outputLine += usersHereBuilder.toString();
+                        outputLine += "\nUsers here now:\n";
+                        outputLine += usersHere();
                     } else {
                         outputLine += "\nNo one else is here" + "\n";
                     }
@@ -280,7 +276,7 @@ public class ChatServer {
                 try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getRequestBody(), UTF_8))
                 ) {
                     String input = in.readLine();
-                    if(input.length() != 32) return;
+                    if(input == null || input.length() != 32) return;
                     for(int i = 0; i < 32; i++) {
                         if(Character.digit(input.codePointAt(i),16) == -1) {
                             return;
