@@ -74,6 +74,7 @@ public class ChatClient extends JFrame {
                         return;
                     }
                     String input = tp.getText();
+                    input = input.replaceAll("[\\x00-\\x07\\x0e-\\x1f\\x7f-\\x9f]", "");
                     if (input.contains(":quit")) {
                         clientClose();
                     } else if (input.contains(":username ")) {

@@ -149,7 +149,7 @@ public class ChatCrypt {
         runStage(0);
         HttpContext hc = server.createContext("/" + uuid, new CryptHandler());
         synchronized (this) {
-            while(cipherE == null || cipherD == null) {
+            while(cipherE == null || cipherD == null || cipherE.getIV() == null || cipherD.getIV() == null) {
                 wait();
             }
         }
