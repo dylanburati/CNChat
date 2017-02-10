@@ -51,6 +51,7 @@ public class ChatServer {
 
             private final String uuid;
             private final peerUpdateCompat<ClientThread> peerMessage;
+            private final String algo;
             private HttpContext httpContext = null;
             private String userName, dmUser = "";
             private boolean markDown = false;
@@ -62,9 +63,10 @@ public class ChatServer {
             private volatile List<String> inQueue = new ArrayList<>();
             private final Object inQueueLock = new Object();
 
-            private ClientThread(String uuid, peerUpdateCompat<ClientThread> peerMessage) {
+            private ClientThread(String uuid, peerUpdateCompat<ClientThread> peerMessage, String algo) {
                 this.uuid = uuid;
                 this.peerMessage = peerMessage;
+                this.algo = algo;
             }
 
             private boolean handleMessage(String outputLine) {
@@ -173,7 +175,7 @@ public class ChatServer {
             public void run() {
                 try {
                     synchronized(cipherLock) {
-                        ChatCrypt chatCrypt = new ChatCrypt(server, uuid);
+                        ChatCrypt chatCrypt = new ChatCrypt(server, uuid, algo);
                         cipherD = chatCrypt.cipherD;
                         cipherE = chatCrypt.cipherE;
                     }
@@ -273,15 +275,21 @@ public class ChatServer {
             @Override
             public void handle(HttpExchange conn) throws IOException {
                 String uuid;
+                String algo;
                 try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getRequestBody(), UTF_8))
                 ) {
                     String input = in.readLine();
                     if(input == null || input.length() != 32) return;
-                    for(int i = 0; i < 32; i++) {
+                    int phoneFlag = Character.digit(input.codePointAt(0), 16);
+                    if(phoneFlag == -1) {
+                        return;
+                    }
+                    for(int i = 1; i < 32; i++) {
                         if(Character.digit(input.codePointAt(i),16) == -1) {
                             return;
                         }
                     }
+                    algo = phoneFlag > 7 ? "AES/CBC/PKCS5Padding" : "AES/CTR/PKCS5Padding";
                 }
 
                 try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getResponseBody(), UTF_8), true)
@@ -294,7 +302,7 @@ public class ChatServer {
 
                 InetSocketAddress epoint = conn.getRemoteAddress();
                 System.out.println("Client @ " + epoint.getAddress().getHostAddress() + ":" + epoint.getPort());
-                ClientThread thread = new ClientThread(uuid, messenger);
+                ClientThread thread = new ClientThread(uuid, messenger, algo);
                 synchronized(threads) {
                     threads.add(thread);
                 }

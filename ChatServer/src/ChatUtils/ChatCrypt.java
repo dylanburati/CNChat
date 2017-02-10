@@ -39,6 +39,7 @@ public class ChatCrypt {
             "F1746C08CA237327FFFFFFFFFFFFFFFF", 16);
 
     private static final BigInteger otr1536Base = BigInteger.valueOf(2);
+    private final String algo;
 
     private List<byte[]> inQueue = new ArrayList<>();
     private final Object inQueueLock = new Object();
@@ -125,8 +126,8 @@ public class ChatCrypt {
                 self.key = self.keyAgree.generateSecret();
                 self.keyAES = new SecretKeySpec(Arrays.copyOf(sha256.digest(self.key), 16), "AES");
 
-                cipherD = Cipher.getInstance("AES/CTR/PKCS5Padding");
-                cipherE = Cipher.getInstance("AES/CTR/PKCS5Padding");
+                cipherD = Cipher.getInstance(algo);
+                cipherE = Cipher.getInstance(algo);
                 outQueue.add("Vn".getBytes(UTF_8));
                 break;
             case 2:
@@ -145,7 +146,8 @@ public class ChatCrypt {
         }
     }
 
-    public ChatCrypt(HttpServer server, String uuid) throws Exception {
+    public ChatCrypt(HttpServer server, String uuid, String algo) throws Exception {
+        this.algo = algo;
         runStage(0);
         HttpContext hc = server.createContext("/" + uuid, new CryptHandler());
         synchronized (this) {
