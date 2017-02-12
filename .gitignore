@@ -5,14 +5,16 @@
 *.iml
 
 # IntelliJ builds
-out/
+/out/
 
 # Only .zip needed
-src/
+/src/
 srcREADME.txt
 
 # Other
-ChatClient/src/config.txt
+/ChatClient/src/config.txt
+/ChatClient/src/META-INF/
+/ChatServer/src/META-INF/
 checkout*.sh
 charsTo0xff.txt
 CodecCheck.class

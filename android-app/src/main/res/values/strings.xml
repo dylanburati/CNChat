@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">CNChat</string>
+    <string name="settings">SETTINGS</string>
+    <string name="message0">Not connected</string>
+    <string name="message1">Connecting to server\n%s</string>
+    <string name="hint">Type a message…</string>
+    <string name="send">▶</string>
+    <string name="power0">JOIN</string>
+    <string name="power1">QUIT</string>
+    <string name="usernameE"><![CDATA[<< That username is taken >>]]></string>
+    <string name="serverLabel">Server Hostname</string>
+    <string name="save">SAVE</string>
+    <string name="customNameLabel">Custom Username</string>
+    <string name="leaveSettings">BACK TO CHAT</string>
+    <string name="help">
+    In CNChat, commands start with a colon (:)\nSend the command :help for more info.\n\nNote: Changes to these settings won\'t take effect until the next time you join the chat.
+    </string>
+</resources>
