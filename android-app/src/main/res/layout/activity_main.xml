@@ -102,6 +102,7 @@
 
                 <EditText
                     android:layout_weight="1"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:inputType="textMultiLine|textNoSuggestions|textVisiblePassword"
                     android:ems="10"
@@ -115,6 +116,7 @@
 
                 <Button
                     style="?android:attr/buttonStyleSmall"
+                    android:layout_weight="0"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/send"
@@ -197,7 +199,9 @@
 
                     <EditText
                         android:layout_weight="1"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:layout_marginRight="16dp"
                         android:inputType="textNoSuggestions|textVisiblePassword"
                         android:ems="10"
                         android:textColor="#DF000000"
@@ -206,6 +210,7 @@
                         android:maxLines="1"/>
 
                     <Button
+                        android:layout_weight="0"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/save"
@@ -231,23 +236,44 @@
                     android:layout_height="match_parent"
                     android:paddingBottom="24dp">
 
-                <EditText
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:inputType="textNoSuggestions|textVisiblePassword"
-                    android:ems="10"
-                    android:textColor="#DF000000"
-                    android:id="@+id/customNamePref"
-                    android:layout_gravity="center_vertical|left"
-                    android:maxLines="1"/>
+                    <EditText
+                        android:layout_weight="1"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginRight="16dp"
+                        android:inputType="textNoSuggestions|textVisiblePassword"
+                        android:ems="10"
+                        android:textColor="#DF000000"
+                        android:id="@+id/customNamePref"
+                        android:layout_gravity="center_vertical|left"
+                        android:maxLines="1"/>
 
-                <Button
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/save"
-                    android:id="@+id/customNameSave"
-                    android:layout_gravity="center_vertical|right"
-                    android:onClick="customNameSave"/>
+                    <Button
+                        android:layout_weight="0"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/save"
+                        android:id="@+id/customNameSave"
+                        android:layout_gravity="center_vertical|right"
+                        android:onClick="customNameSave"/>
+
+                </TableRow>
+
+                <TableRow
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:paddingBottom="24dp">
+
+                    <Switch
+                        android:layout_weight="1"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:switchPadding="16dp"
+                        android:text="@string/markdown"
+                        android:textColor="#DF000000"
+                        android:textSize="16sp"
+                        android:checked="false"
+                        android:id="@+id/markdownPref"/>
 
                 </TableRow>
             </TableLayout>

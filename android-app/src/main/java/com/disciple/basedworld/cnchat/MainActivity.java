@@ -21,9 +21,11 @@ import android.util.Log;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
+import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.RelativeLayout;
 import android.widget.ScrollView;
+import android.widget.Switch;
 import android.widget.TextView;
 
 import com.disciple.basedworld.cnchat.ChatUtils.ChatCrypt;
@@ -69,6 +71,7 @@ public class MainActivity extends AppCompatActivity {
     private ScrollView scrollView;
     private EditText serverPref;
     private EditText customNamePref;
+    private Switch markdownPref;
     private int layoutHeight;
     private Handler uiHandler = new Handler() {
         @Override
@@ -81,6 +84,7 @@ public class MainActivity extends AppCompatActivity {
     private String hostName = "";
     private String userName;
     private String uuid = null;
+    private boolean markdown = false;
     private final java.util.List<String> userNames = new ArrayList<>();
     private final Random random = new Random();
     private URL host;
@@ -153,6 +157,20 @@ public class MainActivity extends AppCompatActivity {
                     "Donald Trump", "Hillary Clinton", "Jesus", "VN", "Uncle Phil",
                     "Watery Westin", "A Wild KB");
         }
+        markdownPref = (Switch) findViewById(R.id.markdownPref);
+        markdownPref.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if(uuid == null) {
+                    markdown = isChecked;
+                }
+                SharedPreferences.Editor editor = prefs.edit();
+                editor.putBoolean("markdown", isChecked);
+                editor.apply();
+            }
+        });
+        markdown = prefs.getBoolean("markdown", false);
+        markdownPref.setChecked(markdown);
     }
 
     @Override
@@ -322,6 +340,9 @@ public class MainActivity extends AppCompatActivity {
                 Log.d("CNChat", "ChatCrypt", e);
             }
             enqueue((char) 6 + userName);
+            if(markdown) {
+                enqueue("" + (char) 17);
+            }
             power.setBackgroundColor(Color.parseColor("#23EC153F"));
             power.setText(res.getString(R.string.power1));
 

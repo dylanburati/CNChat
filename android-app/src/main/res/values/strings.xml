@@ -15,4 +15,5 @@
     <string name="help">
     In CNChat, commands start with a colon (:)\nSend the command :help for more info.\n\nNote: Changes to these settings won\'t take effect until the next time you join the chat.
     </string>
+    <string name="markdown">Enable Markdown formatting on join</string>
 </resources>
