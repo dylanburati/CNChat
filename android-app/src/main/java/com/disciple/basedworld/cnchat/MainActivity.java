@@ -1,5 +1,8 @@
 package com.disciple.basedworld.cnchat;
 
+import android.content.ComponentName;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.graphics.Color;
@@ -8,6 +11,7 @@ import android.graphics.Typeface;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.text.SpannableString;
@@ -53,8 +57,19 @@ import javax.crypto.IllegalBlockSizeException;
 import static com.disciple.basedworld.cnchat.ChatUtils.Codecs.base64decode;
 import static com.disciple.basedworld.cnchat.ChatUtils.Codecs.base64encode;
 
+interface Finisher {
+    void execute();
+}
+
 public class MainActivity extends AppCompatActivity {
 
+    Finisher finisher = new Finisher() {
+        @Override
+        public void execute() {
+            finish();
+        }
+    };
+    private ServiceConnection serviceConnection;
     private Resources res;
     private SharedPreferences prefs;
 
@@ -71,8 +86,8 @@ public class MainActivity extends AppCompatActivity {
     private ScrollView scrollView;
     private EditText serverPref;
     private EditText customNamePref;
-    private Switch markdownPref;
     private int layoutHeight;
+
     private Handler uiHandler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
@@ -80,15 +95,15 @@ public class MainActivity extends AppCompatActivity {
             scrollView.setBackgroundColor(msg.what);
         }
     };
-
     private String hostName = "";
     private String userName;
     private String uuid = null;
+    private Object chatState = null;
     private boolean markdown = false;
     private final java.util.List<String> userNames = new ArrayList<>();
     private final Random random = new Random();
-    private URL host;
 
+    private URL host;
     private HttpURLConnection conn;
     private final MessageHandler md = new MessageHandler();
     private final Object cipherLock = new Object();
@@ -101,6 +116,20 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        Intent intent = new Intent(this, ShutdownHook.class);
+        serviceConnection = new ServiceConnection() {
+            @Override
+            public void onServiceConnected(ComponentName name, IBinder service) {
+                ShutdownHook.LocalBinder binder = (ShutdownHook.LocalBinder) service;
+                binder.onTaskRemovedHandler.setCallback(finisher);
+            }
+
+            @Override
+            public void onServiceDisconnected(ComponentName name) {
+            }
+        };
+        bindService(intent, serviceConnection, 0);
+        startService(intent);
         res = getResources();
         prefs = getSharedPreferences("prefs", 0);
         hostName = prefs.getString("hostName", "");
@@ -157,11 +186,11 @@ public class MainActivity extends AppCompatActivity {
                     "Donald Trump", "Hillary Clinton", "Jesus", "VN", "Uncle Phil",
                     "Watery Westin", "A Wild KB");
         }
-        markdownPref = (Switch) findViewById(R.id.markdownPref);
+        Switch markdownPref = (Switch) findViewById(R.id.markdownPref);
         markdownPref.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                if(uuid == null) {
+                if(chatState == null) {
                     markdown = isChecked;
                 }
                 SharedPreferences.Editor editor = prefs.edit();
@@ -176,10 +205,14 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        enqueue((char) 4 + userName);
-        try {
-            md.sendAndReceive();
-        } catch(Throwable ignored) {
+        unbindService(serviceConnection);
+        if(chatState != null) {
+            enqueue((char) 4 + userName);
+            try {
+                md.sendAndReceive();
+            } catch(Throwable ignored) {
+            }
+            chatState = null;
         }
     }
 
@@ -227,7 +260,7 @@ public class MainActivity extends AppCompatActivity {
 
     public void serverSave(View v) {
         String newHostName = String.valueOf(serverPref.getText());
-        if(uuid == null) {
+        if(chatState == null) {
             hostName = newHostName;
         }
         SharedPreferences.Editor editor = prefs.edit();
@@ -237,7 +270,7 @@ public class MainActivity extends AppCompatActivity {
 
     public void customNameSave(View v) {
         String newUserName = String.valueOf(customNamePref.getText());
-        if(uuid == null) {
+        if(chatState == null) {
             userNames.clear();
             userNames.add(newUserName);
         }
@@ -247,7 +280,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void chatAction(View v) {
-        if(uuid == null) {
+        if(chatState == null) {
             chatSession(v);
         } else {
             String input = String.valueOf(textPane.getText());
@@ -276,11 +309,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void chatSession(View v) {
-        if(uuid != null) {
+        if(chatState != null) {
             finish();
             return;
         }
 
+        chatState = new Object();
         int portNumber = 8080;
         userName = userNames.remove(random.nextInt(userNames.size()));
         setTitle("CN Chat: " + userName);
@@ -350,7 +384,7 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void run() {
                     boolean up = true;
-                    while(up) {
+                    while(up && chatState != null) {
                         up = false;
                         try {
                             up = md.sendAndReceive();
@@ -360,7 +394,6 @@ public class MainActivity extends AppCompatActivity {
                         } catch(InterruptedException ignored) {
                         }
                     }
-                    finish();
                 }
             });
             pollster.start();
