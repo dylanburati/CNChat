@@ -57,13 +57,13 @@ import javax.crypto.IllegalBlockSizeException;
 import static com.disciple.basedworld.cnchat.ChatUtils.Codecs.base64decode;
 import static com.disciple.basedworld.cnchat.ChatUtils.Codecs.base64encode;
 
-interface Finisher {
+interface Reckoner {
     void execute();
 }
 
 public class MainActivity extends AppCompatActivity {
 
-    Finisher finisher = new Finisher() {
+    Reckoner reckoner = new Reckoner() {
         @Override
         public void execute() {
             finish();
@@ -121,7 +121,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
                 ShutdownHook.LocalBinder binder = (ShutdownHook.LocalBinder) service;
-                binder.onTaskRemovedHandler.setCallback(finisher);
+                binder.onTaskRemovedHandler.setCallback(reckoner);
             }
 
             @Override
@@ -361,6 +361,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.d("CNChat", "initHandshake ext", e);
             }
             if(uuid == null) {
+                chatState = null;
                 throw new RuntimeException("Server did not provide required data to start the encryption handshake.");
             }
             host = new URL(host.getProtocol(), host.getHost(), host.getPort(), "/" + uuid);
@@ -371,7 +372,8 @@ public class MainActivity extends AppCompatActivity {
                     cipherE = chatCrypt.cipherE;
                 }
             } catch(Exception e) {
-                Log.d("CNChat", "ChatCrypt", e);
+                chatState = null;
+                throw new RuntimeException("ChatCrypt: " + e.getMessage());
             }
             enqueue((char) 6 + userName);
             if(markdown) {
