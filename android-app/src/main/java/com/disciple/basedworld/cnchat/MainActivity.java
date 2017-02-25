@@ -1,6 +1,7 @@
 package com.disciple.basedworld.cnchat;
 
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
@@ -25,16 +26,19 @@ import android.util.Log;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
+import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
+import android.widget.TableRow;
 import android.widget.TextView;
 
 import com.disciple.basedworld.cnchat.ChatUtils.ChatCrypt;
 
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -57,21 +61,24 @@ import javax.crypto.IllegalBlockSizeException;
 import static com.disciple.basedworld.cnchat.ChatUtils.Codecs.base64decode;
 import static com.disciple.basedworld.cnchat.ChatUtils.Codecs.base64encode;
 
-interface Reckoner {
-    void execute();
-}
 
 public class MainActivity extends AppCompatActivity {
 
-    Reckoner reckoner = new Reckoner() {
+    Runnable reckoner = new Runnable() {
         @Override
-        public void execute() {
+        public void run() {
             finish();
         }
     };
     private ServiceConnection serviceConnection;
     private Resources res;
     private SharedPreferences prefs;
+
+    private final String errLogFile = "err_log";
+    private final Object errLogLock = new Object();
+    private Button errLogShow;
+    private TableRow errLogContainer;
+    private TextView errLog;
 
     private RelativeLayout chatView;
     private ScrollView configView;
@@ -114,6 +121,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Thread.setDefaultUncaughtExceptionHandler(new LoggingExceptionHandler(this, errLogFile, errLogLock));
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Intent intent = new Intent(this, ShutdownHook.class);
@@ -133,6 +141,10 @@ public class MainActivity extends AppCompatActivity {
         res = getResources();
         prefs = getSharedPreferences("prefs", 0);
         hostName = prefs.getString("hostName", "");
+
+        errLogShow = (Button) findViewById(R.id.errLogShow);
+        errLogContainer = (TableRow) findViewById(R.id.errLogContainer);
+        errLog = (TextView) findViewById(R.id.errLog);
 
         chatView = (RelativeLayout) findViewById(R.id.chatView);
         configView = (ScrollView) findViewById(R.id.configView);
@@ -277,6 +289,58 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences.Editor editor = prefs.edit();
         editor.putString("userName", newUserName);
         editor.apply();
+    }
+
+    public void errLogShow(View v) {
+        if(errLogContainer.getVisibility() == View.GONE) {
+            errLog.setText("");
+            BufferedReader in = null;
+            try {
+                try {
+                    synchronized(errLogLock) {
+                        in = new BufferedReader(new InputStreamReader(openFileInput(errLogFile), Charset.forName("UTF-8")));
+                        String errLine;
+                        while((errLine = in.readLine()) != null) {
+                            errLog.append(errLine);
+                        }
+                    }
+                } catch(FileNotFoundException e) {
+                    errLog.setText(R.string.errLogNotFound);
+                    e.printStackTrace();
+                } finally {
+                    if(in != null) {
+                        in.close();
+                    }
+                }
+            } catch(IOException e) {
+                Log.d("CNChat", "errLogShow", e);
+            }
+            errLogContainer.setVisibility(View.VISIBLE);
+            errLogShow.setText(res.getString(R.string.hide));
+        } else {
+            errLogContainer.setVisibility(View.GONE);
+            errLogShow.setText(res.getString(R.string.show));
+        }
+    }
+
+    public void errLogClear(View v) {
+        if(errLogContainer.getVisibility() != View.GONE) {
+            errLogContainer.setVisibility(View.GONE);
+            errLogShow.setText(res.getString(R.string.show));
+        }
+        synchronized(errLogLock) {
+            PrintWriter out = null;
+            try {
+                out = new PrintWriter(openFileOutput(errLogFile, Context.MODE_PRIVATE), true);
+                out.print("");
+            } catch(FileNotFoundException e) {
+                e.printStackTrace();
+            } finally {
+                if(out != null) {
+                    out.close();
+                }
+            }
+        }
     }
 
     public void chatAction(View v) {

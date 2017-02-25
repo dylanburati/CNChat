@@ -7,13 +7,13 @@ import android.os.IBinder;
 import android.support.annotation.Nullable;
 
 interface CallbackSetter {
-    void setCallback(Reckoner reckoner);
+    void setCallback(Runnable reckoner);
 }
 
 public class ShutdownHook extends Service {
 
     private final Binder binder = new LocalBinder();
-    private Reckoner reckoner = null;
+    private Runnable reckoner = null;
 
     public ShutdownHook() {
         super();
@@ -22,7 +22,7 @@ public class ShutdownHook extends Service {
     class LocalBinder extends Binder {
         CallbackSetter onTaskRemovedHandler = new CallbackSetter() {
             @Override
-            public void setCallback(Reckoner reckoner) {
+            public void setCallback(Runnable reckoner) {
                 ShutdownHook.this.reckoner = reckoner;
             }
         };
@@ -37,7 +37,7 @@ public class ShutdownHook extends Service {
     @Override
     public void onTaskRemoved(Intent rootIntent) {
         if(reckoner != null) {
-            reckoner.execute();
+            reckoner.run();
         }
         stopSelf();
     }
