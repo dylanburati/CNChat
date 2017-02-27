@@ -1,21 +1,32 @@
 package com.disciple.basedworld.cnchat.ChatUtils;
 
 import android.os.AsyncTask;
+import android.util.Log;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.math.BigInteger;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.Charset;
+import java.security.AlgorithmParameters;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
+import java.security.PublicKey;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Arrays;
+import java.util.concurrent.ExecutionException;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyAgreement;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.DHParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.*;
-import java.math.BigInteger;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.Charset;
-import java.security.*;
-import java.security.spec.X509EncodedKeySpec;
-import java.util.Arrays;
-import java.util.concurrent.ExecutionException;
 
 import static com.disciple.basedworld.cnchat.ChatUtils.Codecs.base64decode;
 import static com.disciple.basedworld.cnchat.ChatUtils.Codecs.base64encode;
@@ -101,7 +112,7 @@ public class ChatCrypt {
             cryptTask.execute();
             input = cryptTask.get();
         } catch(ExecutionException | InterruptedException e) {
-            e.printStackTrace();
+            Log.d("CNChat", "cryptTask ext", e);
         }
         if(input == null) {
             throw new RuntimeException("Server did not provide required data for encryption handshake.");

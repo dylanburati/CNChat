@@ -306,7 +306,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 } catch(FileNotFoundException e) {
                     errLog.setText(R.string.errLogNotFound);
-                    e.printStackTrace();
+                    Log.d("CNChat", "errLogShow FileNotFound", e);
                 } finally {
                     if(in != null) {
                         in.close();
@@ -334,7 +334,7 @@ public class MainActivity extends AppCompatActivity {
                 out = new PrintWriter(openFileOutput(errLogFile, Context.MODE_PRIVATE), true);
                 out.print("");
             } catch(FileNotFoundException e) {
-                e.printStackTrace();
+                Log.d("CNChat", "errLogClear FileNotFound", e);
             } finally {
                 if(out != null) {
                     out.close();

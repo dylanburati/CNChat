@@ -1,6 +1,7 @@
 package com.disciple.basedworld.cnchat;
 
 import android.content.Context;
+import android.util.Log;
 
 import java.io.FileNotFoundException;
 import java.io.OutputStreamWriter;
@@ -36,7 +37,7 @@ class LoggingExceptionHandler implements Thread.UncaughtExceptionHandler {
                 out.println();
             }
         } catch(FileNotFoundException e1) {
-            e1.printStackTrace();
+            Log.d("CNChat", "LoggingExceptionHandler.uncaughtException FileNotFound", e);
         } finally {
             if(out != null) {
                 out.close();
