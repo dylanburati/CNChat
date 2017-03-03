@@ -345,8 +345,8 @@ public class MainActivity extends AppCompatActivity {
 
     public void chatAction(View v) {
         if(chatState == null) {
-            chatSession(v);
-        } else {
+            chatSessionStart(v);
+        } else if(cipherE != null) {
             String input = String.valueOf(textPane.getText());
             textPane.setText("");
             input = input.replaceAll("[\\x00-\\x07\\x0e-\\x1f\\x7f-\\x9f]", "");
@@ -372,21 +372,34 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void chatSession(View v) {
+    public void chatSessionStart(View v) {
         if(chatState != null) {
-            finish();
+            if(cipherE != null) {
+                finish();
+            }
             return;
         }
 
         chatState = new Object();
-        int portNumber = 8080;
         userName = userNames.remove(random.nextInt(userNames.size()));
         setTitle("CN Chat: " + userName);
-        try {
-            host = new URL("http", hostName, portNumber, "");
-            stdOut.setText(res.getString(R.string.message1, host.getHost()));
-            stdOut.append("\n");
+        power.setBackgroundColor(Color.parseColor("#23EC153F"));
+        power.setText(res.getString(R.string.power1));
+        stdOut.setText(res.getString(R.string.message1, hostName));
+        stdOut.append("\n");
 
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                chatSession();
+            }
+        }).start();
+    }
+
+    private void chatSession() {
+        try {
+            int portNumber = 8080;
+            host = new URL("http", hostName, portNumber, "");
             AsyncTask<Void, Void, String> initHandshake = new AsyncTask<Void, Void, String>() {
                 @Override
                 protected String doInBackground(Void... params) {
@@ -434,35 +447,27 @@ public class MainActivity extends AppCompatActivity {
                     ChatCrypt chatCrypt = new ChatCrypt(host);
                     cipherD = chatCrypt.cipherD;
                     cipherE = chatCrypt.cipherE;
+                    enqueue((char) 6 + userName);
+                    if(markdown) {
+                        enqueue("" + (char) 17);
+                    }
                 }
             } catch(Exception e) {
                 chatState = null;
                 throw new RuntimeException("ChatCrypt: " + e.getMessage());
             }
-            enqueue((char) 6 + userName);
-            if(markdown) {
-                enqueue("" + (char) 17);
-            }
-            power.setBackgroundColor(Color.parseColor("#23EC153F"));
-            power.setText(res.getString(R.string.power1));
 
-            Thread pollster = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    boolean up = true;
-                    while(up && chatState != null) {
-                        up = false;
-                        try {
-                            up = md.sendAndReceive();
-                            Thread.sleep(16);
-                        } catch(IOException e) {
-                            Log.d("CNChat", "sendAndReceive", e);
-                        } catch(InterruptedException ignored) {
-                        }
-                    }
+            boolean up = true;
+            while(up && chatState != null) {
+                up = false;
+                try {
+                    up = md.sendAndReceive();
+                    Thread.sleep(16);
+                } catch(IOException e) {
+                    Log.d("CNChat", "sendAndReceive", e);
+                } catch(InterruptedException ignored) {
                 }
-            });
-            pollster.start();
+            }
         } catch(IOException e) {
             Log.d("CNChat", "chatSession", e);
         }
