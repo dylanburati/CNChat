@@ -13,10 +13,10 @@ import java.util.Locale;
 
 class LoggingExceptionHandler implements Thread.UncaughtExceptionHandler {
 
-    private Context ctx;
-    private String logFile;
+    private final Context ctx;
+    private final String logFile;
     private final Object logFileLock;
-    private Thread.UncaughtExceptionHandler defaultHandler;
+    private final Thread.UncaughtExceptionHandler defaultHandler;
 
     LoggingExceptionHandler(Context ctx, String logFile, final Object logFileLock) {
         this.ctx = ctx;

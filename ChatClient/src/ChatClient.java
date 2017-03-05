@@ -368,7 +368,7 @@ public class ChatClient extends JFrame {
         try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getOutputStream(), UTF_8), true)
         ) {
             long mask = -1L >>> 1;
-            String check = String.format("%016x%016x", random.nextLong() & mask, random.nextLong() & mask);
+            String check = String.format("%01x%015x%016x", random.nextInt(8) + 8, random.nextLong() & (mask >> 3), random.nextLong() & mask);
             out.print(check);
             out.close();
         }

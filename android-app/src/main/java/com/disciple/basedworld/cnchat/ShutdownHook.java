@@ -20,7 +20,7 @@ public class ShutdownHook extends Service {
     }
 
     class LocalBinder extends Binder {
-        CallbackSetter onTaskRemovedHandler = new CallbackSetter() {
+        final CallbackSetter onTaskRemovedHandler = new CallbackSetter() {
             @Override
             public void setCallback(Runnable reckoner) {
                 ShutdownHook.this.reckoner = reckoner;

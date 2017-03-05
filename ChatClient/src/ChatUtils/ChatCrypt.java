@@ -113,8 +113,8 @@ public class ChatCrypt {
         self.key = self.keyAgree.generateSecret();
         self.keyAES = new SecretKeySpec(Arrays.copyOf(sha256.digest(self.key), 16), "AES");
 
-        cipherD = Cipher.getInstance("AES/CTR/PKCS5Padding");
-        cipherE = Cipher.getInstance("AES/CTR/PKCS5Padding");
+        cipherD = Cipher.getInstance("AES/CBC/PKCS5Padding");
+        cipherE = Cipher.getInstance("AES/CBC/PKCS5Padding");
 
         // Client
         cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES);

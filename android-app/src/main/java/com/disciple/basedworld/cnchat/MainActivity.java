@@ -64,7 +64,7 @@ import static com.disciple.basedworld.cnchat.ChatUtils.Codecs.base64encode;
 
 public class MainActivity extends AppCompatActivity {
 
-    Runnable reckoner = new Runnable() {
+    private final Runnable reckoner = new Runnable() {
         @Override
         public void run() {
             finish();
@@ -74,7 +74,7 @@ public class MainActivity extends AppCompatActivity {
     private Resources res;
     private SharedPreferences prefs;
 
-    private final String errLogFile = "err_log";
+    private static final String errLogFile = "err_log";
     private final Object errLogLock = new Object();
     private Button errLogShow;
     private TableRow errLogContainer;
@@ -114,10 +114,10 @@ public class MainActivity extends AppCompatActivity {
     private HttpURLConnection conn;
     private final MessageHandler md = new MessageHandler();
     private final Object cipherLock = new Object();
+    private Cipher cipherE;
+    private Cipher cipherD;
     private final Object outQueueLock = new Object();
     private volatile java.util.List<String> outQueue = new ArrayList<>();
-    private Cipher cipherD;
-    private Cipher cipherE;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -247,7 +247,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private String decrypt(String input) throws IOException {
+    private String decrypt(String input) {
         try {
             byte[] data = base64decode(input);
             synchronized(cipherLock) {
@@ -411,7 +411,7 @@ public class MainActivity extends AppCompatActivity {
                         try {
                             out = new PrintWriter(new OutputStreamWriter(conn.getOutputStream(), Charset.forName("UTF-8")), true);
                             long mask = -1L >>> 1;
-                            String check = String.format("%01x%015x%016x", random.nextInt(8) + 8, random.nextLong() & (mask >> 4), random.nextLong() & mask);
+                            String check = String.format("%01x%015x%016x", random.nextInt(8) + 8, random.nextLong() & (mask >> 3), random.nextLong() & mask);
                             out.print(check);
                         } finally {
                             if(out != null) out.close();
@@ -463,8 +463,6 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     up = md.sendAndReceive();
                     Thread.sleep(16);
-                } catch(IOException e) {
-                    Log.d("CNChat", "sendAndReceive", e);
                 } catch(InterruptedException ignored) {
                 }
             }
@@ -494,7 +492,7 @@ public class MainActivity extends AppCompatActivity {
 
         private Thread rainbow = new Thread();
 
-        private boolean sendAndReceive() throws IOException {
+        private boolean sendAndReceive() {
             AsyncTask<Void, String, Boolean> netTask = new AsyncTask<Void, String, Boolean>() {
                 private boolean sane = true;
 

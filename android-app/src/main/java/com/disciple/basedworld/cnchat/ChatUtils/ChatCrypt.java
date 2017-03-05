@@ -73,7 +73,7 @@ public class ChatCrypt {
         private PublicKey pubKey;
     }
 
-    private byte[] sendAndReceive(final byte[] data) throws IOException {
+    private byte[] sendAndReceive(final byte[] data) {
         AsyncTask<Void, Void, String> cryptTask = new AsyncTask<Void, Void, String>() {
             @Override
             protected String doInBackground(Void... params) {

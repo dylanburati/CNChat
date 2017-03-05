@@ -280,8 +280,8 @@ public class ChatServer {
                 ) {
                     String input = in.readLine();
                     if(input == null || input.length() != 32) return;
-                    int phoneFlag = Character.digit(input.codePointAt(0), 16);
-                    if(phoneFlag == -1) {
+                    int cipherModeFlag = Character.digit(input.codePointAt(0), 16);
+                    if(cipherModeFlag == -1) {
                         return;
                     }
                     for(int i = 1; i < 32; i++) {
@@ -289,7 +289,7 @@ public class ChatServer {
                             return;
                         }
                     }
-                    algo = phoneFlag > 7 ? "AES/CBC/PKCS5Padding" : "AES/CTR/PKCS5Padding";
+                    algo = cipherModeFlag > 7 ? "AES/CBC/PKCS5Padding" : "AES/CTR/PKCS5Padding";
                 }
 
                 try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getResponseBody(), UTF_8), true)
