@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Random;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -218,11 +219,13 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         unbindService(serviceConnection);
-        if(chatState != null) {
+        if(chatState != null && cipherE != null) {
             enqueue((char) 4 + userName);
             try {
                 md.sendAndReceive();
             } catch(Throwable ignored) {
+            } finally {
+                md.cleanUp();
             }
             chatState = null;
         }
@@ -459,7 +462,6 @@ public class MainActivity extends AppCompatActivity {
 
             boolean up = true;
             while(up && chatState != null) {
-                up = false;
                 try {
                     up = md.sendAndReceive();
                     Thread.sleep(16);
@@ -491,9 +493,17 @@ public class MainActivity extends AppCompatActivity {
         };
 
         private Thread rainbow = new Thread();
+        private AsyncTask<Void, String, Boolean> netTask;
+
+        private void cleanUp() {
+            if(netTask != null) {
+                netTask.cancel(true);
+                netTask = null;
+            }
+        }
 
         private boolean sendAndReceive() {
-            AsyncTask<Void, String, Boolean> netTask = new AsyncTask<Void, String, Boolean>() {
+            netTask = new AsyncTask<Void, String, Boolean>() {
                 private boolean sane = true;
 
                 @Override
@@ -553,7 +563,7 @@ public class MainActivity extends AppCompatActivity {
             try {
                 netTask.execute();
                 retval = netTask.get();
-            } catch(InterruptedException | ExecutionException e) {
+            } catch(InterruptedException | CancellationException | ExecutionException e) {
                 Log.d("CNChat", "netTask ext", e);
             }
             return retval;
