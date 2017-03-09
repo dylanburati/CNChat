@@ -1,8 +1,13 @@
 package com.disciple.basedworld.cnchat;
 
+import android.app.ActivityManager;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
@@ -49,6 +54,7 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -94,8 +100,8 @@ public class MainActivity extends AppCompatActivity {
     private ScrollView scrollView;
     private EditText serverPref;
     private EditText customNamePref;
-    private int layoutHeight;
 
+    private int layoutHeight;
     private Handler uiHandler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
@@ -103,14 +109,22 @@ public class MainActivity extends AppCompatActivity {
             scrollView.setBackgroundColor(msg.what);
         }
     };
+    private BroadcastReceiver notificationBlocker = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            abortBroadcast();
+        }
+    };
+    private static final String BROADCAST = "com.disciple.basedworld.cnchat.BROADCAST";
+
     private String hostName = "";
     private String userName;
     private String uuid = null;
     private Object chatState = null;
     private boolean markdown = false;
     private final java.util.List<String> userNames = new ArrayList<>();
-    private final Random random = new Random();
 
+    private final Random random = new Random();
     private URL host;
     private HttpURLConnection conn;
     private final MessageHandler md = new MessageHandler();
@@ -229,6 +243,51 @@ public class MainActivity extends AppCompatActivity {
             }
             chatState = null;
         }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        manager.cancel(Notifier.ID);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        unregisterReceiver(notificationBlocker);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        IntentFilter filter = new IntentFilter(BROADCAST);
+        filter.setPriority(1);
+        registerReceiver(notificationBlocker, filter);
+    }
+
+    private Intent getPreviousIntent() {
+        Intent retval = new Intent(MainActivity.this, MainActivity.class);
+        if(android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            final List<ActivityManager.AppTask> prevTasks = ((ActivityManager) getSystemService(Context.ACTIVITY_SERVICE)).getAppTasks();
+            final String packageName = getPackageName();
+            for(ActivityManager.AppTask task : prevTasks) {
+                ActivityManager.RecentTaskInfo rti = task.getTaskInfo();
+                if(packageName.equals(rti.baseIntent.getComponent().getPackageName())) {
+                    retval = rti.baseIntent;
+                    retval.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                }
+            }
+        } else {
+            final List<ActivityManager.RecentTaskInfo> prevTasks = ((ActivityManager) getSystemService(Context.ACTIVITY_SERVICE)).getRecentTasks(1024,0);
+            final String packageName = getPackageName();
+            for(ActivityManager.RecentTaskInfo rti : prevTasks) {
+                if(packageName.equals(rti.baseIntent.getComponent().getPackageName())) {
+                    retval = rti.baseIntent;
+                    retval.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                }
+            }
+        }
+        return retval;
     }
 
     private void refresh() throws IOException {
@@ -497,6 +556,7 @@ public class MainActivity extends AppCompatActivity {
 
         private void cleanUp() {
             if(netTask != null) {
+                Log.d("CNChat", "netTask.cancel called");
                 netTask.cancel(true);
                 netTask = null;
             }
@@ -605,6 +665,9 @@ public class MainActivity extends AppCompatActivity {
                 serverMessage.setSpan(new RelativeSizeSpan(0.84f), 0, message.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 stdOut.append(serverMessage);
                 stdOut.append("\n");
+                PendingIntent clickAction = PendingIntent.getActivity(MainActivity.this, 0, getPreviousIntent(), PendingIntent.FLAG_UPDATE_CURRENT);
+                Notifier.prepareNotification(MainActivity.this, clickAction, "New message", message);
+                sendOrderedBroadcast(new Intent(BROADCAST), null);
                 return true;
             }
             final String command = message.toLowerCase();
@@ -695,6 +758,9 @@ public class MainActivity extends AppCompatActivity {
                     stdOut.append(styledMessage);
                 }
                 stdOut.append("\n");
+                PendingIntent clickAction = PendingIntent.getActivity(MainActivity.this, 0, getPreviousIntent(), PendingIntent.FLAG_UPDATE_CURRENT);
+                Notifier.prepareNotification(MainActivity.this, clickAction, "New message", message);
+                sendOrderedBroadcast(new Intent(BROADCAST), null);
             }
             return true;
         }
