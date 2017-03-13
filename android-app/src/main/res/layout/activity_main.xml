@@ -76,6 +76,9 @@
                 android:paddingTop="12dp"
                 android:paddingRight="16dp"
                 android:id="@+id/stdOut"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:textIsSelectable="true"
                 android:text="@string/message0"
                 android:textColor="#DF000000"
                 android:textSize="16sp" />

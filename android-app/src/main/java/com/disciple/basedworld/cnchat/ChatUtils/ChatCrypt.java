@@ -109,7 +109,7 @@ public class ChatCrypt {
 
         String input = null;
         try {
-            cryptTask.execute();
+            cryptTask.executeOnExecutor(AsyncTask.SERIAL_EXECUTOR);
             input = cryptTask.get();
         } catch(ExecutionException | InterruptedException e) {
             Log.d("CNChat", "cryptTask ext", e);

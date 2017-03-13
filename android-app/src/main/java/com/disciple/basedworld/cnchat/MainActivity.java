@@ -175,7 +175,24 @@ public class MainActivity extends AppCompatActivity {
 
         power = (TextView) findViewById(R.id.power);
         stdOut = (TextView) findViewById(R.id.stdOut);
+        stdOut.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                stdOut.setFocusable(true);
+                stdOut.setFocusableInTouchMode(true);
+                return false;
+            }
+        });
         textPane = (EditText) findViewById(R.id.textPane);
+        textPane.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View v, boolean hasFocus) {
+                if(hasFocus) {
+                    stdOut.setFocusable(false);
+                    stdOut.setFocusableInTouchMode(false);
+                }
+            }
+        });
         scrollView = (ScrollView) findViewById(R.id.scrollView);
         scrollView.post(new Runnable() {
             @Override
@@ -239,9 +256,9 @@ public class MainActivity extends AppCompatActivity {
                 md.sendAndReceive();
             } catch(Throwable ignored) {
             } finally {
+                chatState = null;
                 md.cleanUp();
             }
-            chatState = null;
         }
     }
 
@@ -494,7 +511,7 @@ public class MainActivity extends AppCompatActivity {
             };
 
             try {
-                initHandshake.execute();
+                initHandshake.executeOnExecutor(AsyncTask.SERIAL_EXECUTOR);
                 uuid = initHandshake.get();
             } catch(ExecutionException | InterruptedException e) {
                 Log.d("CNChat", "initHandshake ext", e);
@@ -558,11 +575,11 @@ public class MainActivity extends AppCompatActivity {
             if(netTask != null) {
                 Log.d("CNChat", "netTask.cancel called");
                 netTask.cancel(true);
-                netTask = null;
             }
         }
 
         private boolean sendAndReceive() {
+            if(chatState == null) return false;
             netTask = new AsyncTask<Void, String, Boolean>() {
                 private boolean sane = true;
 
@@ -621,7 +638,7 @@ public class MainActivity extends AppCompatActivity {
             };
             boolean retval = false;
             try {
-                netTask.execute();
+                netTask.executeOnExecutor(AsyncTask.SERIAL_EXECUTOR);
                 retval = netTask.get();
             } catch(InterruptedException | CancellationException | ExecutionException e) {
                 Log.d("CNChat", "netTask ext", e);
@@ -703,7 +720,7 @@ public class MainActivity extends AppCompatActivity {
                 if(format) {
                     SpannableStringBuilder styledMessageBuilder = new SpannableStringBuilder(styledMessage);
                     int[] formatMap = new int[message.length()];
-                    for(String regex : new String[]{"(?<!\\\\)(\\*\\*).+(?<!\\\\)(\\*\\*)", "(?<!\\\\)(__).+(?<!\\\\)(__)",
+                    for(String regex : new String[]{"(?<!\\\\)(\\*\\*).+?(?<!\\\\)(\\*\\*)", "(?<!\\\\)(__).+?(?<!\\\\)(__)",
                             "(?<!\\\\)(\\*)[^\\*]+(?<!\\\\|\\*)(\\*)", "(?<!\\\\)(_)[^_]+(?<!\\\\|_)(_)",
                             "(?<!\\\\)(`)[^`]+(?<!\\\\)(`)"}) {
                         Matcher m = Pattern.compile(regex, Pattern.DOTALL).matcher(styledMessageBuilder);
