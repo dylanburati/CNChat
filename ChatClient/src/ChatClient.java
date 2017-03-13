@@ -158,7 +158,7 @@ public class ChatClient extends JFrame {
             int[] map = new int[textLen];
             text = text.replaceAll("\\\\\\\\(?=\\*{1,2}|_{1,2}|`)", "\\\\\000");
             StringBuilder mkText = new StringBuilder(text);
-            for(String regex : new String[]{"(?<!\\\\)(\\*\\*).+(?<!\\\\)(\\*\\*)", "(?<!\\\\)(__).+(?<!\\\\)(__)",
+            for(String regex : new String[]{"(?<!\\\\)(\\*\\*).+?(?<!\\\\)(\\*\\*)", "(?<!\\\\)(__).+?(?<!\\\\)(__)",
                     "(?<!\\\\)(\\*)[^\\*]+(?<!\\\\|\\*)(\\*)", "(?<!\\\\)(_)[^_]+(?<!\\\\|_)(_)",
                     "(?<!\\\\)(`)[^`]+(?<!\\\\)(`)"}) {
                 Matcher m = Pattern.compile(regex, Pattern.DOTALL).matcher(mkText);

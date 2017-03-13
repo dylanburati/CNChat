@@ -274,26 +274,23 @@ public class ChatServer {
         class DelegateHandler implements HttpHandler {
             @Override
             public void handle(HttpExchange conn) throws IOException {
-                String uuid;
-                String algo;
+                String uuid, algo;
+                int cipherModeFlag;
                 try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getRequestBody(), UTF_8))
                 ) {
                     String input = in.readLine();
-                    if(input == null || input.length() != 32) return;
-                    int cipherModeFlag = Character.digit(input.codePointAt(0), 16);
-                    if(cipherModeFlag == -1) {
-                        return;
-                    }
-                    for(int i = 1; i < 32; i++) {
-                        if(Character.digit(input.codePointAt(i),16) == -1) {
-                            return;
-                        }
-                    }
-                    algo = cipherModeFlag > 7 ? "AES/CBC/PKCS5Padding" : "AES/CTR/PKCS5Padding";
+                    cipherModeFlag = processRootRequest(input);
                 }
 
                 try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getResponseBody(), UTF_8), true)
                 ) {
+                    if(cipherModeFlag == -1) {
+                        conn.sendResponseHeaders(400, 2);
+                        out.print("\r\n");
+                        out.close();
+                        return;
+                    }
+
                     uuid = UUID.randomUUID().toString().replace("-", "");
                     conn.sendResponseHeaders(200, 32);
                     out.print(uuid);
@@ -302,13 +299,31 @@ public class ChatServer {
 
                 InetSocketAddress epoint = conn.getRemoteAddress();
                 System.out.println("Client @ " + epoint.getAddress().getHostAddress() + ":" + epoint.getPort());
+                algo = cipherModeFlag > 7 ? "AES/CBC/PKCS5Padding" : "AES/CTR/PKCS5Padding";
                 ClientThread thread = new ClientThread(uuid, messenger, algo);
                 synchronized(threads) {
                     threads.add(thread);
                 }
                 thread.start();
             }
+
+            private int processRootRequest(String input) {
+                if(input == null || input.length() != 32) {
+                    return -1;
+                }
+                int cipherModeFlag = Character.digit(input.codePointAt(0), 16);
+                if(cipherModeFlag == -1) {
+                    return -1;
+                }
+                for(int i = 1; i < 32; i++) {
+                    if(Character.digit(input.codePointAt(i),16) == -1) {
+                        return -1;
+                    }
+                }
+                return cipherModeFlag;
+            }
         }
+
         server.createContext("/", new DelegateHandler());
     }
 }
