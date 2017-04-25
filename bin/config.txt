@@ -1,6 +1,6 @@
 # CNChat
 #
 # If this file contains any uncommented lines with one or more non-whitespace characters,
-# the content of the first uncommented line is taken as the IP address for ChatClient.jar to connect to.
+# the content of the first uncommented line is used as the IP address or hostname for ChatClient to connect to.
 # Comments start with a # (number sign)
 #
