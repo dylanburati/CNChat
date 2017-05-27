@@ -29,7 +29,7 @@ public class TransactionHandler implements HttpHandler {
         ) {
             String input;
             while((input = in.readLine()) != null) {
-                synchronized (inQueueLock) {
+                synchronized(inQueueLock) {
                     inQueue.add(input);
                 }
             }

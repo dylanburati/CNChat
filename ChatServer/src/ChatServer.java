@@ -32,7 +32,7 @@ public class ChatServer {
     private static String usersHere() {
         StringBuilder retval = new StringBuilder();
         synchronized(userNamesLock) {
-            for (String el : userNames) {
+            for(String el : userNames) {
                 retval.append(" ");
                 retval.append(el);
                 retval.append("\n");
@@ -53,7 +53,7 @@ public class ChatServer {
             private final peerUpdateCompat<ClientThread> peerMessage;
             private final String algo;
             private HttpContext httpContext = null;
-            private String userName, dmUser = "";
+            private String userName = null, dmUser = "";
             private boolean markDown = false;
 
             private Cipher cipherE, cipherD;
@@ -73,14 +73,14 @@ public class ChatServer {
                 boolean messageAll = true;
                 boolean messageMe = true;
                 dmUser = "";
-                if (outputLine.contains(":help")) {
+                if(outputLine.contains(":help")) {
                     messageAll = false;
                     outputLine = "Commands start with a colon (:)" +
                             "\n:status sends you key info" +
                             "\n:dm <user> sends a direct message" +
                             "\n:username <new username>" +
                             "\n:quit closes your chat box" + (char) 5 + "\n";
-                } else if (outputLine.contains(":status")) {
+                } else if(outputLine.contains(":status")) {
                     messageAll = false;
                     outputLine = "<< Status >>" +
                             "\nUsername: " + userName +
@@ -95,48 +95,48 @@ public class ChatServer {
                     }
                 } else {
                     final int command = outputLine.isEmpty() ? -1 : outputLine.codePointAt(0);
-                    if (command == 6) {
+                    if(command == 6) {
                         String nameRequest = outputLine.substring(1);
-                        if (userNames.contains(nameRequest)) {
+                        if(userNames.contains(nameRequest)) {
                             messageAll = false;
                             outputLine = "" + (char) 21;
                         } else {
                             messageMe = false;
                             userName = nameRequest;
-                            synchronized (userNamesLock) {
+                            synchronized(userNamesLock) {
                                 userNames.add(userName);
                             }
-                            outputLine = "<< " + userName + " joined the chat >>" + (char)5;
+                            outputLine = "<< " + userName + " joined the chat >>" + (char) 5;
                         }
-                    } else if (command == 4) {
+                    } else if(command == 4) {
                         return true;
-                    } else if (command == 26) {
+                    } else if(command == 26) {
                         final int delimiter = outputLine.lastIndexOf(26);
                         String nameRequest = outputLine.substring(delimiter + 1);
-                        if (userNames.contains(nameRequest)) {
+                        if(userNames.contains(nameRequest)) {
                             messageAll = false;
                             outputLine = (char) 21 + outputLine.substring(1, delimiter);
                         } else {
                             messageMe = false;
-                            synchronized (userNamesLock) {
+                            synchronized(userNamesLock) {
                                 userNames.remove(userName);
                                 userNames.add(nameRequest);
                             }
-                            outputLine = "<< " + userName + " is now " + nameRequest + " >>" + (char)5;
+                            outputLine = "<< " + userName + " is now " + nameRequest + " >>" + (char) 5;
                             userName = nameRequest;
                         }
                     }
-                    if (command == 15) {
+                    if(command == 15) {
                         final int rcvIndex = outputLine.indexOf(":dm ");
-                        if (rcvIndex != -1 && dmUser.isEmpty()) {
-                            if (!outputLine.contains("\n")) {
+                        if(rcvIndex != -1) {
+                            if(!outputLine.contains("\n")) {
                                 messageAll = false;
                                 outputLine = "<< Can't send empty DM >>" + (char) 5;
                             } else {
                                 int delimiter = outputLine.indexOf("\r");
                                 if(delimiter == -1) delimiter = outputLine.indexOf("\n");
                                 String dmRequest = outputLine.substring(rcvIndex + 4, delimiter);
-                                if (userNames.contains(dmRequest)) {
+                                if(userNames.contains(dmRequest)) {
                                     dmUser = dmRequest;
                                     outputLine = userName + ": << DM to " + dmUser + " >>" + outputLine.substring(delimiter);
                                 } else {
@@ -151,22 +151,24 @@ public class ChatServer {
                         markDown = outputLine.length() == 1;
                     }
                 }
-                if (!dmUser.isEmpty()) {
+                if(!dmUser.isEmpty()) {
                     outputLine += (char) 15;
                 }
-                if(markDown) outputLine += (char)17;
-                if (messageMe) enqueue(outputLine);
-                if (messageAll) peerMessage.execute(this, outputLine, dmUser);
+                if(markDown) outputLine += (char) 17;
+                if(messageMe) enqueue(outputLine);
+                if(messageAll) peerMessage.execute(this, outputLine, dmUser);
                 return false;
             }
 
             private void close() {
-                synchronized (userNamesLock) {
-                    userNames.remove(userName);
+                if(userName != null) {
+                    synchronized(userNamesLock) {
+                        userNames.remove(userName);
+                    }
+                    String outputLine = "<< " + userName + " left the chat >>" + (char) 5;
+                    if(markDown) outputLine += (char) 17;
+                    peerMessage.execute(this, outputLine, "");
                 }
-                String outputLine = "<< " + userName + " left the chat >>" + (char)5;
-                if(markDown) outputLine += (char)17;
-                peerMessage.execute(this, outputLine, "");
                 cipherD = cipherE = null;
                 server.removeContext(httpContext);
             }
@@ -179,7 +181,7 @@ public class ChatServer {
                         cipherD = chatCrypt.cipherD;
                         cipherE = chatCrypt.cipherE;
                     }
-                } catch (Exception e) {
+                } catch(Exception e) {
                     e.printStackTrace();
                 }
                 enqueue(first);
@@ -188,21 +190,21 @@ public class ChatServer {
                 try {
                     String inputLine;
                     boolean finished = false;
-                    while (!finished) {
+                    while(!finished) {
                         try {
                             Thread.sleep(10);
                         } catch(InterruptedException ignored) {
                         }
 
                         while(!finished) {
-                            synchronized (inQueueLock) {
-                                if (inQueue.size() > 0) inputLine = inQueue.remove(0);
+                            synchronized(inQueueLock) {
+                                if(inQueue.size() > 0) inputLine = inQueue.remove(0);
                                 else break;
                             }
                             finished = handleMessage(decrypt(inputLine));
                         }
                     }
-                } catch (IOException e) {
+                } catch(IOException e) {
                     e.printStackTrace();
                 } finally {
                     close();
@@ -216,7 +218,7 @@ public class ChatServer {
                         data = cipherD.doFinal(data);
                     }
                     return new String(data, UTF_8);
-                } catch (IllegalBlockSizeException | BadPaddingException e) {
+                } catch(IllegalBlockSizeException | BadPaddingException e) {
                     e.printStackTrace();
                     return null;
                 }
@@ -232,7 +234,7 @@ public class ChatServer {
                     synchronized(outQueueLock) {
                         outQueue.add(base64encode(enc));
                     }
-                } catch (IllegalBlockSizeException | BadPaddingException e) {
+                } catch(IllegalBlockSizeException | BadPaddingException e) {
                     e.printStackTrace();
                 }
             }
@@ -257,14 +259,14 @@ public class ChatServer {
             public void execute(ClientThread skip, String message, String user) {
                 boolean everyone = user.isEmpty();
                 synchronized(threads) {
-                    for (Iterator<ClientThread> threadIter = threads.iterator(); threadIter.hasNext(); /* nothing */) {
+                    for(Iterator<ClientThread> threadIter = threads.iterator(); threadIter.hasNext(); /* nothing */) {
                         ClientThread currentThread = threadIter.next();
-                        if (everyone || user.equals(currentThread.getUserName())) {
-                            if (!currentThread.isAlive()) {
+                        if(everyone || user.equals(currentThread.getUserName())) {
+                            if(!currentThread.isAlive()) {
                                 threadIter.remove();
                                 continue;
                             }
-                            if (!currentThread.equals(skip)) currentThread.enqueue(message);
+                            if(!currentThread.equals(skip)) currentThread.enqueue(message);
                         }
                     }
                 }
@@ -316,7 +318,7 @@ public class ChatServer {
                     return -1;
                 }
                 for(int i = 1; i < 32; i++) {
-                    if(Character.digit(input.codePointAt(i),16) == -1) {
+                    if(Character.digit(input.codePointAt(i), 16) == -1) {
                         return -1;
                     }
                 }

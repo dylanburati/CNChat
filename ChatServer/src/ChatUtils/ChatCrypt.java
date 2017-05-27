@@ -76,7 +76,7 @@ public class ChatCrypt {
             try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getRequestBody(), UTF_8))
             ) {
                 byte[] input = base64decode(in.readLine());
-                synchronized (inQueueLock) {
+                synchronized(inQueueLock) {
                     inQueue.add(input);
                 }
             }
@@ -109,12 +109,12 @@ public class ChatCrypt {
                 self.keyAgree = KeyAgreement.getInstance("DH");
                 self.keyAgree.init(self.keyPair.getPrivate());
                 self.pubKeyEnc = self.keyPair.getPublic().getEncoded();
-                synchronized (outQueueLock) {
+                synchronized(outQueueLock) {
                     outQueue.add(self.pubKeyEnc);
                 }
                 break;
             case 1:
-                synchronized (inQueueLock) {
+                synchronized(inQueueLock) {
                     party2.pubKeyEnc = inQueue.get(0);
                 }
                 MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
@@ -131,7 +131,7 @@ public class ChatCrypt {
                 outQueue.add("Vn".getBytes(UTF_8));
                 break;
             case 2:
-                synchronized (inQueueLock) {
+                synchronized(inQueueLock) {
                     self.cipherParamsEnc = inQueue.get(1);
                 }
                 self.cipherParams = AlgorithmParameters.getInstance("AES");
@@ -139,7 +139,7 @@ public class ChatCrypt {
 
                 cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES, self.cipherParams);
                 cipherD.init(Cipher.DECRYPT_MODE, self.keyAES, self.cipherParams);
-                synchronized (ChatCrypt.this) {
+                synchronized(ChatCrypt.this) {
                     ChatCrypt.this.notifyAll();
                 }
                 break;
@@ -150,7 +150,7 @@ public class ChatCrypt {
         this.algo = algo;
         runStage(0);
         HttpContext hc = server.createContext("/" + uuid, new CryptHandler());
-        synchronized (this) {
+        synchronized(this) {
             while(cipherE == null || cipherD == null || cipherE.getIV() == null || cipherD.getIV() == null) {
                 wait();
             }

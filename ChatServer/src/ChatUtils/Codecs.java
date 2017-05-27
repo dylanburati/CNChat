@@ -9,7 +9,7 @@ public class Codecs {
         int length64 = (b256.length / 3 * 4) + new int[]{0, 2, 3}[tail];
         byte[] b64 = new byte[length64];
         int i256, i64;
-        for (i256 = i64 = 0; i256 < b256.length - tail; i256 += 3) {
+        for(i256 = i64 = 0; i256 < b256.length - tail; i256 += 3) {
             field = ((b256[i256] & 255) << 16) |
                     ((b256[i256 + 1] & 255) << 8) |
                     (b256[i256 + 2] & 255);
@@ -18,7 +18,7 @@ public class Codecs {
             b64[i64++] = (byte) (((field >> 6) & 63) + 63);
             b64[i64++] = (byte) ((field & 63) + 63);
         }
-        switch (tail) {
+        switch(tail) {
             case 1:
                 field = b256[i256] & 255;
                 b64[i64++] = (byte) (((field >> 2) & 63) + 63);
@@ -42,7 +42,7 @@ public class Codecs {
         int length256 = (b64.length - tail64) * 3 / 4 + tail256;
         byte[] b256 = new byte[length256];
         int i256, i64;
-        for (i64 = i256 = 0; i64 < b64.length - tail64; i64 += 4) {
+        for(i64 = i256 = 0; i64 < b64.length - tail64; i64 += 4) {
             field = ((b64[i64] - 63) << 18) |
                     ((b64[i64 + 1] - 63) << 12) |
                     ((b64[i64 + 2] - 63) << 6) |
@@ -51,7 +51,7 @@ public class Codecs {
             b256[i256++] = (byte) ((field >> 8) & 255);
             b256[i256++] = (byte) (field & 255);
         }
-        switch (tail256) {
+        switch(tail256) {
             case 1:
                 field = ((b64[i64] - 63) << 2) |
                         (b64[i64 + 1] - 63);
