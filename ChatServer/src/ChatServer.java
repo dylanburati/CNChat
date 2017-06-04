@@ -1,5 +1,6 @@
 import ChatUtils.ChatCrypt;
 import ChatUtils.TransactionHandler;
+import SeizureSpeedUtils.Leaderboard;
 import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -10,10 +11,7 @@ import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import java.io.*;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 import static ChatUtils.Codecs.base64decode;
 import static ChatUtils.Codecs.base64encode;
@@ -124,6 +122,15 @@ public class ChatServer {
                             }
                             outputLine = "<< " + userName + " is now " + nameRequest + " >>" + (char) 5;
                             userName = nameRequest;
+                        }
+                    } else if(command == 30) {
+                        final String seizureSpeedRequest = outputLine.substring(1);
+                        if(seizureSpeedRequest.equals("s0")) {
+                            outputLine = Leaderboard.getNextId();
+                        } else if(seizureSpeedRequest.contains(":")) {
+                            outputLine = Leaderboard.update(seizureSpeedRequest);
+                        } else {
+                            outputLine = Leaderboard.current(seizureSpeedRequest);
                         }
                     }
                     if(command == 15) {
