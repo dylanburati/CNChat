@@ -51,7 +51,8 @@ public class ChatServer {
             private final peerUpdateCompat<ClientThread> peerMessage;
             private final String algo;
             private HttpContext httpContext = null;
-            private String userName = null, dmUser = "";
+            String userName = null;
+            private String dmUser = "";
             private boolean markDown = false;
 
             private Cipher cipherE, cipherD;
@@ -124,13 +125,14 @@ public class ChatServer {
                             userName = nameRequest;
                         }
                     } else if(command == 30) {
+                        messageAll = false;
                         final String seizureSpeedRequest = outputLine.substring(1);
                         if(seizureSpeedRequest.equals("s0")) {
-                            outputLine = Leaderboard.getNextId();
+                            outputLine = (char) 30 + Leaderboard.getNextId();
                         } else if(seizureSpeedRequest.contains(":")) {
-                            outputLine = Leaderboard.update(seizureSpeedRequest);
+                            outputLine = (char) 30 + Leaderboard.update(seizureSpeedRequest);
                         } else {
-                            outputLine = Leaderboard.current(seizureSpeedRequest);
+                            outputLine = (char) 30 + Leaderboard.current(seizureSpeedRequest);
                         }
                     }
                     if(command == 15) {
@@ -246,10 +248,6 @@ public class ChatServer {
                 }
             }
 
-            String getUserName() {
-                return userName;
-            }
-
         }
 
         int portNumber = 8080;
@@ -268,7 +266,7 @@ public class ChatServer {
                 synchronized(threads) {
                     for(Iterator<ClientThread> threadIter = threads.iterator(); threadIter.hasNext(); /* nothing */) {
                         ClientThread currentThread = threadIter.next();
-                        if(everyone || user.equals(currentThread.getUserName())) {
+                        if(everyone || user.equals(currentThread.userName)) {
                             if(!currentThread.isAlive()) {
                                 threadIter.remove();
                                 continue;

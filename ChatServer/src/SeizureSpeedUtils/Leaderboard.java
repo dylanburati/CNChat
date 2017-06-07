@@ -31,7 +31,7 @@ public class Leaderboard {
             }
         } else {
             try {
-                List<String> data = Files.readAllLines(Paths.get(dataFile.toURI()));
+                List<String> data = Files.readAllLines(Paths.get(dataFile.toURI()), UTF_8);
                 nextId = data.remove(0);
                 for(String s : data) {
                     if(s.isEmpty()) continue;
