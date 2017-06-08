@@ -81,7 +81,7 @@ public class Leaderboard {
                 }
                 SeizureSpeedScore sc = scores.get(5);
                 retval.append(String.format("%d:%s:%d", reqId.equals(sc.id) ? 1 : 0, sc.name, sc.score));
-            } else {
+            } else if(scores.size() > 0) {
                 retval.deleteCharAt(retval.length() - 1);  // remove trailing newline
             }
             return retval.toString();
