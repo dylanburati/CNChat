@@ -91,16 +91,14 @@ public class Leaderboard {
     private static void prune() {
         synchronized(scoresLock) {
             Collections.sort(scores);
-            Map<String, Integer> nKept = new HashMap<>();
+            Set<String> kept = new HashSet<>();
             for(int i = 0; i < scores.size(); i++) {
                 SeizureSpeedScore sc = scores.get(i);
-                Integer k = nKept.get(sc.id);
-                if(k == null) k = 0;
-                if(i > 5 && k >= 1) {
+                if(i > 5 && kept.contains(sc.id)) {
                     scores.remove(i);
                     i--;
                 } else {
-                    nKept.put(sc.id, k + 1);
+                    kept.add(sc.id);
                 }
             }
             try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(dataFile, false), UTF_8), true)) {

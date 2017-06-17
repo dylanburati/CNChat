@@ -96,7 +96,7 @@ public class ChatServer {
                     final int command = outputLine.isEmpty() ? -1 : outputLine.codePointAt(0);
                     if(command == 6) {
                         String nameRequest = outputLine.substring(1);
-                        if(userNames.contains(nameRequest)) {
+                        if(nameRequest.matches("[^\\n:]+") && userNames.contains(nameRequest)) {
                             messageAll = false;
                             outputLine = "" + (char) 21;
                         } else {
