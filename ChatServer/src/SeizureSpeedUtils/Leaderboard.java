@@ -17,7 +17,6 @@ public class Leaderboard {
     private static String nextId = "s1";
     private static final Object nextIdLock = new Object();
 
-
     static {
         String dataFilePath = new File(Leaderboard.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
                 getParent() + System.getProperty("file.separator") + dataFileName;

@@ -1,9 +1,13 @@
-powershell -Command "netsh advfirewall firewall add rule name=\"CNChat\" dir=in action=allow protocol=TCP localport=80"
+Todo
 
 Trump bot
 Server-side events
 
+
 Feature and fix log
+
+Log is for the standalone ChatClient.jar.
+Phone versions have all the same features, but can edit defaults outside the chat.
 
 Format is Version; Status; Description (status is 0 for removed, 1 for active in latest version)
 4.2.0; 1; Trump bot -> The Trump bot was added in version 4.2.0, and is also in the current version
@@ -20,7 +24,7 @@ Format is Version; Status; Description (status is 0 for removed, 1 for active in
 1.1.2; 1; Users are assigned a random username from a list
 1.2.0; 1; The :help command
 1.2.0; 1; The :quit command
-1.2.0; 1; The :serverquit command
+1.2.0; 0; The :serverquit command
 1.2.0; 1; Users in the chat are notified when a user enters, leaves or uses :username
 1.2.1; 1; Server messages appear in green
 1.2.1; 0; Server messages appear in Courier font
@@ -53,10 +57,9 @@ Format is Version; Status; Description (status is 0 for removed, 1 for active in
 2.0.1; 1; All features of the chat work when the source is built and run with Java 7
 2.1.0; 1; The server prints the host IP and port for each new connection
 2.1.0; 1; The config.txt file can be used to set an alternate host server
-2.2.1; 1; All features of the chat, except :serverquit, work over http using polling
+2.2.1; 1; All features of the chat work over http using polling
 
 
 http://jsfiddle.net/0wv1mn42/7/show
-http://ideone.com/gtbE6M
 PECS producer->extends consumer->super
 
