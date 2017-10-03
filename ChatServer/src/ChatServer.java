@@ -304,8 +304,7 @@ public class ChatServer {
                     out.close();
                 }
 
-                InetSocketAddress epoint = conn.getRemoteAddress();
-                System.out.println("Client @ " + epoint.getAddress().getHostAddress() + ":" + epoint.getPort());
+                System.out.println("Client connected");
                 algo = cipherModeFlag > 7 ? "AES/CBC/PKCS5Padding" : "AES/CTR/PKCS5Padding";
                 ClientThread thread = new ClientThread(uuid, messenger, algo);
                 synchronized(threads) {
