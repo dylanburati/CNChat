@@ -8,8 +8,14 @@ and Leaderboard features. This URL should be formatted like this:
 
 If you would like to host a version of ChatServer, Cloud9 (https://c9.io)
 has a free service that allows users to manage their machine and develop
-code in their browser. This is a sample script to get the server running in
-a Cloud9 workspace.
+code in their browser. After signing up, you should create a blank
+workspace, and run the following commands:
+	
+	apt-get update
+	apt-get install openjdk-7-jdk
+
+Then you can use the sample script below to get the server running.
+
 
 #!/bin/bash
 BRANCHNAME="master"
