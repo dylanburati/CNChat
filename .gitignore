@@ -20,3 +20,4 @@ checkout*.sh
 charsTo0xff.txt
 CodecCheck.class
 CryptoCheck.class
+TestClient.jar

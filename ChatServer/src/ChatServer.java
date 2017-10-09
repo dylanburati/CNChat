@@ -250,14 +250,6 @@ public class ChatServer {
 
         }
 
-        int portNumber = 8080;
-        InetSocketAddress bind = new InetSocketAddress(portNumber);
-        System.out.println("Server @ " + bind.getAddress().getHostAddress() + ":" + bind.getPort());
-
-        server = HttpServer.create(bind, 0);
-        server.setExecutor(null);
-        server.start();
-
         final List<ClientThread> threads = new ArrayList<>();
         final peerUpdateCompat<ClientThread> messenger = new peerUpdateCompat<ClientThread>() {
             @Override
@@ -277,6 +269,14 @@ public class ChatServer {
                 }
             }
         };
+
+        int portNumber = 8080;
+        InetSocketAddress bind = new InetSocketAddress(portNumber);
+        System.out.println("Server @ " + bind.getAddress().getHostAddress() + ":" + bind.getPort());
+
+        server = HttpServer.create(bind, 0);
+        server.setExecutor(null);
+        server.start();
 
         class DelegateHandler implements HttpHandler {
             @Override
