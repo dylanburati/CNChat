@@ -71,6 +71,7 @@ public class ChatServer {
             private boolean handleMessage(String outputLine) {
                 boolean messageAll = true;
                 boolean messageMe = true;
+                boolean usingMarkdown = markDown;
                 dmUser = "";
                 if(outputLine.contains(":help")) {
                     messageAll = false;
@@ -98,6 +99,7 @@ public class ChatServer {
                         String nameRequest = outputLine.substring(1);
                         if(nameRequest.matches("[^\\n:]+") && userNames.contains(nameRequest)) {
                             messageAll = false;
+                            usingMarkdown = false;
                             outputLine = "" + (char) 21;
                         } else {
                             messageMe = false;
@@ -114,6 +116,7 @@ public class ChatServer {
                         String nameRequest = outputLine.substring(delimiter + 1);
                         if(userNames.contains(nameRequest)) {
                             messageAll = false;
+                            usingMarkdown = false;
                             outputLine = (char) 21 + outputLine.substring(1, delimiter);
                         } else {
                             messageMe = false;
@@ -126,6 +129,7 @@ public class ChatServer {
                         }
                     } else if(command == 30) {
                         messageAll = false;
+                        usingMarkdown = false;
                         final String seizureSpeedRequest = outputLine.substring(1);
                         if(seizureSpeedRequest.equals("s0")) {
                             outputLine = (char) 30 + Leaderboard.getNextId();
@@ -163,7 +167,7 @@ public class ChatServer {
                 if(!dmUser.isEmpty()) {
                     outputLine += (char) 15;
                 }
-                if(markDown) outputLine += (char) 17;
+                if(usingMarkdown) outputLine += (char) 17;
                 if(messageMe) enqueue(outputLine);
                 if(messageAll) peerMessage.execute(this, outputLine, dmUser);
                 return false;
