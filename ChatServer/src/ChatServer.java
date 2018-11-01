@@ -21,11 +21,24 @@ interface peerUpdateCompat<T> {
     void execute(T thread, String message, String specify);
 }
 
+class FlagData {
+    public List<String> users;
+    public int maxFlags;
+
+    public FlagData(String userID, int maxFlags) {
+        this.users = new ArrayList<>();
+        users.add(userID);
+        this.maxFlags = maxFlags;
+    }
+}
+
 public class ChatServer {
 
     private static HttpServer server;
     private static volatile List<String> userNames = new ArrayList<>();
     private static final Object userNamesLock = new Object();
+    private static volatile Map<String,FlagData> flaggedMessages = new HashMap<>();
+    private static final Object flaggedMessagesLock = new Object();
 
     private static String usersHere() {
         StringBuilder retval = new StringBuilder();
@@ -137,6 +150,39 @@ public class ChatServer {
                             outputLine = (char) 30 + Leaderboard.update(seizureSpeedRequest);
                         } else {
                             outputLine = (char) 30 + Leaderboard.current(seizureSpeedRequest);
+                        }
+                    } else if(command == 7) {
+                        final String flagged = outputLine.substring(1);
+                        if(flagged.codePointAt(0) == 15) {
+                            usingMarkdown = false;
+                            outputLine = (char) 7 + flagged.substring(1);
+                        } else {
+                            int currentMaxFlags;
+                            synchronized(userNamesLock) {
+                                currentMaxFlags = Math.min(3, (userNames.size() + 1) / 2);
+                            }
+                            if(currentMaxFlags <= 1) {
+                                usingMarkdown = false;
+                            } else {
+                                synchronized(flaggedMessagesLock) {
+                                    FlagData flagData = flaggedMessages.get(flagged);
+                                    if(flagData == null) {
+                                        flaggedMessages.put(flagged, new FlagData(uuid, currentMaxFlags));
+                                        messageAll = false;
+                                        outputLine = String.format("<< Message flagged (strike 1/%d) >>", currentMaxFlags) + (char) 5;
+                                    } else {
+                                        if(flagData.users.contains(uuid)) return false;
+                                        if(flagData.users.size() + 1 < flagData.maxFlags) {
+                                            flagData.users.add(uuid);
+                                            messageAll = false;
+                                            outputLine = String.format("<< Message flagged (strike %d/%d) >>", flagData.users.size(), flagData.maxFlags) + (char) 5;
+                                        } else {
+                                            usingMarkdown = false;
+                                            flaggedMessages.remove(flagged);
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     if(command == 15) {

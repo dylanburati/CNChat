@@ -300,6 +300,9 @@ public class ChatClient extends JFrame {
                     ((JFrame) chatPane.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
                     return true;
                 }
+                if(header == 7) {
+                    return true;
+                }
                 stdOut.setLogicalStyle(stdOut.getLength(), peerStyle);
                 MarkdownUtils.format = message.length() != (message = message.replace("" + (char) 17, "")).length();
                 if(message.length() != (message = message.replaceAll("[\\x0e\\x0f\\x7f-\\x9f]", "")).length()) {
