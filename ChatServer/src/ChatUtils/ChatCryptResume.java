@@ -22,24 +22,25 @@ import static ChatUtils.Codecs.base64decode;
 import static ChatUtils.Codecs.base64encode;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-public class ChatCrypt {
+public class ChatCryptResume {
 
     private static final BigInteger otr1536Modulus = new BigInteger(
             "FFFFFFFFFFFFFFFFC90FDAA22168C234" +
-            "C4C6628B80DC1CD129024E088A67CC74" +
-            "020BBEA63B139B22514A08798E3404DD" +
-            "EF9519B3CD3A431B302B0A6DF25F1437" +
-            "4FE1356D6D51C245E485B576625E7EC6" +
-            "F44C42E9A637ED6B0BFF5CB6F406B7ED" +
-            "EE386BFB5A899FA5AE9F24117C4B1FE6" +
-            "49286651ECE45B3DC2007CB8A163BF05" +
-            "98DA48361C55D39A69163FA8FD24CF5F" +
-            "83655D23DCA3AD961C62F356208552BB" +
-            "9ED529077096966D670C354E4ABC9804" +
-            "F1746C08CA237327FFFFFFFFFFFFFFFF", 16);
+                    "C4C6628B80DC1CD129024E088A67CC74" +
+                    "020BBEA63B139B22514A08798E3404DD" +
+                    "EF9519B3CD3A431B302B0A6DF25F1437" +
+                    "4FE1356D6D51C245E485B576625E7EC6" +
+                    "F44C42E9A637ED6B0BFF5CB6F406B7ED" +
+                    "EE386BFB5A899FA5AE9F24117C4B1FE6" +
+                    "49286651ECE45B3DC2007CB8A163BF05" +
+                    "98DA48361C55D39A69163FA8FD24CF5F" +
+                    "83655D23DCA3AD961C62F356208552BB" +
+                    "9ED529077096966D670C354E4ABC9804" +
+                    "F1746C08CA237327FFFFFFFFFFFFFFFF", 16);
 
     private static final BigInteger otr1536Base = BigInteger.valueOf(2);
     private final String algo;
+    private final String wrappedKeyPath;
 
     private List<byte[]> inQueue = new ArrayList<>();
     private final Object inQueueLock = new Object();
@@ -58,9 +59,12 @@ public class ChatCrypt {
         private KeyFactory keyFactory;
         private X509EncodedKeySpec keySpec;
         private byte[] key;
-        private SecretKey keyAES;
+        private byte[] ephemeralKey;
         private byte[] cipherParamsEnc;
         private AlgorithmParameters cipherParams;
+        private byte[] wrappedKey;
+        private byte[] keyUnwrapper;
+        private SecretKey keyAES;
     }
 
     private static class Party2 {
@@ -104,6 +108,25 @@ public class ChatCrypt {
     private void runStage(int stage) throws Exception {
         switch(stage) {
             case 0:
+                try(BufferedReader keyReader = new BufferedReader(new InputStreamReader(new FileInputStream(wrappedKeyPath), UTF_8))) {
+                    String line;
+                    while((line = keyReader.readLine()) != null) {
+                        if(line.isEmpty()) {
+                            break;
+                        }
+                        if(line.startsWith("Key:")) {
+                            String wrappedKeyEnc = line.substring(4);
+                            if(wrappedKeyEnc.length() != 32) {
+                                throw new Exception("Wrapped key retrieval failed");
+                            }
+                            self.wrappedKey = new byte[16];
+                            for(int i = 0; i < 32; i += 2) {
+                                self.wrappedKey[i / 2] = (byte)Integer.parseInt(wrappedKeyEnc.substring(i, i + 2));
+                            }
+                        }
+                    }
+                }
+
                 self.keyPairGen = KeyPairGenerator.getInstance("DH");
                 self.keyPairGen.initialize(new DHParameterSpec(otr1536Modulus, otr1536Base));
                 self.keyPair = self.keyPairGen.generateKeyPair();
@@ -125,31 +148,47 @@ public class ChatCrypt {
 
                 self.keyAgree.doPhase(party2.pubKey, true);
                 self.key = self.keyAgree.generateSecret();
-                privateKey = Arrays.copyOf(sha256.digest(self.key), 16);
-                self.keyAES = new SecretKeySpec(privateKey, "AES");
+                self.ephemeralKey = Arrays.copyOf(sha256.digest(self.key), 16);
 
+                byte[] ephemeralWithWrapped = new byte[16];
+                for(int i = 0; i < 16; i++) {
+                    ephemeralWithWrapped[i] = (byte)((self.wrappedKey[i] & 0xFF) ^ (self.ephemeralKey[i] & 0xFF));
+                }
+                outQueue.add(ephemeralWithWrapped);
+                break;
+            case 2:
+                synchronized(inQueueLock) {
+                    self.keyUnwrapper = inQueue.get(1);
+                }
+                privateKey = new byte[16];
+                for(int i = 0; i < 16; i++) {
+                    privateKey[i] = (byte)((self.wrappedKey[i] & 0xFF) ^ (self.keyUnwrapper[i] & 0xFF));
+                }
+
+                self.keyAES = new SecretKeySpec(privateKey, "AES");
                 cipherD = Cipher.getInstance(algo);
                 cipherE = Cipher.getInstance(algo);
                 outQueue.add("Vn".getBytes(UTF_8));
                 break;
-            case 2:
+            case 3:
                 synchronized(inQueueLock) {
-                    self.cipherParamsEnc = inQueue.get(1);
+                    self.cipherParamsEnc = inQueue.get(2);
                 }
                 self.cipherParams = AlgorithmParameters.getInstance("AES");
                 self.cipherParams.init(self.cipherParamsEnc);
 
                 cipherE.init(Cipher.ENCRYPT_MODE, self.keyAES, self.cipherParams);
                 cipherD.init(Cipher.DECRYPT_MODE, self.keyAES, self.cipherParams);
-                synchronized(ChatCrypt.this) {
-                    ChatCrypt.this.notifyAll();
+                synchronized(ChatCryptResume.this) {
+                    ChatCryptResume.this.notifyAll();
                 }
                 break;
         }
     }
 
-    public ChatCrypt(HttpServer server, String uuid, String algo) throws Exception {
+    public ChatCryptResume(HttpServer server, String uuid, String algo, String keyPath) throws Exception {
         this.algo = algo;
+        this.wrappedKeyPath = keyPath;
         runStage(0);
         HttpContext hc = server.createContext("/" + uuid, new CryptHandler());
         synchronized(this) {

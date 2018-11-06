@@ -86,6 +86,8 @@ public class ChatClient extends JFrame {
                         int endCmd = input.indexOf("\n", startCmd);
                         if(endCmd == -1) endCmd = input.length();
                         enqueue("Recipients:\nCommand:" + input.substring(startCmd, endCmd));
+                    } else if(input.contains(":persistent")) {
+                        enqueue("Command:make persistent 00000000000000000000000000000000");
                     } else if(!input.matches("[ \\t\\xA0\\u1680\\u180e\\u2000-\\u200a\\u202f\\u205f\\u3000" +
                             "\\n\\x0B\\f\\r\\x85\\u2028\\u2029]*")) {
                         enqueueUserMessage(input);
@@ -209,7 +211,7 @@ public class ChatClient extends JFrame {
             }
         } catch(IOException ignored) {
         }
-        int portNumber = 8080;
+        int portNumber = 8081;
 
 //        final java.util.List<String> userNames = new ArrayList<>();
 //        Collections.addAll(userNames, "Lil B", "KenM", "Ken Bone", "Tai Lopez", "Hugh Mungus",

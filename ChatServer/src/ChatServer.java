@@ -1,4 +1,5 @@
 import ChatUtils.ChatCrypt;
+import ChatUtils.ChatCryptResume;
 import ChatUtils.TransactionHandler;
 import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
@@ -20,50 +21,29 @@ interface peerUpdateCompat<T> {
     void execute(T thread, String message, List<String> specify);
 }
 
-class FlagData {
-    public List<String> users;
-    public int maxFlags;
-
-    public FlagData(String userID, int maxFlags) {
-        this.users = new ArrayList<>();
-        users.add(userID);
-        this.maxFlags = maxFlags;
-    }
-}
-
 public class ChatServer {
 
     private static HttpServer server;
-    private static volatile List<String> userNames = new ArrayList<>();
-    private static final Object userNamesLock = new Object();
-    private static volatile Map<String,FlagData> flaggedMessages = new HashMap<>();
-    private static final Object flaggedMessagesLock = new Object();
-    private static final String[] commandsAvailable = new String[] { "color ", "format ", "help", "status", "join ", "resume" };
+    private static volatile Map<String, String> userNamesMap = new HashMap<>();
+    private static final Object userNamesMapLock = new Object();
+    private static final String[] commandsAvailable = new String[] { "color ", "format ", "help", "status", "join ", "resume", "make persistent " };
+    private static String persistentPath;
 
-    private static String usersHere() {
-        StringBuilder retval = new StringBuilder();
-        synchronized(userNamesLock) {
-            for(String el : userNames) {
-                retval.append(" ");
-                retval.append(el);
-                retval.append("\n");
+    private static boolean isValidUUID(String s) {
+        if(s.length() != 32) return false;
+        for(int i = 0; i < 32; i++) {
+            if(Character.digit(s.codePointAt(i), 16) == -1) {
+                return false;
             }
         }
-        return retval.toString();
-    }
-
-    private static void listRemoveAll(List l) {
-        //while(l != null && l.size() > 0) l.remove(0);
-        l = new ArrayList<String>();
+        return true;
     }
 
     public static void main(String[] args) throws IOException {
 
         class ClientThread extends Thread {
 
-            private final String first = "\nWelcome to Cyber Naysh Chat\ntype ':help' for help\n\n"
-                    + (!userNames.isEmpty() ? "<< Here now >>\n" + usersHere() : "<< No one else is here >>\n")
-                    + (char) 5 + (char) 17 + "\n";
+            private String first = "Class:hide\nBody:connected";
 
             private final String uuid;
             private final peerUpdateCompat<ClientThread> peerMessage;
@@ -71,8 +51,10 @@ public class ChatServer {
             private HttpContext httpContext = null;
             String userName = null;
             private boolean markDown = false;
+            private String userDataPath = null;
 
             private Cipher cipherE, cipherD;
+            private byte[] privateKey;
             private final Object cipherLock = new Object();
             private volatile List<String> outQueue = new ArrayList<>();
             private final Object outQueueLock = new Object();
@@ -92,7 +74,7 @@ public class ChatServer {
                 int headerLines;
                 List<String> recipients = null;
                 String command = "";
-                
+
                 for(headerLines = 0; headerLines < messageFull.length; headerLines++) {
                     if(messageFull[headerLines].startsWith("Recipients:")) {
                         String[] rs = messageFull[headerLines].substring(11).split(";");
@@ -120,8 +102,13 @@ public class ChatServer {
                     return true;
                 }
 
+                if(userName == null && !command.startsWith("join ")) {
+                    // Join needed for all other commands and messages
+                    return true;
+                }
                 String messageClasses = "";
                 String outputBody = "";
+
                 if(command.isEmpty()) {
                     if(recipients == null) {
                         // User message without recipients specified
@@ -154,23 +141,19 @@ public class ChatServer {
                             "\nFormat: " + (markDown ? "Markdown" : "plain text") +
                             "\n :format for Markdown" +
                             "\n :unformat for plain text";
-                    if(userNames.size() > 1) {
-                        outputBody += "\nUsers here now:\n";
-                        outputBody += usersHere();
-                    } else {
-                        outputBody += "\nNo one else is here" + "\n";
-                    }
                 } else if(command.startsWith("join ")) {
                     messageClasses = "hide";
                     recipients = new ArrayList<>();
                     String nameRequest = command.substring(5);
                     if(nameRequest.matches("[0-9A-Za-z-_\\.]+")) {
-                        if(userNames.contains(nameRequest)) {
+                        if(userName != null) {
+                            enqueue("Class:hide\nBody:can't change username");
+                        } else if(userNamesMap.containsValue(nameRequest)) {
                             enqueue("Class:hide\nBody:name conflict");
                         } else {
                             userName = nameRequest;
-                            synchronized(userNamesLock) {
-                                userNames.add(userName);
+                            synchronized(userNamesMapLock) {
+                                userNamesMap.put(uuid, userName);
                             }
                             outputBody = "success";
                             recipients.add(userName);
@@ -178,6 +161,42 @@ public class ChatServer {
                     } else {
                         // Illegal character in username
                         return false;
+                    }
+                } else if(command.startsWith("make persistent ")) {
+                    String password_hash = command.substring(16);
+                    if(userDataPath == null && isValidUUID(password_hash)) {
+                        userDataPath = persistentPath.substring(0, persistentPath.lastIndexOf(System.getProperty("file.separator")) + 1) + "." + uuid;
+                        // First 128 bits of SHA-256, store (private key ^ password_hash), forget password_hash
+                        messageClasses = "hide";
+                        recipients = new ArrayList<>();
+                        recipients.add(userName);
+                        try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(persistentPath, true), UTF_8), true)) {
+                            out.write(uuid);
+                            out.write(" ");
+                            out.write(userName);
+                            out.write("\n");
+                        } catch(IOException e) {
+                            e.printStackTrace();
+                            outputBody = "failure";
+                        }
+                        try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(userDataPath), UTF_8), true)) {
+                            out.write("Key:");
+                            for(int i = 0; i < 32; i += 2) {
+                                int pad = Integer.parseInt(password_hash.substring(i, i + 2), 16);
+                                int store = ((privateKey[i / 2] & 0xFF) ^ pad);
+                                out.write(String.format("%02x", store));
+                            }
+                            out.write("\n");
+                        } catch(IOException e) {
+                            e.printStackTrace();
+                            outputBody = "failure";
+                        }
+                        if(outputBody.isEmpty()) outputBody = "success";
+                    } else {
+                        messageClasses = "hide";
+                        recipients = new ArrayList<>();
+                        recipients.add(userName);
+                        outputBody = "already persistent";
                     }
                 } else if(command.startsWith("quit")) {
                     return false;
@@ -223,22 +242,34 @@ public class ChatServer {
             }
 
             private void close() {
-                if(userName != null) {
-                    synchronized(userNamesLock) {
-                        userNames.remove(userName);
-                    }
-                }
                 cipherD = cipherE = null;
                 server.removeContext(httpContext);
             }
 
             @Override
             public void run() {
+                boolean resume = false;
+                synchronized(userNamesMapLock) {
+                    userName = userNamesMap.get(uuid);
+                }
+                if(userName != null) {
+                    userDataPath = persistentPath.substring(0, persistentPath.lastIndexOf(System.getProperty("file.separator")) + 1) + "." + uuid;
+                    first += " and signed in";
+                    resume = true;
+                }
                 try {
                     synchronized(cipherLock) {
-                        ChatCrypt chatCrypt = new ChatCrypt(server, uuid, algo);
-                        cipherD = chatCrypt.cipherD;
-                        cipherE = chatCrypt.cipherE;
+                        if(resume) {
+                            ChatCryptResume chatCryptResume = new ChatCryptResume(server, uuid, algo, userDataPath);
+                            cipherD = chatCryptResume.cipherD;
+                            cipherE = chatCryptResume.cipherE;
+                            privateKey = chatCryptResume.privateKey;
+                        } else {
+                            ChatCrypt chatCrypt = new ChatCrypt(server, uuid, algo);
+                            cipherD = chatCrypt.cipherD;
+                            cipherE = chatCrypt.cipherE;
+                            privateKey = chatCrypt.privateKey;
+                        }
                     }
                 } catch(Exception e) {
                     e.printStackTrace();
@@ -319,7 +350,27 @@ public class ChatServer {
             }
         };
 
-        int portNumber = 8080;
+        persistentPath = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
+                getParent() + System.getProperty("file.separator") + "persist.txt";
+        try(BufferedReader persist = new BufferedReader(new InputStreamReader(new FileInputStream(persistentPath), UTF_8))) {
+            String line;
+            while((line = persist.readLine()) != null) {
+                if(line.isEmpty()) {
+                    break;
+                }
+                String lineUUID = line.substring(0, 32);
+                String lineUser = line.substring(33);
+                if(isValidUUID(lineUUID) && lineUser.matches("[0-9A-Za-z-_\\.]+")) {
+                    System.out.println("PERSISTENT uuid: " + lineUUID + "| user: " + lineUser);
+                    synchronized(userNamesMapLock) {
+                        userNamesMap.put(lineUUID, lineUser);
+                    }
+                }
+            }
+        } catch(IOException ignored) {
+        }
+
+        int portNumber = 8081;
         InetSocketAddress bind = new InetSocketAddress(portNumber);
         System.out.println("Server @ " + bind.getAddress().getHostAddress() + ":" + bind.getPort());
 
@@ -330,52 +381,44 @@ public class ChatServer {
         class DelegateHandler implements HttpHandler {
             @Override
             public void handle(HttpExchange conn) throws IOException {
-                String uuid, algo;
-                int cipherModeFlag;
+                String uuid, input;
+                boolean sane = false;
+                boolean resume = false;
                 try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getRequestBody(), UTF_8))
                 ) {
-                    String input = in.readLine();
-                    cipherModeFlag = processRootRequest(input);
+                    input = in.readLine();
+                    sane = isValidUUID(input);
                 }
 
                 try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getResponseBody(), UTF_8), true)
                 ) {
-                    if(cipherModeFlag == -1) {
+                    if(!sane) {
                         conn.sendResponseHeaders(400, 2);
                         out.print("\r\n");
                         out.close();
                         return;
                     }
 
-                    uuid = UUID.randomUUID().toString().replace("-", "");
+                    synchronized(userNamesMapLock) {
+                        resume = userNamesMap.containsKey(input);
+                    }
+
+                    if(resume) {
+                        uuid = input;
+                    } else {
+                        uuid = UUID.randomUUID().toString().replace("-", "");
+                    }
                     conn.sendResponseHeaders(200, 32);
                     out.print(uuid);
                     out.close();
                 }
 
                 System.out.println("Client connected");
-                algo = cipherModeFlag > 7 ? "AES/CBC/PKCS5Padding" : "AES/CTR/PKCS5Padding";
-                ClientThread thread = new ClientThread(uuid, messenger, algo);
+                ClientThread thread = new ClientThread(uuid, messenger, "AES/CBC/PKCS5Padding");
                 synchronized(threads) {
                     threads.add(thread);
                 }
                 thread.start();
-            }
-
-            private int processRootRequest(String input) {
-                if(input == null || input.length() != 32) {
-                    return -1;
-                }
-                int cipherModeFlag = Character.digit(input.codePointAt(0), 16);
-                if(cipherModeFlag == -1) {
-                    return -1;
-                }
-                for(int i = 1; i < 32; i++) {
-                    if(Character.digit(input.codePointAt(i), 16) == -1) {
-                        return -1;
-                    }
-                }
-                return cipherModeFlag;
             }
         }
 
