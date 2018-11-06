@@ -291,7 +291,10 @@ public class ChatServer {
                                 if(inQueue.size() > 0) inputLine = inQueue.remove(0);
                                 else break;
                             }
-                            finished = (handleMessage(decrypt(inputLine)) == false);
+                            String message = decrypt(inputLine);
+                            synchronized(outQueueLock) {
+                                finished = (handleMessage(message) == false);
+                            }
                         }
                     }
                 } catch(IOException e) {
