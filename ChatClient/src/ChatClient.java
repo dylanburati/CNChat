@@ -77,22 +77,18 @@ public class ChatClient extends JFrame {
                     input = input.replaceAll("[\\x00-\\x07\\x0e-\\x1f\\x7f-\\x9f]", "");
                     if(input.contains(":quit")) {
                         clientClose();
-                    } else if(input.contains(":username ")) {
-                        String changeRequest = input.substring(input.lastIndexOf(":username ") + 10);
-                        if(!changeRequest.equals(userName) && changeRequest.matches("[^\\n:]+")) {
-                            enqueue((char) 26 + userName + (char) 26 + changeRequest);
-                            userName = changeRequest;
-                            ((JFrame) tp.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
-                        }
                     } else if(input.contains(":format")) {
-                        enqueue("" + (char) 17);
+                        enqueue("Command:format on");
                     } else if(input.contains(":unformat")) {
-                        enqueue("" + (char) 17 + (char) 17);
+                        enqueue("Command:format off");
+                    } else if(input.contains(":color ")) {
+                        int startCmd = input.indexOf(":color ") + 1;
+                        int endCmd = input.indexOf("\n", startCmd);
+                        if(endCmd == -1) endCmd = input.length();
+                        enqueue("Recipients:\nCommand:" + input.substring(startCmd, endCmd));
                     } else if(!input.matches("[ \\t\\xA0\\u1680\\u180e\\u2000-\\u200a\\u202f\\u205f\\u3000" +
                             "\\n\\x0B\\f\\r\\x85\\u2028\\u2029]*")) {
-                        if(input.startsWith(":dm ")) {
-                            enqueue((char) 15 + userName + ": " + input);
-                        } else enqueue(userName + ": " + input);
+                        enqueueUserMessage(input);
                     }
                 }
             }
@@ -111,6 +107,10 @@ public class ChatClient extends JFrame {
         } catch(IOException | FontFormatException e) {
             e.printStackTrace();
         }
+    }
+
+    private static void enqueueUserMessage(String outputLine) {
+        enqueue("Recipients:\nBody:" + outputLine);
     }
 
     private static void enqueue(String outputLine) {
@@ -211,12 +211,13 @@ public class ChatClient extends JFrame {
         }
         int portNumber = 8080;
 
-        final java.util.List<String> userNames = new ArrayList<>();
-        Collections.addAll(userNames, "Lil B", "KenM", "Ken Bone", "Tai Lopez", "Hugh Mungus",
-                "Donald Trump", "Hillary Clinton", "Jesus", "VN", "Uncle Phil",
-                "Watery Westin", "A Wild KB");
+//        final java.util.List<String> userNames = new ArrayList<>();
+//        Collections.addAll(userNames, "Lil B", "KenM", "Ken Bone", "Tai Lopez", "Hugh Mungus",
+//                "Donald Trump", "Hillary Clinton", "Jesus", "VN", "Uncle Phil",
+//                "Watery Westin", "A Wild KB");
         final Random random = new Random();
-        userName = userNames.remove(random.nextInt(userNames.size()));
+//        userName = userNames.remove(random.nextInt(userNames.size()));
+        userName = Integer.toString(36 * 36 * 36 + random.nextInt(35 * 36 * 36 * 36), 36);
 
         host = new URL("http", hostName, portNumber, "");
         System.out.println("Connecting to " + InetAddress.getByName(hostName).getHostAddress() + ":" + portNumber);
@@ -283,84 +284,71 @@ public class ChatClient extends JFrame {
 
             private boolean handleMessage(String message) throws IOException, BadLocationException, NumberFormatException {
                 if(message == null) return false;
-                final int header = message.isEmpty() ? -1 : message.codePointAt(0);
-                if(header == 21) {
-                    if(message.length() == 1) {
-                        if(!userNames.isEmpty()) {
-                            userName = userNames.remove(random.nextInt(userNames.size()));
-                        } else {
-                            userName = Integer.toString(36 * 36 * 36 + random.nextInt(35 * 36 * 36 * 36), 36);
+                String[] messageFull = message.split("\n");
+                int headerLines;
+                java.util.List<String> recipients = null;
+                boolean show = true;
+                boolean usingMarkdown = false;
+                for(headerLines = 0; headerLines < messageFull.length; headerLines++) {
+                    if(messageFull[headerLines].startsWith("Recipients:")) {
+                        String[] rs = messageFull[headerLines].substring(11).split(";");
+                        recipients = new ArrayList<>();
+                        Collections.addAll(recipients, rs);
+                    } else if(messageFull[headerLines].startsWith("Class:")) {
+                        String[] classes = messageFull[headerLines].substring(6).split(" ");
+                        for(String c : classes) {
+                            if(c.equals("hide")) show = false;
+                            else if(c.equals("server")) stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
+                            else if(c.equals("user")) stdOut.setLogicalStyle(stdOut.getLength(), peerStyle);
+                            else if(c.equals("markdown")) usingMarkdown = true;
+                            else if(c.equals("plaintext")) usingMarkdown = false;
                         }
-                        enqueue((char) 6 + userName);
-                    } else {
-                        userName = message.substring(1);
-                        stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
-                        stdOut.insertString(stdOut.getLength(), "<< That username is taken >>\n", null);
+                    } else if(messageFull[headerLines].startsWith("Body:")) {
+                        break;
                     }
-                    ((JFrame) chatPane.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
+                }
+                if(headerLines == 0) {
+                    // Message has no header
+                    return true;
+                } else if(headerLines == messageFull.length) {
+                    // Message has no body
                     return true;
                 }
-                if(header == 7) {
-                    return true;
+                String messageBody;
+                StringBuilder messageBodyBuilder = new StringBuilder(messageFull[headerLines].substring(5));
+                for(int i = headerLines + 1; i < messageFull.length; i++) {
+                    messageBodyBuilder.append(messageFull[i]);
+                    if(i < (messageFull.length - 1)) messageBodyBuilder.append("\n");
                 }
-                stdOut.setLogicalStyle(stdOut.getLength(), peerStyle);
-                MarkdownUtils.format = message.length() != (message = message.replace("" + (char) 17, "")).length();
-                if(message.length() != (message = message.replaceAll("[\\x0e\\x0f\\x7f-\\x9f]", "")).length()) {
-                    stdOut.setLogicalStyle(stdOut.getLength(), directStyle);
-                }
-                if(message.length() != (message = message.replaceAll("[\\x00-\\x07\\x10-\\x1f]", "")).length()) {
-                    stdOut.setLogicalStyle(stdOut.getLength(), serverStyle);
-                    stdOut.insertString(stdOut.getLength(), message + "\n", null);
-                    return true;
-                }
-                final String command = message.toLowerCase();
-                if(command.contains(":color ")) {
-                    if(rainbow.isAlive()) rainbow.interrupt();
-                    if(command.contains("white") || command.contains("reset"))
-                        chatPane.setBackground(Color.WHITE);
-                    else if(command.contains("rainbow")) {
-                        rainbow = new Thread(rainbowRun);
-                        rainbow.start();
-                    } else {
-                        final int ccIndex = command.lastIndexOf(":color ") + 7;
-                        if(command.contains(",")) {
-                            final String[] rgb = command.substring(ccIndex).replaceAll("[^,0-9]", "").split(",");
-                            if(rgb.length == 3) {
-                                int r = Integer.parseInt(rgb[0]);
-                                int g = Integer.parseInt(rgb[1]);
-                                int b = Integer.parseInt(rgb[2]);
-                                if(r / 256 == 0 && g / 256 == 0 && b / 256 == 0)
-                                    chatPane.setBackground(new Color(r, g, b));
-                            }
-                        }
-                        if(command.length() >= ccIndex + 6) {
-                            final String customColor = command.substring(ccIndex, ccIndex + 6);
-                            if(customColor.matches("[0-9a-f]{6}"))
-                                chatPane.setBackground(new Color(Integer.parseInt(customColor, 16)));
-                        }
+                messageBody = messageBodyBuilder.toString();
+
+                System.out.println(message);
+                if(!show) {
+                    if(messageBody.equals("name conflict")) {
+                        return false;
+                    } else if(messageBody.equals("success")) {
+                        ((JFrame) chatPane.getTopLevelAncestor()).setTitle("CN Chat: " + userName);
                     }
+                } else if(usingMarkdown) {
+                    int[] format = MarkdownUtils.genFormatMap(messageBody);
+                    for(int i = 0, cl = stdOut.getLength(); i < format.length; i++, cl++) {
+                        if(format[i] == -1) {
+                            cl--;
+                            continue;
+                        }
+                        if(format[i] == 0) {
+                            stdOut.insertString(cl, "" + messageBody.charAt(i), null);
+                            continue;
+                        }
+                        SimpleAttributeSet fmt = new SimpleAttributeSet();
+                        if((format[i] & 1) != 0) StyleConstants.setItalic(fmt, true);
+                        if((format[i] & 2) != 0) StyleConstants.setBold(fmt, true);
+                        if((format[i] & 4) != 0) StyleConstants.setFontFamily(fmt, "Inconsolata");
+                        stdOut.insertString(cl, "" + messageBody.charAt(i), fmt);
+                    }
+                    stdOut.insertString(stdOut.getLength(), "\n", null);
                 } else {
-                    if(MarkdownUtils.format) {
-                        int[] format = MarkdownUtils.genFormatMap(message);
-                        for(int i = 0, cl = stdOut.getLength(); i < format.length; i++, cl++) {
-                            if(format[i] == -1) {
-                                cl--;
-                                continue;
-                            }
-                            if(format[i] == 0) {
-                                stdOut.insertString(cl, "" + message.charAt(i), null);
-                                continue;
-                            }
-                            SimpleAttributeSet fmt = new SimpleAttributeSet();
-                            if((format[i] & 1) != 0) StyleConstants.setItalic(fmt, true);
-                            if((format[i] & 2) != 0) StyleConstants.setBold(fmt, true);
-                            if((format[i] & 4) != 0) StyleConstants.setFontFamily(fmt, "Inconsolata");
-                            stdOut.insertString(cl, "" + message.charAt(i), fmt);
-                        }
-                        stdOut.insertString(stdOut.getLength(), "\n", null);
-                    } else {
-                        stdOut.insertString(stdOut.getLength(), message + "\n", null);
-                    }
+                    stdOut.insertString(stdOut.getLength(), messageBody + "\n", null);
                 }
                 return true;
             }
@@ -392,7 +380,7 @@ public class ChatClient extends JFrame {
             } catch(Exception e) {
                 e.printStackTrace();
             }
-            enqueue((char) 6 + userName);
+            enqueue("Command:join " + userName);
 
 
             new ChatClient().setVisible(true);
@@ -401,7 +389,7 @@ public class ChatClient extends JFrame {
                     new Runnable() {
                         @Override
                         public void run() {
-                            enqueue((char) 4 + userName);
+                            enqueue("Command:quit");
                             try {
                                 md.sendAndReceive();
                             } catch(Throwable ignored) {

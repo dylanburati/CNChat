@@ -16,6 +16,7 @@ srcREADME.txt
 /ChatClient/src/META-INF/
 /ChatServer/src/META-INF/
 android-update.sh
+cnupdate.sh
 checkout*.sh
 charsTo0xff.txt
 CodecCheck.class
