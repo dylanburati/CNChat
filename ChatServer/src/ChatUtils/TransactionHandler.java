@@ -35,6 +35,12 @@ public class TransactionHandler implements HttpHandler {
             }
         }
 
+        // Wait for the ChatServer thread to synchronize on outQueueLock while handling message
+        try {
+            Thread.sleep(16);
+        } catch(InterruptedException ignored) {
+        }
+
         try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getResponseBody(), UTF_8), true)
         ) {
             StringBuilder dataBuilder = new StringBuilder();
