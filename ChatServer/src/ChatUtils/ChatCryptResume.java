@@ -154,6 +154,7 @@ public class ChatCryptResume {
                 for(int i = 0; i < 16; i++) {
                     ephemeralWithWrapped[i] = (byte)((self.wrappedKey[i] & 0xFF) ^ (self.ephemeralKey[i] & 0xFF));
                 }
+                System.out.println(Arrays.toString(ephemeralWithWrapped));
                 outQueue.add(ephemeralWithWrapped);
                 break;
             case 2:
@@ -165,6 +166,7 @@ public class ChatCryptResume {
                     privateKey[i] = (byte)((self.wrappedKey[i] & 0xFF) ^ ((self.ephemeralKey[i] & 0xFF) ^ (self.keyUnwrapper[i] & 0xFF)));
                 }
 
+                System.out.println(Arrays.toString(privateKey));
                 self.keyAES = new SecretKeySpec(privateKey, "AES");
                 cipherD = Cipher.getInstance(algo);
                 cipherE = Cipher.getInstance(algo);

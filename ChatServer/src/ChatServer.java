@@ -70,6 +70,11 @@ public class ChatServer {
             private boolean handleMessage(String message) {
                 System.out.println("message received");
                 System.out.println(message);
+                if(message == null) {
+                    // Decryption failed
+                    return false;
+                }
+
                 String[] messageFull = message.split("\n");
                 int headerLines;
                 List<String> recipients = null;
