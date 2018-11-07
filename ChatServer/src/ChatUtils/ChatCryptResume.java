@@ -121,7 +121,7 @@ public class ChatCryptResume {
                             }
                             self.wrappedKey = new byte[16];
                             for(int i = 0; i < 32; i += 2) {
-                                self.wrappedKey[i / 2] = (byte)Integer.parseInt(wrappedKeyEnc.substring(i, i + 2));
+                                self.wrappedKey[i / 2] = (byte)Integer.parseInt(wrappedKeyEnc.substring(i, i + 2), 16);
                             }
                         }
                     }
@@ -162,7 +162,7 @@ public class ChatCryptResume {
                 }
                 privateKey = new byte[16];
                 for(int i = 0; i < 16; i++) {
-                    privateKey[i] = (byte)((self.wrappedKey[i] & 0xFF) ^ (self.keyUnwrapper[i] & 0xFF));
+                    privateKey[i] = (byte)((self.wrappedKey[i] & 0xFF) ^ ((self.ephemeralKey[i] & 0xFF) ^ (self.keyUnwrapper[i] & 0xFF)));
                 }
 
                 self.keyAES = new SecretKeySpec(privateKey, "AES");

@@ -164,34 +164,38 @@ public class ChatServer {
                     }
                 } else if(command.startsWith("make persistent ")) {
                     String password_hash = command.substring(16);
-                    if(userDataPath == null && isValidUUID(password_hash)) {
-                        userDataPath = persistentPath.substring(0, persistentPath.lastIndexOf(System.getProperty("file.separator")) + 1) + "." + uuid;
-                        // First 128 bits of SHA-256, store (private key ^ password_hash), forget password_hash
-                        messageClasses = "hide";
-                        recipients = new ArrayList<>();
-                        recipients.add(userName);
-                        try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(persistentPath, true), UTF_8), true)) {
-                            out.write(uuid);
-                            out.write(" ");
-                            out.write(userName);
-                            out.write("\n");
-                        } catch(IOException e) {
-                            e.printStackTrace();
-                            outputBody = "failure";
-                        }
-                        try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(userDataPath), UTF_8), true)) {
-                            out.write("Key:");
-                            for(int i = 0; i < 32; i += 2) {
-                                int pad = Integer.parseInt(password_hash.substring(i, i + 2), 16);
-                                int store = ((privateKey[i / 2] & 0xFF) ^ pad);
-                                out.write(String.format("%02x", store));
+                    if(userDataPath == null) {
+                        if(isValidUUID(password_hash)) {
+                            userDataPath = persistentPath.substring(0, persistentPath.lastIndexOf(System.getProperty("file.separator")) + 1) + "." + uuid;
+                            // First 128 bits of SHA-256, store (private key ^ password_hash), forget password_hash
+                            messageClasses = "hide";
+                            recipients = new ArrayList<>();
+                            recipients.add(userName);
+                            try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(persistentPath, true), UTF_8), true)) {
+                                out.write(uuid);
+                                out.write(" ");
+                                out.write(userName);
+                                out.write("\n");
+                            } catch(IOException e) {
+                                e.printStackTrace();
+                                outputBody = "failure";
                             }
-                            out.write("\n");
-                        } catch(IOException e) {
-                            e.printStackTrace();
-                            outputBody = "failure";
+                            try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(userDataPath), UTF_8), true)) {
+                                out.write("Key:");
+                                for(int i = 0; i < 32; i += 2) {
+                                    int pad = Integer.parseInt(password_hash.substring(i, i + 2), 16);
+                                    int store = ((privateKey[i / 2] & 0xFF) ^ pad);
+                                    out.write(String.format("%02x", store));
+                                }
+                                out.write("\n");
+                            } catch(IOException e) {
+                                e.printStackTrace();
+                                outputBody = "failure";
+                            }
+                            if(outputBody.isEmpty()) outputBody = "success";
+                        } else {
+                            outputBody = "invalid format";
                         }
-                        if(outputBody.isEmpty()) outputBody = "success";
                     } else {
                         messageClasses = "hide";
                         recipients = new ArrayList<>();
