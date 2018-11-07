@@ -104,33 +104,35 @@ public class ChatCrypt {
     private void runStage(int stage) throws Exception {
         switch(stage) {
             case 0:
-                self.keyPairGen = KeyPairGenerator.getInstance("DH");
-                self.keyPairGen.initialize(new DHParameterSpec(otr1536Modulus, otr1536Base));
-                self.keyPair = self.keyPairGen.generateKeyPair();
-                self.keyAgree = KeyAgreement.getInstance("DH");
-                self.keyAgree.init(self.keyPair.getPrivate());
-                self.pubKeyEnc = self.keyPair.getPublic().getEncoded();
                 synchronized(outQueueLock) {
+                    self.keyPairGen = KeyPairGenerator.getInstance("DH");
+                    self.keyPairGen.initialize(new DHParameterSpec(otr1536Modulus, otr1536Base));
+                    self.keyPair = self.keyPairGen.generateKeyPair();
+                    self.keyAgree = KeyAgreement.getInstance("DH");
+                    self.keyAgree.init(self.keyPair.getPrivate());
+                    self.pubKeyEnc = self.keyPair.getPublic().getEncoded();
                     outQueue.add(self.pubKeyEnc);
                 }
                 break;
             case 1:
-                synchronized(inQueueLock) {
-                    party2.pubKeyEnc = inQueue.get(0);
+                synchronized(outQueueLock) {
+                    synchronized(inQueueLock) {
+                        party2.pubKeyEnc = inQueue.get(0);
+                    }
+                    MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+                    self.keyFactory = KeyFactory.getInstance("DH");
+                    self.keySpec = new X509EncodedKeySpec(party2.pubKeyEnc);
+                    party2.pubKey = self.keyFactory.generatePublic(self.keySpec);
+
+                    self.keyAgree.doPhase(party2.pubKey, true);
+                    self.key = self.keyAgree.generateSecret();
+                    privateKey = Arrays.copyOf(sha256.digest(self.key), 16);
+                    self.keyAES = new SecretKeySpec(privateKey, "AES");
+
+                    cipherD = Cipher.getInstance(algo);
+                    cipherE = Cipher.getInstance(algo);
+                    outQueue.add("Vn".getBytes(UTF_8));
                 }
-                MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
-                self.keyFactory = KeyFactory.getInstance("DH");
-                self.keySpec = new X509EncodedKeySpec(party2.pubKeyEnc);
-                party2.pubKey = self.keyFactory.generatePublic(self.keySpec);
-
-                self.keyAgree.doPhase(party2.pubKey, true);
-                self.key = self.keyAgree.generateSecret();
-                privateKey = Arrays.copyOf(sha256.digest(self.key), 16);
-                self.keyAES = new SecretKeySpec(privateKey, "AES");
-
-                cipherD = Cipher.getInstance(algo);
-                cipherE = Cipher.getInstance(algo);
-                outQueue.add("Vn".getBytes(UTF_8));
                 break;
             case 2:
                 synchronized(inQueueLock) {

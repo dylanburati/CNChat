@@ -297,7 +297,7 @@ public class ChatServer {
                 try {
                     synchronized(cipherLock) {
                         if(resume) {
-                            ChatCryptResume chatCryptResume = new ChatCryptResume(server, uuid, algo, userDataPath);
+                            ChatCryptResume chatCryptResume = new ChatCryptResume(server, uuid, userName, algo, userDataPath);
                             cipherD = chatCryptResume.cipherD;
                             cipherE = chatCryptResume.cipherE;
                             privateKey = chatCryptResume.privateKey;
