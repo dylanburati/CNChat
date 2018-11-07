@@ -1,5 +1,6 @@
 import ChatUtils.ChatCrypt;
 import ChatUtils.ChatCryptResume;
+import ChatUtils.MariaDBReader;
 import ChatUtils.TransactionHandler;
 import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
@@ -15,6 +16,7 @@ import java.util.*;
 
 import static ChatUtils.Codecs.base64decode;
 import static ChatUtils.Codecs.base64encode;
+import static ChatUtils.Codecs.crypt64decode;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 interface peerUpdateCompat<T> {
@@ -26,7 +28,7 @@ public class ChatServer {
     private static HttpServer server;
     private static volatile Map<String, String> userNamesMap = new HashMap<>();
     private static final Object userNamesMapLock = new Object();
-    private static final String[] commandsAvailable = new String[] { "color ", "format ", "help", "status", "join ", "resume", "make persistent " };
+    private static final String[] commandsAvailable = new String[] { "color ", "format ", "help", "status", "join ", "resume", "make persistent" };
     private static String persistentPath;
 
     private static boolean isValidUUID(String s) {
@@ -167,12 +169,35 @@ public class ChatServer {
                         // Illegal character in username
                         return false;
                     }
-                } else if(command.startsWith("make persistent ")) {
-                    String password_hash = command.substring(16);
+                } else if(command.startsWith("make persistent")) {
                     if(userDataPath == null) {
-                        if(isValidUUID(password_hash)) {
+                        String passwordHashEnc = MariaDBReader.selectUsers(userName, "pass");
+                        boolean correctEnc = true;
+                        for(int i = 0; i < 3 && correctEnc; i++) {
+                            switch(i) {
+                                case 0:
+                                    if(passwordHashEnc == null || !(passwordHashEnc.startsWith("$2y$")))
+                                        correctEnc = false;
+                                    else
+                                        passwordHashEnc = passwordHashEnc.substring(4);
+                                    break;
+                                case 1:
+                                    int endCostParam = passwordHashEnc.indexOf("$");
+                                    if(endCostParam == -1 || endCostParam >= passwordHashEnc.length() - 1)
+                                        correctEnc = false;
+                                    else
+                                        passwordHashEnc = passwordHashEnc.substring(endCostParam + 1);
+                                    break;
+                                case 2:
+                                    if(passwordHashEnc.length() != 53)
+                                        correctEnc = false;
+                                    else
+                                        passwordHashEnc = passwordHashEnc.substring(22);
+                                    break;
+                            }
+                        }
+                        if(correctEnc) {
                             userDataPath = persistentPath.substring(0, persistentPath.lastIndexOf(System.getProperty("file.separator")) + 1) + "." + uuid;
-                            // First 128 bits of SHA-256, store (private key ^ password_hash), forget password_hash
                             messageClasses = "hide";
                             recipients = new ArrayList<>();
                             recipients.add(userName);
@@ -185,11 +210,11 @@ public class ChatServer {
                                 e.printStackTrace();
                                 outputBody = "failure";
                             }
+                            byte[] passwordHash = crypt64decode(passwordHashEnc);
                             try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(userDataPath), UTF_8), true)) {
                                 out.write("Key:");
                                 for(int i = 0; i < 32; i += 2) {
-                                    int pad = Integer.parseInt(password_hash.substring(i, i + 2), 16);
-                                    int store = ((privateKey[i / 2] & 0xFF) ^ pad);
+                                    int store = ((privateKey[i / 2] & 0xFF) ^ (passwordHash[i / 2] & 0xFF));
                                     out.write(String.format("%02x", store));
                                 }
                                 out.write("\n");
@@ -199,7 +224,10 @@ public class ChatServer {
                             }
                             if(outputBody.isEmpty()) outputBody = "success";
                         } else {
-                            outputBody = "invalid format";
+                            messageClasses = "hide";
+                            recipients = new ArrayList<>();
+                            recipients.add(userName);
+                            outputBody = "persistence not available";
                         }
                     } else {
                         messageClasses = "hide";
