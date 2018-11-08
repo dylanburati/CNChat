@@ -55,6 +55,7 @@ public class ChatServer {
             private boolean markDown = false;
             private String userDataPath = null;
 
+            final Object cryptHandlerLock = new Object();
             private Cipher cipherE, cipherD;
             private byte[] privateKey;
             private final Object cipherLock = new Object();
@@ -286,23 +287,25 @@ public class ChatServer {
             @Override
             public void run() {
                 boolean resume = false;
-                synchronized(userNamesMapLock) {
-                    userName = userNamesMap.get(uuid);
-                }
-                if(userName != null) {
-                    userDataPath = persistentPath.substring(0, persistentPath.lastIndexOf(System.getProperty("file.separator")) + 1) + "." + uuid;
-                    first += " and signed in";
-                    resume = true;
+                synchronized(cryptHandlerLock) {
+                    synchronized(userNamesMapLock) {
+                        userName = userNamesMap.get(uuid);
+                    }
+                    if(userName != null) {
+                        userDataPath = persistentPath.substring(0, persistentPath.lastIndexOf(System.getProperty("file.separator")) + 1) + "." + uuid;
+                        first += " and signed in";
+                        resume = true;
+                    }
                 }
                 try {
                     synchronized(cipherLock) {
                         if(resume) {
-                            ChatCryptResume chatCryptResume = new ChatCryptResume(server, uuid, userName, algo, userDataPath);
+                            ChatCryptResume chatCryptResume = new ChatCryptResume(server, uuid, userName, algo, userDataPath, cryptHandlerLock);
                             cipherD = chatCryptResume.cipherD;
                             cipherE = chatCryptResume.cipherE;
                             privateKey = chatCryptResume.privateKey;
                         } else {
-                            ChatCrypt chatCrypt = new ChatCrypt(server, uuid, algo);
+                            ChatCrypt chatCrypt = new ChatCrypt(server, uuid, algo, cryptHandlerLock);
                             cipherD = chatCrypt.cipherD;
                             cipherE = chatCrypt.cipherE;
                             privateKey = chatCrypt.privateKey;
@@ -448,17 +451,20 @@ public class ChatServer {
                     } else {
                         uuid = UUID.randomUUID().toString().replace("-", "");
                     }
-                    conn.sendResponseHeaders(200, 32);
-                    out.print(uuid);
-                    out.close();
-                }
 
-                System.out.println("Client connected");
-                ClientThread thread = new ClientThread(uuid, messenger, "AES/CBC/PKCS5Padding");
-                synchronized(threads) {
-                    threads.add(thread);
+                    System.out.println("Client connected");
+                    ClientThread thread = new ClientThread(uuid, messenger, "AES/CBC/PKCS5Padding");
+                    synchronized(threads) {
+                        threads.add(thread);
+                    }
+                    thread.start();
+
+                    synchronized(thread.cryptHandlerLock) {
+                        conn.sendResponseHeaders(200, 32);
+                        out.print(uuid);
+                        out.close();
+                    }
                 }
-                thread.start();
             }
         }
 

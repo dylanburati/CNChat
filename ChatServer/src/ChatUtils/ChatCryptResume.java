@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+
 import static ChatUtils.Codecs.base64decode;
 import static ChatUtils.Codecs.base64encode;
 import static ChatUtils.Codecs.crypt64decode;
@@ -110,33 +111,33 @@ public class ChatCryptResume {
     private void runStage(int stage) throws Exception {
         switch(stage) {
             case 0:
-                synchronized(outQueueLock) {
-                    try(BufferedReader keyReader = new BufferedReader(new InputStreamReader(new FileInputStream(wrappedKeyPath), UTF_8))) {
-                        String line;
-                        while((line = keyReader.readLine()) != null) {
-                            if(line.isEmpty()) {
-                                break;
-                            }
-                            if(line.startsWith("Key:")) {
-                                String wrappedKeyEnc = line.substring(4);
-                                if(wrappedKeyEnc.length() != 32) {
-                                    throw new Exception("Wrapped key retrieval failed");
+                synchronized(inQueueLock) {
+                    synchronized(outQueueLock) {
+                        try(BufferedReader keyReader = new BufferedReader(new InputStreamReader(new FileInputStream(wrappedKeyPath), UTF_8))) {
+                            String line;
+                            while((line = keyReader.readLine()) != null) {
+                                if(line.isEmpty()) {
+                                    break;
                                 }
-                                self.wrappedKey = new byte[16];
-                                for(int i = 0; i < 32; i += 2) {
-                                    self.wrappedKey[i / 2] = (byte) Integer.parseInt(wrappedKeyEnc.substring(i, i + 2), 16);
+                                if(line.startsWith("Key:")) {
+                                    String wrappedKeyEnc = line.substring(4);
+                                    if(wrappedKeyEnc.length() != 32) {
+                                        throw new Exception("Wrapped key retrieval failed");
+                                    }
+                                    self.wrappedKey = new byte[16];
+                                    for(int i = 0; i < 32; i += 2) {
+                                        self.wrappedKey[i / 2] = (byte) Integer.parseInt(wrappedKeyEnc.substring(i, i + 2), 16);
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    self.keyPairGen = KeyPairGenerator.getInstance("DH");
-                    self.keyPairGen.initialize(new DHParameterSpec(otr1536Modulus, otr1536Base));
-                    self.keyPair = self.keyPairGen.generateKeyPair();
-                    self.keyAgree = KeyAgreement.getInstance("DH");
-                    self.keyAgree.init(self.keyPair.getPrivate());
-                    self.pubKeyEnc = self.keyPair.getPublic().getEncoded();
-                    synchronized(outQueueLock) {
+                        self.keyPairGen = KeyPairGenerator.getInstance("DH");
+                        self.keyPairGen.initialize(new DHParameterSpec(otr1536Modulus, otr1536Base));
+                        self.keyPair = self.keyPairGen.generateKeyPair();
+                        self.keyAgree = KeyAgreement.getInstance("DH");
+                        self.keyAgree.init(self.keyPair.getPrivate());
+                        self.pubKeyEnc = self.keyPair.getPublic().getEncoded();
                         outQueue.add(self.pubKeyEnc);
                     }
                 }
@@ -193,8 +194,10 @@ public class ChatCryptResume {
                     cipherE = Cipher.getInstance(algo);
 
                     for(int i = 0; i < 16; i++) {
-                        ephemeralWithPrivate[i] = (byte) ((privateKey[i]) ^ (self.ephemeralKey[i] & 0xFF));
+                        ephemeralWithPrivate[i] = (byte) ((privateKey[i] & 0xFF) ^ (self.ephemeralKey[i] & 0xFF));
                     }
+                    System.out.println(Arrays.toString(self.key));
+                    System.out.println(Arrays.toString(self.ephemeralKey));
                     System.out.println(Arrays.toString(ephemeralWithPrivate));
                     outQueue.add(ephemeralWithPrivate);
                 }
@@ -215,12 +218,15 @@ public class ChatCryptResume {
         }
     }
 
-    public ChatCryptResume(HttpServer server, String uuid, String user, String algo, String keyPath) throws Exception {
-        this.user = user;
-        this.algo = algo;
-        this.wrappedKeyPath = keyPath;
-        runStage(0);
-        HttpContext hc = server.createContext("/" + uuid, new CryptHandler());
+    public ChatCryptResume(HttpServer server, String uuid, String user, String algo, String keyPath, Object cryptHandlerLock) throws Exception {
+        HttpContext hc;
+        synchronized(cryptHandlerLock) {
+            this.user = user;
+            this.algo = algo;
+            this.wrappedKeyPath = keyPath;
+            runStage(0);
+            hc = server.createContext("/" + uuid, new CryptHandler());
+        }
         synchronized(this) {
             while(cipherE == null || cipherD == null || cipherE.getIV() == null || cipherD.getIV() == null) {
                 wait();

@@ -150,10 +150,13 @@ public class ChatCrypt {
         }
     }
 
-    public ChatCrypt(HttpServer server, String uuid, String algo) throws Exception {
-        this.algo = algo;
-        runStage(0);
-        HttpContext hc = server.createContext("/" + uuid, new CryptHandler());
+    public ChatCrypt(HttpServer server, String uuid, String algo, Object cryptHandlerLock) throws Exception {
+        HttpContext hc;
+        synchronized(cryptHandlerLock) {
+            this.algo = algo;
+            runStage(0);
+            hc = server.createContext("/" + uuid, new CryptHandler());
+        }
         synchronized(this) {
             while(cipherE == null || cipherD == null || cipherE.getIV() == null || cipherD.getIV() == null) {
                 wait();
