@@ -29,7 +29,6 @@ public class ChatServer {
     private static volatile Map<String, String> userNamesMap = new HashMap<>();
     private static final Object userNamesMapLock = new Object();
     private static final String[] commandsAvailable = new String[] { "color ", "format ", "help", "status", "join ", "resume", "make persistent" };
-    private static String persistentPath;
 
     private static boolean isValidUUID(String s) {
         if(s.length() != 32) return false;
@@ -198,30 +197,27 @@ public class ChatServer {
                             }
                         }
                         if(correctEnc) {
-                            userDataPath = persistentPath.substring(0, persistentPath.lastIndexOf(System.getProperty("file.separator")) + 1) + "." + uuid;
+                            userDataPath = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
+                                    getParent() + System.getProperty("file.separator") + "." + uuid;
                             messageClasses = "hide";
                             recipients = new ArrayList<>();
                             recipients.add(userName);
-                            try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(persistentPath, true), UTF_8), true)) {
-                                out.write(uuid);
-                                out.write(" ");
-                                out.write(userName);
-                                out.write("\n");
-                            } catch(IOException e) {
-                                e.printStackTrace();
+                            int rMod = MariaDBReader.updateUserID(userName, uuid);
+                            if(rMod != 1) {
                                 outputBody = "failure";
-                            }
-                            byte[] passwordHash = crypt64decode(passwordHashEnc);
-                            try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(userDataPath), UTF_8), true)) {
-                                out.write("Key:");
-                                for(int i = 0; i < 32; i += 2) {
-                                    int store = ((privateKey[i / 2] & 0xFF) ^ (passwordHash[i / 2] & 0xFF));
-                                    out.write(String.format("%02x", store));
+                            } else {
+                                byte[] passwordHash = crypt64decode(passwordHashEnc);
+                                try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(userDataPath), UTF_8), true)) {
+                                    out.write("Key:");
+                                    for(int i = 0; i < 32; i += 2) {
+                                        int store = ((privateKey[i / 2] & 0xFF) ^ (passwordHash[i / 2] & 0xFF));
+                                        out.write(String.format("%02x", store));
+                                    }
+                                    out.write("\n");
+                                } catch(IOException e) {
+                                    e.printStackTrace();
+                                    outputBody = "failure";
                                 }
-                                out.write("\n");
-                            } catch(IOException e) {
-                                e.printStackTrace();
-                                outputBody = "failure";
                             }
                             if(outputBody.isEmpty()) outputBody = "success";
                         } else {
@@ -292,7 +288,8 @@ public class ChatServer {
                         userName = userNamesMap.get(uuid);
                     }
                     if(userName != null) {
-                        userDataPath = persistentPath.substring(0, persistentPath.lastIndexOf(System.getProperty("file.separator")) + 1) + "." + uuid;
+                        userDataPath = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
+                                getParent() + System.getProperty("file.separator") + "." + uuid;
                         first += " and signed in";
                         resume = true;
                     }
@@ -393,24 +390,17 @@ public class ChatServer {
             }
         };
 
-        persistentPath = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
-                getParent() + System.getProperty("file.separator") + "persist.txt";
-        try(BufferedReader persist = new BufferedReader(new InputStreamReader(new FileInputStream(persistentPath), UTF_8))) {
-            String line;
-            while((line = persist.readLine()) != null) {
-                if(line.isEmpty()) {
-                    break;
-                }
-                String lineUUID = line.substring(0, 32);
-                String lineUser = line.substring(33);
-                if(isValidUUID(lineUUID) && lineUser.matches("[0-9A-Za-z-_\\.]+")) {
-                    System.out.println("PERSISTENT uuid: " + lineUUID + "| user: " + lineUser);
-                    synchronized(userNamesMapLock) {
-                        userNamesMap.put(lineUUID, lineUser);
+        Map<String, String> persistent = MariaDBReader.selectAllUserIDs();
+        if(persistent == null) {
+            System.out.println("Warning: Persistent sessions are not available without a configured MariaDB database.");
+        } else if(!persistent.isEmpty()) {
+            synchronized(userNamesMapLock) {
+                persistent.forEach((chatID, name) -> {
+                    if(isValidUUID(chatID)) {
+                        userNamesMap.put(chatID, name);
                     }
-                }
+                });
             }
-        } catch(IOException ignored) {
         }
 
         int portNumber = 8081;
