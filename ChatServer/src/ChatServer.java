@@ -20,7 +20,7 @@ import static ChatUtils.Codecs.crypt64decode;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 interface peerUpdateCompat<T> {
-    void execute(T thread, String message, List<String> specify);
+    void execute(T thread, String message, List<String> specify, boolean addToHistory);
 }
 
 public class ChatServer {
@@ -113,6 +113,7 @@ public class ChatServer {
                     // Join needed for all other commands and messages
                     return true;
                 }
+                boolean addToHistory = false;
                 String messageClasses = "";
                 String outputBody = "";
 
@@ -125,6 +126,7 @@ public class ChatServer {
                         // User message without body
                         return true;
                     }
+                    addToHistory = true;
                     messageClasses = "user " + (markDown ? "markdown" : "plaintext");
                     recipients.add(userName);
                     StringBuilder outputBodyBuilder = new StringBuilder(messageFull[headerLines].substring(5));
@@ -154,9 +156,9 @@ public class ChatServer {
                     String nameRequest = command.substring(5);
                     if(nameRequest.matches("[0-9A-Za-z-_\\.]+")) {
                         if(userName != null) {
-                            enqueue("Class:hide\nBody:can't change username");
+                            enqueue("Class:hide\nBody:can't change username", false);
                         } else if(userNamesMap.containsValue(nameRequest)) {
-                            enqueue("Class:hide\nBody:name conflict");
+                            enqueue("Class:hide\nBody:name conflict", false);
                         } else {
                             userName = nameRequest;
                             synchronized(userNamesMapLock) {
@@ -277,14 +279,17 @@ public class ChatServer {
                     }
                     outMessage.append("\nClass:").append(messageClasses);
                     outMessage.append("\nBody:").append(outputBody);
-                    peerMessage.execute(this, outMessage.toString(), recipients);
+                    peerMessage.execute(this, outMessage.toString(), recipients, addToHistory);
                 }
                 return true;
             }
 
             private void close() {
                 cipherD = cipherE = null;
-                server.removeContext(httpContext);
+                if(httpContext != null) {
+                    server.removeContext(httpContext);
+                    httpContext = null;
+                }
             }
 
             @Override
@@ -331,19 +336,20 @@ public class ChatServer {
                 } catch(Exception e) {
                     e.printStackTrace();
                 }
-                enqueue(first);
+                enqueue(first, false);
 
                 httpContext = server.createContext("/" + uuid, new TransactionHandler(inQueue, inQueueLock, outQueue, outQueueLock));
                 try {
                     String inputLine;
                     boolean finished = false;
-                    while(!finished) {
+                    while(!finished && cipherE != null && cipherD != null) {
                         try {
                             Thread.sleep(10);
                         } catch(InterruptedException ignored) {
                         }
 
-                        while(!finished) {
+                        // Try to clear inQueue, exit both loops if needed
+                        while(!finished && cipherE != null && cipherD != null) {
                             synchronized(inQueueLock) {
                                 if(inQueue.size() > 0) inputLine = inQueue.remove(0);
                                 else break;
@@ -374,7 +380,7 @@ public class ChatServer {
                 }
             }
 
-            private void enqueue(String outputLine) {
+            private void enqueue(String outputLine, boolean addToHistory) {
                 byte[] data = outputLine.getBytes(UTF_8);
                 byte[] enc;
                 String outEnc = null;
@@ -389,7 +395,7 @@ public class ChatServer {
                 } catch(IllegalBlockSizeException | BadPaddingException e) {
                     e.printStackTrace();
                 }
-                if(userDataPath != null && outEnc != null) {
+                if(addToHistory && userDataPath != null && outEnc != null) {
                     try(PrintWriter history = new PrintWriter(new OutputStreamWriter(new FileOutputStream(userDataPath, true), UTF_8), true)) {
                         history.write(outEnc);
                         history.write("\n");
@@ -404,7 +410,7 @@ public class ChatServer {
         final List<ClientThread> threads = new ArrayList<>();
         final peerUpdateCompat<ClientThread> messenger = new peerUpdateCompat<ClientThread>() {
             @Override
-            public void execute(ClientThread caller, String message, List<String> recipients) {
+            public void execute(ClientThread caller, String message, List<String> recipients, boolean addToHistory) {
                 synchronized(threads) {
                     for(Iterator<ClientThread> threadIter = threads.iterator(); threadIter.hasNext(); /* nothing */) {
                         ClientThread currentThread = threadIter.next();
@@ -413,7 +419,7 @@ public class ChatServer {
                                 threadIter.remove();
                                 continue;
                             }
-                            currentThread.enqueue(message);
+                            currentThread.enqueue(message, addToHistory);
                         }
                     }
                 }
@@ -468,6 +474,14 @@ public class ChatServer {
 
                     if(resume) {
                         uuid = input;
+                        synchronized(threads) {
+                            for(ClientThread currentThread : threads) {
+                                if(uuid.equals(currentThread.uuid)) {
+                                    currentThread.close();
+                                    break;
+                                }
+                            }
+                        }
                     } else {
                         uuid = UUID.randomUUID().toString().replace("-", "");
                     }
