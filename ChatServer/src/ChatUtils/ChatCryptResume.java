@@ -114,20 +114,22 @@ public class ChatCryptResume {
                 synchronized(inQueueLock) {
                     synchronized(outQueueLock) {
                         try(BufferedReader keyReader = new BufferedReader(new InputStreamReader(new FileInputStream(wrappedKeyPath), UTF_8))) {
-                            String line;
-                            while((line = keyReader.readLine()) != null) {
-                                if(line.isEmpty()) {
-                                    break;
+                            String line = keyReader.readLine();
+                            if(line == null || line.isEmpty()) {
+                                throw new Exception("Wrapped key retrieval failed");
+                            }
+                            if(line.startsWith("<key>")) {
+                                int endData = line.indexOf("</key>");
+                                if(endData == -1) {
+                                    throw new Exception("Wrapped key retrieval failed");
                                 }
-                                if(line.startsWith("Key:")) {
-                                    String wrappedKeyEnc = line.substring(4);
-                                    if(wrappedKeyEnc.length() != 32) {
-                                        throw new Exception("Wrapped key retrieval failed");
-                                    }
-                                    self.wrappedKey = new byte[16];
-                                    for(int i = 0; i < 32; i += 2) {
-                                        self.wrappedKey[i / 2] = (byte) Integer.parseInt(wrappedKeyEnc.substring(i, i + 2), 16);
-                                    }
+                                String wrappedKeyEnc = line.substring(5, endData);
+                                if(wrappedKeyEnc.length() != 32) {
+                                    throw new Exception("Wrapped key retrieval failed");
+                                }
+                                self.wrappedKey = new byte[16];
+                                for(int i = 0; i < 32; i += 2) {
+                                    self.wrappedKey[i / 2] = (byte) Integer.parseInt(wrappedKeyEnc.substring(i, i + 2), 16);
                                 }
                             }
                         }
@@ -196,9 +198,6 @@ public class ChatCryptResume {
                     for(int i = 0; i < 16; i++) {
                         ephemeralWithPrivate[i] = (byte) ((privateKey[i] & 0xFF) ^ (self.ephemeralKey[i] & 0xFF));
                     }
-                    System.out.println(Arrays.toString(self.key));
-                    System.out.println(Arrays.toString(self.ephemeralKey));
-                    System.out.println(Arrays.toString(ephemeralWithPrivate));
                     outQueue.add(ephemeralWithPrivate);
                 }
                 break;

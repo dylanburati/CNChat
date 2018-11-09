@@ -205,18 +205,29 @@ public class ChatServer {
                             int rMod = MariaDBReader.updateUserID(userName, uuid);
                             if(rMod != 1) {
                                 outputBody = "failure";
+                                userDataPath = null;
                             } else {
                                 byte[] passwordHash = crypt64decode(passwordHashEnc);
+                                byte[] currentIV;
+                                synchronized(cipherLock) {
+                                    currentIV = cipherE.getIV();
+                                }
                                 try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(userDataPath), UTF_8), true)) {
-                                    out.write("Key:");
-                                    for(int i = 0; i < 32; i += 2) {
-                                        int store = ((privateKey[i / 2] & 0xFF) ^ (passwordHash[i / 2] & 0xFF));
+                                    out.write("<key>");
+                                    for(int i = 0; i < 16; i++) {
+                                        int store = ((privateKey[i] & 0xFF) ^ (passwordHash[i] & 0xFF));
                                         out.write(String.format("%02x", store));
                                     }
-                                    out.write("\n");
+                                    out.write("</key>\n");
+                                    out.write("<iv>");
+                                    for(int i = 0; i < 16; i++) {
+                                        out.write(String.format("%02x", (currentIV[i] & 0xFF)));
+                                    }
+                                    out.write("</iv>\n");
                                 } catch(IOException e) {
                                     e.printStackTrace();
                                     outputBody = "failure";
+                                    userDataPath = null;
                                 }
                             }
                             if(outputBody.isEmpty()) outputBody = "success";
@@ -251,10 +262,6 @@ public class ChatServer {
                 } else if(command.startsWith("color ")) {
                     if(recipients == null) {
                         // User message without recipients specified
-                        return true;
-                    }
-                    if(headerLines == messageFull.length) {
-                        // User message without body
                         return true;
                     }
                     recipients.add(userName);
@@ -295,17 +302,30 @@ public class ChatServer {
                     }
                 }
                 try {
+                    byte[] currentIV = null;
                     synchronized(cipherLock) {
                         if(resume) {
                             ChatCryptResume chatCryptResume = new ChatCryptResume(server, uuid, userName, algo, userDataPath, cryptHandlerLock);
                             cipherD = chatCryptResume.cipherD;
                             cipherE = chatCryptResume.cipherE;
                             privateKey = chatCryptResume.privateKey;
+                            currentIV = cipherE.getIV();
                         } else {
                             ChatCrypt chatCrypt = new ChatCrypt(server, uuid, algo, cryptHandlerLock);
                             cipherD = chatCrypt.cipherD;
                             cipherE = chatCrypt.cipherE;
                             privateKey = chatCrypt.privateKey;
+                        }
+                    }
+                    if(resume && currentIV != null) {
+                        try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(userDataPath, true), UTF_8), true)) {
+                            out.write("<iv>");
+                            for(int i = 0; i < 16; i++) {
+                                out.write(String.format("%02x", (currentIV[i] & 0xFF)));
+                            }
+                            out.write("</iv>\n");
+                        } catch(IOException e) {
+                            e.printStackTrace();
                         }
                     }
                 } catch(Exception e) {
@@ -356,16 +376,26 @@ public class ChatServer {
 
             private void enqueue(String outputLine) {
                 byte[] data = outputLine.getBytes(UTF_8);
+                byte[] enc;
+                String outEnc = null;
                 try {
-                    byte[] enc;
                     synchronized(cipherLock) {
                         enc = cipherE.doFinal(data);
                     }
                     synchronized(outQueueLock) {
-                        outQueue.add(base64encode(enc));
+                        outEnc = base64encode(enc);
+                        outQueue.add(outEnc);
                     }
                 } catch(IllegalBlockSizeException | BadPaddingException e) {
                     e.printStackTrace();
+                }
+                if(userDataPath != null && outEnc != null) {
+                    try(PrintWriter history = new PrintWriter(new OutputStreamWriter(new FileOutputStream(userDataPath, true), UTF_8), true)) {
+                        history.write(outEnc);
+                        history.write("\n");
+                    } catch(IOException e) {
+                        e.printStackTrace();
+                    }
                 }
             }
 
@@ -448,6 +478,11 @@ public class ChatServer {
                         threads.add(thread);
                     }
                     thread.start();
+
+                    try {  // Allow cryptHandlerLock to be locked by the thread
+                        Thread.sleep(10);
+                    } catch(InterruptedException ignored) {
+                    }
 
                     synchronized(thread.cryptHandlerLock) {
                         conn.sendResponseHeaders(200, 32);
