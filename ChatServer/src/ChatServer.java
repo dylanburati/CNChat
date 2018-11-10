@@ -54,6 +54,7 @@ public class ChatServer {
             private boolean markDown = false;
             private String userDataPath = null;
 
+            boolean cryptHandlerLockReady = false;
             final Object cryptHandlerLock = new Object();
             private Cipher cipherE, cipherD;
             private byte[] privateKey;
@@ -290,25 +291,29 @@ public class ChatServer {
                     server.removeContext(httpContext);
                     httpContext = null;
                 }
+                if(userDataPath == null && uuid != null) {
+                    synchronized(userNamesMapLock) {
+                        userNamesMap.remove(uuid);
+                    }
+                }
             }
 
             @Override
             public void run() {
                 boolean resume = false;
-                synchronized(cryptHandlerLock) {
-                    synchronized(userNamesMapLock) {
-                        userName = userNamesMap.get(uuid);
-                    }
-                    if(userName != null) {
-                        userDataPath = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
-                                getParent() + System.getProperty("file.separator") + "." + uuid;
-                        first += " and signed in";
-                        resume = true;
-                    }
+                synchronized(userNamesMapLock) {
+                    userName = userNamesMap.get(uuid);
+                }
+                if(userName != null) {
+                    userDataPath = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
+                            getParent() + System.getProperty("file.separator") + "." + uuid;
+                    first += " and signed in";
+                    resume = true;
                 }
                 try {
                     byte[] currentIV = null;
                     synchronized(cipherLock) {
+                        cryptHandlerLockReady = true;
                         if(resume) {
                             ChatCryptResume chatCryptResume = new ChatCryptResume(server, uuid, userName, algo, userDataPath, cryptHandlerLock);
                             cipherD = chatCryptResume.cipherD;
@@ -493,9 +498,11 @@ public class ChatServer {
                     }
                     thread.start();
 
-                    try {  // Allow cryptHandlerLock to be locked by the thread
-                        Thread.sleep(10);
-                    } catch(InterruptedException ignored) {
+                    while(!thread.cryptHandlerLockReady) {
+                        try {  // Allow cryptHandlerLock to be locked by the thread's ChatCrypt instance
+                            Thread.sleep(10);
+                        } catch(InterruptedException ignored) {
+                        }
                     }
 
                     synchronized(thread.cryptHandlerLock) {
