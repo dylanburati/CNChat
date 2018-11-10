@@ -155,10 +155,14 @@ public class ChatServer {
                     messageClasses = "hide";
                     recipients = new ArrayList<>();
                     String nameRequest = command.substring(5);
-                    if(nameRequest.matches("[0-9A-Za-z-_\\.]+")) {
-                        if(userName != null) {
-                            enqueue("Class:hide\nBody:can't change username", false);
-                        } else if(userNamesMap.containsValue(nameRequest)) {
+                    if(userName != null) {
+                        enqueue("Class:hide\nBody:can't change username", false);
+                    } else if(nameRequest.matches("[0-9A-Za-z-_\\.]+")) {
+                        boolean conflict;
+                        synchronized(userNamesMapLock) {
+                            conflict = userNamesMap.containsValue(nameRequest);
+                        }
+                        if(conflict) {
                             enqueue("Class:hide\nBody:name conflict", false);
                         } else {
                             userName = nameRequest;
@@ -290,11 +294,13 @@ public class ChatServer {
                 if(httpContext != null) {
                     server.removeContext(httpContext);
                     httpContext = null;
+                    System.out.format("Removed TransactionHandler at %s\n", uuid);
                 }
                 if(userDataPath == null && uuid != null) {
                     synchronized(userNamesMapLock) {
                         userNamesMap.remove(uuid);
                     }
+                    System.out.format("Removed non-persistent: %s -> %s\n", uuid, userName);
                 }
             }
 
@@ -439,6 +445,7 @@ public class ChatServer {
                 persistent.forEach((chatID, name) -> {
                     if(isValidUUID(chatID)) {
                         userNamesMap.put(chatID, name);
+                        System.out.format("Persistent: %s -> %s\n", chatID, name);
                     }
                 });
             }
