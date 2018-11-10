@@ -490,6 +490,7 @@ public class ChatServer {
                             for(ClientThread currentThread : threads) {
                                 if(uuid.equals(currentThread.uuid)) {
                                     currentThread.close();
+                                    threads.remove(currentThread);
                                     break;
                                 }
                             }
@@ -498,8 +499,8 @@ public class ChatServer {
                         uuid = UUID.randomUUID().toString().replace("-", "");
                     }
 
-                    System.out.println("Client connected");
                     ClientThread thread = new ClientThread(uuid, messenger, "AES/CBC/PKCS5Padding");
+                    System.out.format("Client connected @ %s\n", thread.uuid);
                     synchronized(threads) {
                         threads.add(thread);
                     }
