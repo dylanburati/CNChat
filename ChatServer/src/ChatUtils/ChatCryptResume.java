@@ -10,6 +10,7 @@ import javax.crypto.KeyAgreement;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.DHParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.xml.bind.DatatypeConverter;
 import java.io.*;
 import java.math.BigInteger;
 import java.security.*;
@@ -18,10 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-
-import static ChatUtils.Codecs.base64decode;
-import static ChatUtils.Codecs.base64encode;
-import static ChatUtils.Codecs.crypt64decode;
+import static ChatUtils.AuthUtils.crypt64decode;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class ChatCryptResume {
@@ -83,7 +81,7 @@ public class ChatCryptResume {
         public void handle(HttpExchange conn) throws IOException {
             try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getRequestBody(), UTF_8))
             ) {
-                byte[] input = base64decode(in.readLine());
+                byte[] input = DatatypeConverter.parseBase64Binary(in.readLine());
                 synchronized(inQueueLock) {
                     inQueue.add(input);
                 }
@@ -99,7 +97,7 @@ public class ChatCryptResume {
             ) {
                 String data;
                 synchronized(outQueueLock) {
-                    data = base64encode(outQueue.remove(0));
+                    data = DatatypeConverter.printBase64Binary(outQueue.remove(0));
                 }
                 conn.sendResponseHeaders(200, data.length());  // base64 ensures data.length() == data.getBytes(UTF_8).length
                 out.print(data);

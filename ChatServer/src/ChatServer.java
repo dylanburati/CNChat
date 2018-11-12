@@ -1,8 +1,4 @@
-import ChatUtils.ChatCrypt;
-import ChatUtils.ChatCryptResume;
-import ChatUtils.MariaDBReader;
-import ChatUtils.TransactionHandler;
-import com.sun.net.httpserver.HttpContext;
+import ChatUtils.*;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -10,13 +6,13 @@ import com.sun.net.httpserver.HttpServer;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
+import javax.xml.bind.DatatypeConverter;
 import java.io.*;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.util.*;
 
-import static ChatUtils.Codecs.base64decode;
-import static ChatUtils.Codecs.base64encode;
-import static ChatUtils.Codecs.crypt64decode;
+import static ChatUtils.AuthUtils.crypt64decode;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 interface peerUpdateCompat<T> {
@@ -25,21 +21,12 @@ interface peerUpdateCompat<T> {
 
 public class ChatServer {
 
-    private static HttpServer server;
+    private static HttpServer authServer;
     private static volatile Map<String, String> userNamesMap = new HashMap<>();
     private static final Object userNamesMapLock = new Object();
     private static final String[] commandsAvailable = new String[] { "color ", "format ", "help", "status", "join ", "resume", "make persistent" };
-
-    private static boolean isValidUUID(String s) {
-        if(s.length() != 32) return false;
-        for(int i = 0; i < 32; i++) {
-            if(Character.digit(s.codePointAt(i), 16) == -1) {
-                return false;
-            }
-        }
-        return true;
-    }
-
+    private static WebSocketServer wsServer;
+    
     public static void main(String[] args) throws IOException {
 
         class ClientThread extends Thread {
@@ -49,7 +36,6 @@ public class ChatServer {
             private final String uuid;
             private final peerUpdateCompat<ClientThread> peerMessage;
             private final String algo;
-            private HttpContext httpContext = null;
             String userName = null;
             private boolean markDown = false;
             private String userDataPath = null;
@@ -58,6 +44,7 @@ public class ChatServer {
             final Object cryptHandlerLock = new Object();
             private Cipher cipherE, cipherD;
             private byte[] privateKey;
+            private Socket wsSocket = null;
             private final Object cipherLock = new Object();
             private volatile List<String> outQueue = new ArrayList<>();
             private final Object outQueueLock = new Object();
@@ -137,13 +124,13 @@ public class ChatServer {
                     }
                     outputBody = outputBodyBuilder.toString();
                 } else if(command.startsWith("help")) {
-                    messageClasses = "server";
+                    messageClasses = "authServer";
                     recipients = new ArrayList<>();
                     recipients.add(userName);
                     outputBody = "Commands start with a colon (:)" +
                             "\n:status sends you key info\n";
                 } else if(command.startsWith("status")) {
-                    messageClasses = "server";
+                    messageClasses = "authServer";
                     recipients = new ArrayList<>();
                     recipients.add(userName);
                     outputBody = "<< Status >>" +
@@ -291,10 +278,11 @@ public class ChatServer {
 
             private void close() {
                 cipherD = cipherE = null;
-                if(httpContext != null) {
-                    server.removeContext(httpContext);
-                    httpContext = null;
-                    System.out.format("Removed TransactionHandler at %s\n", uuid);
+                if(wsSocket != null) {
+                    try {
+                        wsSocket.close();
+                    } catch(IOException ignored) {
+                    }
                 }
                 if(userDataPath == null && uuid != null) {
                     synchronized(userNamesMapLock) {
@@ -321,13 +309,13 @@ public class ChatServer {
                     synchronized(cipherLock) {
                         cryptHandlerLockReady = true;
                         if(resume) {
-                            ChatCryptResume chatCryptResume = new ChatCryptResume(server, uuid, userName, algo, userDataPath, cryptHandlerLock);
+                            ChatCryptResume chatCryptResume = new ChatCryptResume(authServer, uuid, userName, algo, userDataPath, cryptHandlerLock);
                             cipherD = chatCryptResume.cipherD;
                             cipherE = chatCryptResume.cipherE;
                             privateKey = chatCryptResume.privateKey;
                             currentIV = cipherE.getIV();
                         } else {
-                            ChatCrypt chatCrypt = new ChatCrypt(server, uuid, algo, cryptHandlerLock);
+                            ChatCrypt chatCrypt = new ChatCrypt(authServer, uuid, algo, cryptHandlerLock);
                             cipherD = chatCrypt.cipherD;
                             cipherE = chatCrypt.cipherE;
                             privateKey = chatCrypt.privateKey;
@@ -347,9 +335,9 @@ public class ChatServer {
                 } catch(Exception e) {
                     e.printStackTrace();
                 }
-                enqueue(first, false);
 
-                httpContext = server.createContext("/" + uuid, new TransactionHandler(inQueue, inQueueLock, outQueue, outQueueLock));
+                wsSocket = wsServer.getSocketWhenAvailable(uuid);
+                enqueue(first, false);
                 try {
                     String inputLine;
                     boolean finished = false;
@@ -359,13 +347,9 @@ public class ChatServer {
                         } catch(InterruptedException ignored) {
                         }
 
-                        // Try to clear inQueue, exit both loops if needed
-                        while(!finished && cipherE != null && cipherD != null) {
-                            synchronized(inQueueLock) {
-                                if(inQueue.size() > 0) inputLine = inQueue.remove(0);
-                                else break;
-                            }
-                            String message = decrypt(inputLine);
+                        String[] messagesEnc = getWSMessages().split("\n");
+                        for(int i = 0; i < messagesEnc.length && !finished && cipherE != null && cipherD != null; i++) {
+                            String message = decrypt(messagesEnc[i]);
                             synchronized(outQueueLock) {
                                 finished = (handleMessage(message) == false);
                             }
@@ -377,10 +361,75 @@ public class ChatServer {
                     close();
                 }
             }
+            
+            private String getWSMessages() throws IOException {
+                InputStream wsIn = wsSocket.getInputStream();
+                
+                System.out.println("reading");
+                byte[] header1 = new byte[2];  // opcode, first length
+                int pos1 = 0;
+                while(pos1 < 2) {
+                    pos1 += wsSocket.getInputStream().read(header1, pos1, 2 - pos1);
+                }
+                System.out.println("header1: " + Arrays.toString(header1));
+
+                int opcode = (header1[0] & 0x0F);
+                long len = (header1[1] & 0x7F);
+                boolean masked = ((header1[1] & 0x80) != 0);
+                if(!masked) {
+                    this.close();
+                }
+
+                if(len == 126) {
+                    byte[] header2 = new byte[2];
+                    int pos2 = 0;
+                    while(pos2 < 2) {
+                        pos2 += wsIn.read(header2, pos2, 2 - pos2);
+                    }
+                    System.out.println("header2: " + Arrays.toString(header2));
+                    len = 0;
+                    for(int k = 0; k < 2; k++) {
+                        len |= (header2[k] & 0xFF);
+                        if(k < 1) len <<= 8;
+                    }
+                } else if(len == 127) {
+                    byte[] header2 = new byte[8];
+                    int pos2 = 0;
+                    while(pos2 < 8) {
+                        pos2 += wsIn.read(header2, pos2, 8 - pos2);
+                    }
+                    System.out.println("header2: " + Arrays.toString(header2));
+                    len = 0;
+                    for(int k = 0; k < 8; k++) {
+                        len |= (header2[k] & 0xFF);
+                        if(k < 7) len <<= 8;
+                    }
+                }
+                if(len > 0x7FFFFFFB) {  // len doesn't include mask
+                    throw new RuntimeException("Message over 2GB");
+                }
+                // System.out.println("len: " + len);
+                byte[] data = new byte[(int)len + 4];
+                int pos = 0;
+                while(pos < len) {
+                    pos += wsIn.read(data, pos, data.length - pos);
+                }
+                // System.out.println("data: " + Arrays.toString(data));
+                String msg = WebSocketDataframe.getText(data);
+                System.out.println(msg);
+                if(opcode == 9) {
+                    wsSocket.getOutputStream().write(WebSocketDataframe.toFrame(10, msg));
+                    return "";
+                } else if(opcode == 1) {
+                    return msg;
+                } else {
+                    return "";
+                }
+            }
 
             private String decrypt(String input) throws IOException {
                 try {
-                    byte[] data = base64decode(input);
+                    byte[] data = DatatypeConverter.parseBase64Binary(input);
                     synchronized(cipherLock) {
                         data = cipherD.doFinal(data);
                     }
@@ -399,12 +448,15 @@ public class ChatServer {
                     synchronized(cipherLock) {
                         enc = cipherE.doFinal(data);
                     }
+                    outEnc = DatatypeConverter.printBase64Binary(enc);
+                    byte[] wsOutEnc = WebSocketDataframe.toFrame(1, outEnc);
                     synchronized(outQueueLock) {
-                        outEnc = base64encode(enc);
-                        outQueue.add(outEnc);
+                        wsSocket.getOutputStream().write(wsOutEnc);
                     }
                 } catch(IllegalBlockSizeException | BadPaddingException e) {
                     e.printStackTrace();
+                } catch(IOException e) {
+                    this.close();
                 }
                 if(addToHistory && userDataPath != null && outEnc != null) {
                     try(PrintWriter history = new PrintWriter(new OutputStreamWriter(new FileOutputStream(userDataPath, true), UTF_8), true)) {
@@ -443,7 +495,7 @@ public class ChatServer {
         } else if(!persistent.isEmpty()) {
             synchronized(userNamesMapLock) {
                 persistent.forEach((chatID, name) -> {
-                    if(isValidUUID(chatID)) {
+                    if(AuthUtils.isValidUUID(chatID)) {
                         userNamesMap.put(chatID, name);
                         System.out.format("Persistent: %s -> %s\n", chatID, name);
                     }
@@ -451,13 +503,19 @@ public class ChatServer {
             }
         }
 
-        int portNumber = 8081;
-        InetSocketAddress bind = new InetSocketAddress(portNumber);
+        int authPortNumber = 8081;
+        InetSocketAddress bind = new InetSocketAddress(authPortNumber);
         System.out.println("Server @ " + bind.getAddress().getHostAddress() + ":" + bind.getPort());
 
-        server = HttpServer.create(bind, 0);
-        server.setExecutor(null);
-        server.start();
+        authServer = HttpServer.create(bind, 0);
+        authServer.setExecutor(null);
+        authServer.start();
+
+        try {
+            wsServer = new WebSocketServer();
+        } catch(Exception e) {
+            throw new RuntimeException(e);
+        }
 
         class DelegateHandler implements HttpHandler {
             @Override
@@ -468,7 +526,7 @@ public class ChatServer {
                 try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getRequestBody(), UTF_8))
                 ) {
                     input = in.readLine();
-                    sane = isValidUUID(input);
+                    sane = AuthUtils.isValidUUID(input);
                 }
 
                 try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getResponseBody(), UTF_8), true)
@@ -522,6 +580,6 @@ public class ChatServer {
             }
         }
 
-        server.createContext("/", new DelegateHandler());
+        authServer.createContext("/", new DelegateHandler());
     }
 }
