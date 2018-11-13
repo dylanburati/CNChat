@@ -124,13 +124,13 @@ public class ChatServer {
                     }
                     outputBody = outputBodyBuilder.toString();
                 } else if(command.startsWith("help")) {
-                    messageClasses = "authServer";
+                    messageClasses = "server";
                     recipients = new ArrayList<>();
                     recipients.add(userName);
                     outputBody = "Commands start with a colon (:)" +
                             "\n:status sends you key info\n";
                 } else if(command.startsWith("status")) {
-                    messageClasses = "authServer";
+                    messageClasses = "server";
                     recipients = new ArrayList<>();
                     recipients.add(userName);
                     outputBody = "<< Status >>" +
@@ -335,7 +335,6 @@ public class ChatServer {
                 } catch(Exception e) {
                     e.printStackTrace();
                 }
-                System.out.println(Arrays.toString(privateKey));
 
                 wsSocket = wsServer.getSocketWhenAvailable(uuid);
                 if(wsSocket == null) {

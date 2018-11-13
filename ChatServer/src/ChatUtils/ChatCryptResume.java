@@ -155,7 +155,6 @@ public class ChatCryptResume {
                     self.keyAgree.doPhase(party2.pubKey, true);
                     self.key = self.keyAgree.generateSecret();
                     self.ephemeralKey = Arrays.copyOf(sha256.digest(self.key), 16);
-                    System.out.println(Arrays.toString(self.ephemeralKey));
 
                     String passwordHashEnc = MariaDBReader.selectUsers(user, "pass");
                     boolean correctEnc = true;
