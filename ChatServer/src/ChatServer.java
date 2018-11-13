@@ -337,6 +337,11 @@ public class ChatServer {
                 }
 
                 wsSocket = wsServer.getSocketWhenAvailable(uuid);
+                if(wsSocket == null) {
+                    this.close();
+                    return;
+                }
+                System.out.println("WebSocket obtained");
                 enqueue(first, false);
                 try {
                     String inputLine;

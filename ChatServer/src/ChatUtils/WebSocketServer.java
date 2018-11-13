@@ -83,11 +83,6 @@ public class WebSocketServer {
                         "\r\n" +
                         "\r\n";
             } else {
-                System.out.println(wsKey);
-                for(int i = 0; i < wsKey.length(); i++) {
-                    System.out.print("" + wsKey.codePointAt(i) + " ");
-                }
-                System.out.println();
                 output = "HTTP/1.1 101 Switching Protocols\r\n" +
                         "Upgrade: websocket\r\n" +
                         "Connection: Upgrade\r\n" +
