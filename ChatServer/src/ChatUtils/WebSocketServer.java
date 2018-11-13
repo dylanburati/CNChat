@@ -123,7 +123,7 @@ public class WebSocketServer {
 	    if(!AuthUtils.isValidUUID(uuid)) return null;
 	    Socket s = null;
         synchronized(pendingConnectionsLock) {
-            s = pendingConnections.get(uuid);
+            s = pendingConnections.remove(uuid);
         }
         if(s != null) return s;
 	    try {
@@ -133,7 +133,7 @@ public class WebSocketServer {
 	        while(s == null && (new Date()).before(deadline)) {
 	            availCheck.awaitUntil(deadline);
 	            synchronized(pendingConnectionsLock) {
-	                s = pendingConnections.get(uuid);
+	                s = pendingConnections.remove(uuid);
                 }
             }
         } catch(InterruptedException e) {

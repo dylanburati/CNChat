@@ -360,7 +360,7 @@ public class ChatServer {
                         }
                     }
                 } catch(IOException e) {
-                    e.printStackTrace();
+                    // close();
                 } finally {
                     close();
                 }
@@ -368,7 +368,7 @@ public class ChatServer {
             
             private String getWSMessages() throws IOException {
                 InputStream wsIn = wsSocket.getInputStream();
-                
+
                 System.out.println("reading");
                 byte[] header1 = new byte[2];  // opcode, first length
                 int pos1 = 0;
