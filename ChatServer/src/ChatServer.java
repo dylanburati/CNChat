@@ -335,6 +335,7 @@ public class ChatServer {
                 } catch(Exception e) {
                     e.printStackTrace();
                 }
+                System.out.println(Arrays.toString(privateKey));
 
                 wsSocket = wsServer.getSocketWhenAvailable(uuid);
                 if(wsSocket == null) {
@@ -344,7 +345,6 @@ public class ChatServer {
                 System.out.println("WebSocket obtained");
                 enqueue(first, false);
                 try {
-                    String inputLine;
                     boolean finished = false;
                     while(!finished && cipherE != null && cipherD != null) {
                         try {
@@ -435,6 +435,7 @@ public class ChatServer {
             private String decrypt(String input) throws IOException {
                 try {
                     byte[] data = DatatypeConverter.parseBase64Binary(input);
+                    System.out.println(Arrays.toString(data));
                     synchronized(cipherLock) {
                         data = cipherD.doFinal(data);
                     }
