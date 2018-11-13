@@ -46,10 +46,7 @@ public class ChatServer {
             private byte[] privateKey;
             private Socket wsSocket = null;
             private final Object cipherLock = new Object();
-            private volatile List<String> outQueue = new ArrayList<>();
-            private final Object outQueueLock = new Object();
-            private volatile List<String> inQueue = new ArrayList<>();
-            private final Object inQueueLock = new Object();
+            private final Object outStreamLock = new Object();
 
             private ClientThread(String uuid, peerUpdateCompat<ClientThread> peerMessage, String algo) {
                 this.uuid = uuid;
@@ -284,6 +281,9 @@ public class ChatServer {
                     } catch(IOException ignored) {
                     }
                 }
+                synchronized(wsServer.authorizedLock) {
+                    wsServer.authorized.remove(uuid);
+                }
                 if(userDataPath == null && uuid != null) {
                     synchronized(userNamesMapLock) {
                         userNamesMap.remove(uuid);
@@ -355,7 +355,7 @@ public class ChatServer {
                         String[] messagesEnc = getWSMessages().split("\n");
                         for(int i = 0; i < messagesEnc.length && !finished && cipherE != null && cipherD != null; i++) {
                             String message = decrypt(messagesEnc[i]);
-                            synchronized(outQueueLock) {
+                            synchronized(outStreamLock) {
                                 finished = (handleMessage(message) == false);
                             }
                         }
@@ -459,7 +459,7 @@ public class ChatServer {
                     }
                     outEnc = DatatypeConverter.printBase64Binary(enc);
                     byte[] wsOutEnc = WebSocketDataframe.toFrame(1, outEnc);
-                    synchronized(outQueueLock) {
+                    synchronized(outStreamLock) {
                         wsSocket.getOutputStream().write(wsOutEnc);
                     }
                 } catch(IllegalBlockSizeException | BadPaddingException e) {
@@ -567,6 +567,9 @@ public class ChatServer {
                     }
 
                     ClientThread thread = new ClientThread(uuid, messenger, "AES/CBC/PKCS5Padding");
+                    synchronized(wsServer.authorizedLock) {
+                        wsServer.authorized.add(uuid);
+                    }
                     System.out.format("Client connected @ %s\n", thread.uuid);
                     synchronized(threads) {
                         threads.add(thread);
@@ -587,7 +590,7 @@ public class ChatServer {
                     }
                 }
             }
-        }
+        } // Remove unnecessary
 
         authServer.createContext("/", new DelegateHandler());
     }

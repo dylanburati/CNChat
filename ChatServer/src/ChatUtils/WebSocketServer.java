@@ -9,9 +9,7 @@ import java.net.Socket;
 import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -19,9 +17,11 @@ import java.util.concurrent.locks.ReentrantLock;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class WebSocketServer {
-	public ServerSocket wsSocket = null;
-	public volatile Map<String, Socket> pendingConnections = new HashMap<>();
-	public final Object pendingConnectionsLock = new Object();
+	private ServerSocket serverSocket = null;
+	private volatile Map<String, Socket> pendingConnections = new HashMap<>();
+	private final Object pendingConnectionsLock = new Object();
+	public volatile List<String> authorized = new ArrayList<>();
+    public final Object authorizedLock = new Object();
 
 	private Lock availLock = new ReentrantLock();
 	private Condition availCheck = availLock.newCondition();
@@ -58,6 +58,11 @@ public class WebSocketServer {
                             uuid = path.substring(1);
                         if(!AuthUtils.isValidUUID(uuid))
                             upgrade = false;
+                        if(upgrade) {
+                            synchronized(authorizedLock) {
+                                upgrade = authorized.contains(uuid);
+                            }
+                        }
                         break;
                     case 2:
                         int wsKeyIdx = input.indexOf("Sec-WebSocket-Key: ");
@@ -156,7 +161,7 @@ public class WebSocketServer {
 		KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
 		kmf.init(keyStore, "nopassword".toCharArray());
 		sc.init(kmf.getKeyManagers(), null, new SecureRandom());
-		ServerSocket serverSocket = sc.getServerSocketFactory().createServerSocket(portNumber);
+		this.serverSocket = sc.getServerSocketFactory().createServerSocket(portNumber);
 		
 		System.out.println("Server @ " + serverSocket.getInetAddress().getHostAddress() + ":" + serverSocket.getLocalPort());
 

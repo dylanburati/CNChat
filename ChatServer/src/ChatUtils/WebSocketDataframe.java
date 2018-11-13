@@ -1,9 +1,8 @@
 package ChatUtils;
 
-import java.nio.charset.Charset;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class WebSocketDataframe {
-	private static Charset UTF_8 = Charset.forName("UTF-8");
 
 	public static String getText(byte[] b256) {
 		if(b256.length < 5) {
