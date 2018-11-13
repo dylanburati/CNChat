@@ -336,6 +336,7 @@ public class ChatServer {
                     e.printStackTrace();
                 }
 
+                System.out.println("Waiting for WebSocket");
                 wsSocket = wsServer.getSocketWhenAvailable(uuid);
                 if(wsSocket == null) {
                     this.close();
@@ -426,6 +427,9 @@ public class ChatServer {
                     return "";
                 } else if(opcode == 1) {
                     return msg;
+                } else if(opcode == 8) {
+                    close();
+                    return "";
                 } else {
                     return "";
                 }

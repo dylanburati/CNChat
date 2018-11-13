@@ -101,11 +101,12 @@ public class WebSocketServer {
             out.flush();
 
             if(upgrade) {
+                availLock.lock();
                 try {
-                    availLock.lock();
                     synchronized(pendingConnectionsLock) {
                         pendingConnections.put(uuid, socket);
                     }
+                    System.out.println("WebSocket ready");
                     availCheck.signal();
                 } finally {
                     availLock.unlock();
@@ -126,8 +127,8 @@ public class WebSocketServer {
             s = pendingConnections.remove(uuid);
         }
         if(s != null) return s;
-	    try {
-	        availLock.lock();
+        availLock.lock();
+        try {
 	        Date deadline = new Date();
 	        deadline.setTime(deadline.getTime() + 15000);
 	        while(s == null && (new Date()).before(deadline)) {
@@ -138,6 +139,8 @@ public class WebSocketServer {
             }
         } catch(InterruptedException e) {
             e.printStackTrace();
+        } finally {
+            availLock.unlock();
         }
         return s;
     }
