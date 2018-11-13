@@ -47,6 +47,7 @@ public class ChatServer {
             private Socket wsSocket = null;
             private final Object cipherLock = new Object();
             private final Object outStreamLock = new Object();
+            private StringBuilder continuable = new StringBuilder();
 
             private ClientThread(String uuid, peerUpdateCompat<ClientThread> peerMessage, String algo) {
                 this.uuid = uuid;
@@ -378,6 +379,7 @@ public class ChatServer {
                 System.out.println("header1: " + Arrays.toString(header1));
 
                 int opcode = (header1[0] & 0x0F);
+                boolean lastFrame = ((header1[0] & 0x80) != 0);
                 long len = (header1[1] & 0x7F);
                 boolean masked = ((header1[1] & 0x80) != 0);
                 if(!masked) {
@@ -421,11 +423,26 @@ public class ChatServer {
                 // System.out.println("data: " + Arrays.toString(data));
                 String msg = WebSocketDataframe.getText(data);
                 System.out.println(msg);
-                if(opcode == 9) {
+                if(opcode == 1) {
+                    if(lastFrame) {
+                        return msg;
+                    } else {
+                        continuable.setLength(0);
+                        continuable.append(msg);
+                        return "";
+                    }
+                } else if(opcode == 0) {
+                    continuable.append(msg);
+                    if(lastFrame) {
+                        return continuable.toString();
+                    } else {
+                        return "";
+                    }
+                } else if(!lastFrame) {
+                    throw new RuntimeException("Non-text continuables are not supported");
+                } else if(opcode == 9) {
                     wsSocket.getOutputStream().write(WebSocketDataframe.toFrame(10, msg));
                     return "";
-                } else if(opcode == 1) {
-                    return msg;
                 } else if(opcode == 8) {
                     close();
                     return "";
