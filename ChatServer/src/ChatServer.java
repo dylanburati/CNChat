@@ -114,12 +114,11 @@ public class ChatServer {
                     addToHistory = true;
                     messageClasses = "user " + (markDown ? "markdown" : "plaintext");
                     recipients.add(userName);
-                    StringBuilder outputBodyBuilder = new StringBuilder(messageFull[headerLines].substring(5));
-                    for(int i = headerLines + 1; i < messageFull.length; i++) {
-                        outputBodyBuilder.append(messageFull[i]);
-                        if(i < (messageFull.length - 1)) outputBodyBuilder.append("\n");
+                    int bodyStart = 0;
+                    for(int i = 0; i < headerLines; i++) {
+                        bodyStart += messageFull[i].length() + 1;
                     }
-                    outputBody = outputBodyBuilder.toString();
+                    outputBody = message.substring(bodyStart + 5);
                 } else if(command.startsWith("help")) {
                     messageClasses = "server";
                     recipients = new ArrayList<>();
