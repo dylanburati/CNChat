@@ -102,6 +102,7 @@ public class ChatServer {
                 boolean addToHistory = false;
                 String messageClasses = "";
                 String outputBody = "";
+                List<String> moreHeaders = new ArrayList<>();
 
                 if(command.isEmpty()) {
                     if(recipients == null) {
@@ -115,6 +116,7 @@ public class ChatServer {
                     addToHistory = true;
                     messageClasses = "user " + (markDown ? "markdown" : "plaintext");
                     recipients.add(userName);
+                    moreHeaders.add("From:" + userName);
                     int bodyStart = 0;
                     for(int i = 0; i < headerLines; i++) {
                         bodyStart += messageFull[i].length() + 1;
@@ -267,6 +269,9 @@ public class ChatServer {
                         if(i < (recipients.size() - 1)) outMessage.append(";");
                     }
                     outMessage.append("\nClass:").append(messageClasses);
+                    for(String moreHeader : moreHeaders) {
+                        outMessage.append("\n").append(moreHeader);
+                    }
                     outMessage.append("\nBody:").append(outputBody);
                     peerMessage.execute(this, outMessage.toString(), recipients, addToHistory);
                 }
