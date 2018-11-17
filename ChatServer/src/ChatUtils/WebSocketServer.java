@@ -150,18 +150,23 @@ public class WebSocketServer {
         return s;
     }
 
-	public WebSocketServer() throws Exception {
-		int portNumber = 8082;
-		SSLContext sc = SSLContext.getInstance("TLSv1.2");
-		KeyStore keyStore = KeyStore.getInstance("JKS");
-		try(InputStream ksin = new FileInputStream("/root/0001.jks")
-		) {
-			keyStore.load(ksin, "nopassword".toCharArray());
-		}
-		KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-		kmf.init(keyStore, "nopassword".toCharArray());
-		sc.init(kmf.getKeyManagers(), null, new SecureRandom());
-		this.serverSocket = sc.getServerSocketFactory().createServerSocket(portNumber);
+	public WebSocketServer(String keyStoreLocation) throws Exception {
+        int portNumber = 8082;
+        if(new File(keyStoreLocation).canRead()) {
+            SSLContext sc = SSLContext.getInstance("TLSv1.2");
+            KeyStore keyStore = KeyStore.getInstance("JKS");
+            try(InputStream ksin = new FileInputStream(keyStoreLocation)
+            ) {
+                keyStore.load(ksin, "nopassword".toCharArray());
+            }
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            kmf.init(keyStore, "nopassword".toCharArray());
+            sc.init(kmf.getKeyManagers(), null, new SecureRandom());
+            this.serverSocket = sc.getServerSocketFactory().createServerSocket(portNumber);
+        } else {
+            System.out.println("Warning: SSL certificate not found, falling back to HTTP");
+            this.serverSocket = new ServerSocket(portNumber);
+        }
 		
 		System.out.println("Server @ " + serverSocket.getInetAddress().getHostAddress() + ":" + serverSocket.getLocalPort());
 

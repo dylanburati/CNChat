@@ -5,7 +5,7 @@
 *.iml
 
 # IntelliJ builds
-/out/
+/production/
 
 # Only .zip needed
 /src/

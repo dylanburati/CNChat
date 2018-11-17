@@ -73,7 +73,7 @@ public class ChatServer {
                         String[] rs = messageFull[headerLines].substring(11).split(";");
                         recipients = new ArrayList<>();
                         for(String u : rs) {
-                            if(u.matches("[0-9A-Za-z-_\\.]+")) recipients.add(u);
+                            if(!u.equals(userName) && u.matches("[0-9A-Za-z-_\\.]+")) recipients.add(u);
                         }
                     } else if(messageFull[headerLines].startsWith("Command:")) {
                         String uCommand = messageFull[headerLines].substring(8);
@@ -542,7 +542,7 @@ public class ChatServer {
         authServer.start();
 
         try {
-            wsServer = new WebSocketServer();
+            wsServer = new WebSocketServer("/root/0001.jks");
         } catch(Exception e) {
             throw new RuntimeException(e);
         }
@@ -559,6 +559,10 @@ public class ChatServer {
                     sane = AuthUtils.isValidUUID(input);
                 }
 
+                // Allow file:// urls to request authorization if testing
+                if("true".equals(System.getProperty("CNChat.testing"))) {
+                    conn.getResponseHeaders().add("Access-Control-Allow-Origin", "null");
+                }
                 try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getResponseBody(), UTF_8), true)
                 ) {
                     if(!sane) {

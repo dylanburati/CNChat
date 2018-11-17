@@ -87,6 +87,10 @@ public class ChatCrypt {
                 e.printStackTrace();
             }
 
+            // Allow file:// urls to request authorization if testing
+            if("true".equals(System.getProperty("CNChat.testing"))) {
+                conn.getResponseHeaders().add("Access-Control-Allow-Origin", "null");
+            }
             try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getResponseBody(), UTF_8), true)
             ) {
                 String data;
