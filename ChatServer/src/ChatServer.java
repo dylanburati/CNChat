@@ -422,7 +422,7 @@ public class ChatServer {
                 // System.out.println("len: " + len);
                 byte[] data = new byte[(int)len + 4];
                 int pos = 0;
-                while(pos < len) {
+                while(pos < data.length) {
                     pos += wsIn.read(data, pos, data.length - pos);
                 }
                 // System.out.println("data: " + Arrays.toString(data));
