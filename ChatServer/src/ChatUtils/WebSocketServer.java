@@ -60,7 +60,7 @@ public class WebSocketServer {
                             upgrade = false;
                         if(upgrade) {
                             synchronized(authorizedLock) {
-                                upgrade = authorized.contains(uuid);
+                                upgrade = authorized.remove(uuid);
                             }
                         }
                         break;

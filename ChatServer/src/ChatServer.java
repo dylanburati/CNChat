@@ -3,16 +3,12 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
 import javax.xml.bind.DatatypeConverter;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.*;
 
-import static ChatUtils.AuthUtils.crypt64decode;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 interface peerUpdateCompat<T> {
@@ -22,11 +18,12 @@ interface peerUpdateCompat<T> {
 public class ChatServer {
 
     private static HttpServer authServer;
+    private static WebSocketServer wsServer;
+    private static CNConversationStore conversations = new CNConversationStore(null);
     private static volatile Map<String, String> userNamesMap = new HashMap<>();
     private static final Object userNamesMapLock = new Object();
-    private static final String[] commandsAvailable = new String[] { "color ", "format ", "help", "status", "join ", "resume", "make persistent" };
-    private static WebSocketServer wsServer;
-    
+    private static final String[] commandsAvailable = new String[] { "color ", "format ", "help", "status", "_conversation_request " };
+
     public static void main(String[] args) throws IOException {
 
         class ClientThread extends Thread {
@@ -35,312 +32,102 @@ public class ChatServer {
 
             private final String uuid;
             private final peerUpdateCompat<ClientThread> peerMessage;
-            private final String algo;
-            String userName = null;
+            String userName;
             private boolean markDown = false;
             private String userDataPath = null;
 
-            boolean cryptHandlerLockReady = false;
-            final Object cryptHandlerLock = new Object();
-            private Cipher cipherE, cipherD;
-            private byte[] privateKey;
-            private Socket wsSocket = null;
-            private final Object cipherLock = new Object();
+            private Socket wsSocket;
             private final Object outStreamLock = new Object();
             private StringBuilder continuable = new StringBuilder();
 
-            private ClientThread(String uuid, peerUpdateCompat<ClientThread> peerMessage, String algo) {
+            private ClientThread(String uuid, String userName, peerUpdateCompat<ClientThread> peerMessage) {
                 this.uuid = uuid;
+                this.userName = userName;
                 this.peerMessage = peerMessage;
-                this.algo = algo;
             }
 
             private boolean handleMessage(String message) {
                 System.out.println("message received");
                 System.out.println(message);
-                if(message == null) {
-                    // Decryption failed
-                    return false;
+                int conversationID = -1;
+                String messageAuthenticityCode = null;  // todo
+                try {
+                    int f1 = message.indexOf(";");
+                    conversationID = Integer.parseInt(message.substring(0, f1));
+                    int f2 = message.indexOf(";", f1 + 1);
+                    messageAuthenticityCode = message.substring(f1 + 1, f2);
+                    message = message.substring(f2 + 1);
+                } catch(NumberFormatException | IndexOutOfBoundsException e) {
+                    return true;
                 }
-
-                String[] messageFull = message.split("\n");
-                int headerLines;
-                List<String> recipients = null;
-                String command = "";
-
-                for(headerLines = 0; headerLines < messageFull.length; headerLines++) {
-                    if(messageFull[headerLines].startsWith("Recipients:")) {
-                        String[] rs = messageFull[headerLines].substring(11).split(";");
-                        recipients = new ArrayList<>();
-                        for(String u : rs) {
-                            if(!u.equals(userName) && u.matches("[0-9A-Za-z-_\\.]+")) recipients.add(u);
-                        }
-                    } else if(messageFull[headerLines].startsWith("Command:")) {
-                        String uCommand = messageFull[headerLines].substring(8);
-                        for(String c : commandsAvailable) {
-                            if(uCommand.startsWith(c)) {
-                                command = uCommand;
+                if(conversationID < 0) {
+                    return true;
+                } else if(conversationID == 0) {
+                    String messageClasses;
+                    String outputBody;
+                    if(message.startsWith("help")) {
+                        messageClasses = "server";
+                        outputBody = "Commands start with a colon (:)" +
+                                "\n:status sends you key info\n";
+                    } else if(message.startsWith("status")) {
+                        messageClasses = "server";
+                        outputBody = "<< Status >>" +
+                                "\nUsername: " + userName +
+                                "\nFormat: " + (markDown ? "Markdown" : "plain text") +
+                                "\n :format for Markdown" +
+                                "\n :unformat for plain text";
+                    } else if(message.startsWith("conversation_request ")) {
+                        messageClasses = "hide";
+                        if(message.length() == 21) return true;
+                        List<String> otherUsers = Arrays.asList(message.substring(21).split(";"));
+                        StringBuilder _outputBody = new StringBuilder();
+                        _outputBody.append(MariaDBReader.retrieveKeys(userName, true));
+                        for(String u : otherUsers) {
+                            String ks = MariaDBReader.retrieveKeys(u, false);
+                            if(ks != null) {
+                                _outputBody.append("\n");
+                                _outputBody.append(ks);
                             }
                         }
-                        if(command.isEmpty()) {
-                            // Unrecognized command
+                        outputBody = _outputBody.toString();
+                    } else if(message.startsWith("quit")) {
+                        return false;
+                    } else if(message.startsWith("format ")) {
+                        messageClasses = "hide";
+                        if(message.substring(7).equals("on")) {
+                            markDown = true;
+                            outputBody = "format on";
+                        } else if(message.substring(7).equals("off")) {
+                            markDown = false;
+                            outputBody = "format off";
+                        } else {
+                            // invalid format command
                             return true;
                         }
-                    } else if(messageFull[headerLines].startsWith("Body:")) {
-                        break;
+                    } else {
+                        // invalid server command
+                        return true;
                     }
-                }
-                if(headerLines == 0) {
-                    // Message has no header
-                    return true;
+
+                    enqueue(outputBody, false);
                 }
 
-                if(userName == null && !command.startsWith("join ")) {
-                    // Join needed for all other commands and messages
-                    return true;
-                }
-                boolean addToHistory = false;
-                String messageClasses = "";
-                String outputBody = "";
-                List<String> moreHeaders = new ArrayList<>();
 
-                if(command.isEmpty()) {
-                    if(recipients == null) {
-                        // User message without recipients specified
-                        return true;
-                    }
-                    if(headerLines == messageFull.length) {
-                        // User message without body
-                        return true;
-                    }
-                    addToHistory = true;
-                    messageClasses = "user " + (markDown ? "markdown" : "plaintext");
-                    recipients.add(userName);
-                    moreHeaders.add("From:" + userName);
-                    int bodyStart = 0;
-                    for(int i = 0; i < headerLines; i++) {
-                        bodyStart += messageFull[i].length() + 1;
-                    }
-                    outputBody = message.substring(bodyStart + 5);
-                } else if(command.startsWith("help")) {
-                    messageClasses = "server";
-                    recipients = new ArrayList<>();
-                    recipients.add(userName);
-                    outputBody = "Commands start with a colon (:)" +
-                            "\n:status sends you key info\n";
-                } else if(command.startsWith("status")) {
-                    messageClasses = "server";
-                    recipients = new ArrayList<>();
-                    recipients.add(userName);
-                    outputBody = "<< Status >>" +
-                            "\nUsername: " + userName +
-                            "\nFormat: " + (markDown ? "Markdown" : "plain text") +
-                            "\n :format for Markdown" +
-                            "\n :unformat for plain text";
-                } else if(command.startsWith("join ")) {
-                    messageClasses = "hide";
-                    recipients = new ArrayList<>();
-                    String nameRequest = command.substring(5);
-                    if(userName != null) {
-                        enqueue("Class:hide\nBody:can't change username", false);
-                    } else if(nameRequest.matches("[0-9A-Za-z-_\\.]+")) {
-                        boolean conflict;
-                        synchronized(userNamesMapLock) {
-                            conflict = userNamesMap.containsValue(nameRequest);
-                        }
-                        if(conflict) {
-                            enqueue("Class:hide\nBody:name conflict", false);
-                        } else {
-                            userName = nameRequest;
-                            synchronized(userNamesMapLock) {
-                                userNamesMap.put(uuid, userName);
-                            }
-                            outputBody = "success";
-                            recipients.add(userName);
-                        }
-                    } else {
-                        // Illegal character in username
-                        return false;
-                    }
-                } else if(command.startsWith("make persistent")) {
-                    if(userDataPath == null) {
-                        String passwordHashEnc = MariaDBReader.selectUsers(userName, "pass");
-                        boolean correctEnc = true;
-                        for(int i = 0; i < 3 && correctEnc; i++) {
-                            switch(i) {
-                                case 0:
-                                    if(passwordHashEnc == null || !(passwordHashEnc.startsWith("$2y$")))
-                                        correctEnc = false;
-                                    else
-                                        passwordHashEnc = passwordHashEnc.substring(4);
-                                    break;
-                                case 1:
-                                    int endCostParam = passwordHashEnc.indexOf("$");
-                                    if(endCostParam == -1 || endCostParam >= passwordHashEnc.length() - 1)
-                                        correctEnc = false;
-                                    else
-                                        passwordHashEnc = passwordHashEnc.substring(endCostParam + 1);
-                                    break;
-                                case 2:
-                                    if(passwordHashEnc.length() != 53)
-                                        correctEnc = false;
-                                    else
-                                        passwordHashEnc = passwordHashEnc.substring(22);
-                                    break;
-                            }
-                        }
-                        if(correctEnc) {
-                            userDataPath = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
-                                    getParent() + System.getProperty("file.separator") + "." + uuid;
-                            messageClasses = "hide";
-                            recipients = new ArrayList<>();
-                            recipients.add(userName);
-                            int rMod = MariaDBReader.updateUserID(userName, uuid);
-                            if(rMod != 1) {
-                                outputBody = "failure";
-                                userDataPath = null;
-                            } else {
-                                byte[] passwordHash = crypt64decode(passwordHashEnc);
-                                byte[] currentIV;
-                                synchronized(cipherLock) {
-                                    currentIV = cipherE.getIV();
-                                }
-                                try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(userDataPath), UTF_8), true)) {
-                                    out.write("<key>");
-                                    for(int i = 0; i < 16; i++) {
-                                        int store = ((privateKey[i] & 0xFF) ^ (passwordHash[i] & 0xFF));
-                                        out.write(String.format("%02x", store));
-                                    }
-                                    out.write("</key>\n");
-                                    out.write("<iv>");
-                                    for(int i = 0; i < 16; i++) {
-                                        out.write(String.format("%02x", (currentIV[i] & 0xFF)));
-                                    }
-                                    out.write("</iv>\n");
-                                } catch(IOException e) {
-                                    e.printStackTrace();
-                                    outputBody = "failure";
-                                    userDataPath = null;
-                                }
-                            }
-                            if(outputBody.isEmpty()) outputBody = "success";
-                        } else {
-                            messageClasses = "hide";
-                            recipients = new ArrayList<>();
-                            recipients.add(userName);
-                            outputBody = "persistence not available";
-                        }
-                    } else {
-                        messageClasses = "hide";
-                        recipients = new ArrayList<>();
-                        recipients.add(userName);
-                        outputBody = "already persistent";
-                    }
-                } else if(command.startsWith("quit")) {
-                    return false;
-                } else if(command.startsWith("format ")) {
-                    messageClasses = "hide";
-                    recipients = new ArrayList<>();
-                    recipients.add(userName);
-                    if(command.substring(7).equals("on")) {
-                        markDown = true;
-                        outputBody = "format on";
-                    } else if(command.substring(7).equals("off")) {
-                        markDown = false;
-                        outputBody = "format off";
-                    } else {
-                        // invalid format command
-                        return true;
-                    }
-                } else if(command.startsWith("color ")) {
-                    if(recipients == null) {
-                        // User message without recipients specified
-                        return true;
-                    }
-                    recipients.add(userName);
-                    messageClasses = "hide";
-                    outputBody = command;  // todo validate color
-                }
-
-                if(recipients != null && !recipients.isEmpty()) {
-                    StringBuilder outMessage = new StringBuilder("Recipients:");
-                    for(int i = 0; i < recipients.size(); i++) {
-                        outMessage.append(recipients.get(i));
-                        if(i < (recipients.size() - 1)) outMessage.append(";");
-                    }
-                    outMessage.append("\nClass:").append(messageClasses);
-                    for(String moreHeader : moreHeaders) {
-                        outMessage.append("\n").append(moreHeader);
-                    }
-                    outMessage.append("\nBody:").append(outputBody);
-                    peerMessage.execute(this, outMessage.toString(), recipients, addToHistory);
-                }
                 return true;
             }
 
             private void close() {
-                cipherD = cipherE = null;
                 if(wsSocket != null) {
                     try {
                         wsSocket.close();
                     } catch(IOException ignored) {
                     }
                 }
-                synchronized(wsServer.authorizedLock) {
-                    wsServer.authorized.remove(uuid);
-                }
-                if(userDataPath == null && uuid != null) {
-                    synchronized(userNamesMapLock) {
-                        userNamesMap.remove(uuid);
-                    }
-                    System.out.format("Removed non-persistent: %s -> %s\n", uuid, userName);
-                }
+                userNamesMap.remove(uuid);
             }
 
             @Override
             public void run() {
-                boolean resume = false;
-                synchronized(userNamesMapLock) {
-                    userName = userNamesMap.get(uuid);
-                }
-                if(userName != null) {
-                    userDataPath = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
-                            getParent() + System.getProperty("file.separator") + "." + uuid;
-                    first += " and signed in";
-                    resume = true;
-                }
-                try {
-                    byte[] currentIV = null;
-                    synchronized(cipherLock) {
-                        cryptHandlerLockReady = true;
-                        if(resume) {
-                            ChatCryptResume chatCryptResume = new ChatCryptResume(authServer, uuid, userName, algo, userDataPath, cryptHandlerLock);
-                            cipherD = chatCryptResume.cipherD;
-                            cipherE = chatCryptResume.cipherE;
-                            privateKey = chatCryptResume.privateKey;
-                            currentIV = cipherE.getIV();
-                        } else {
-                            ChatCrypt chatCrypt = new ChatCrypt(authServer, uuid, algo, cryptHandlerLock);
-                            cipherD = chatCrypt.cipherD;
-                            cipherE = chatCrypt.cipherE;
-                            privateKey = chatCrypt.privateKey;
-                        }
-                    }
-                    if(resume && currentIV != null) {
-                        try(PrintWriter out = new PrintWriter(new OutputStreamWriter(new FileOutputStream(userDataPath, true), UTF_8), true)) {
-                            out.write("<iv>");
-                            for(int i = 0; i < 16; i++) {
-                                out.write(String.format("%02x", (currentIV[i] & 0xFF)));
-                            }
-                            out.write("</iv>\n");
-                        } catch(IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                } catch(Exception e) {
-                    e.printStackTrace();
-                }
-
                 System.out.println("Waiting for WebSocket");
                 wsSocket = wsServer.getSocketWhenAvailable(uuid);
                 if(wsSocket == null) {
@@ -351,15 +138,15 @@ public class ChatServer {
                 enqueue(first, false);
                 try {
                     boolean finished = false;
-                    while(!finished && cipherE != null && cipherD != null) {
+                    while(!finished) {
                         try {
                             Thread.sleep(10);
                         } catch(InterruptedException ignored) {
                         }
 
                         String[] messagesEnc = getWSMessages().split("\n");
-                        for(int i = 0; i < messagesEnc.length && !finished && cipherE != null && cipherD != null; i++) {
-                            String message = decrypt(messagesEnc[i]);
+                        for(int i = 0; i < messagesEnc.length && !finished; i++) {
+                            String message = messagesEnc[i];
                             synchronized(outStreamLock) {
                                 finished = (handleMessage(message) == false);
                             }
@@ -456,49 +243,27 @@ public class ChatServer {
                 }
             }
 
-            private String decrypt(String input) throws IOException {
-                try {
-                    byte[] data = DatatypeConverter.parseBase64Binary(input);
-                    System.out.println(Arrays.toString(data));
-                    synchronized(cipherLock) {
-                        data = cipherD.doFinal(data);
-                    }
-                    return new String(data, UTF_8);
-                } catch(IllegalBlockSizeException | BadPaddingException e) {
-                    e.printStackTrace();
-                    return null;
-                }
-            }
-
             private void enqueue(String outputLine, boolean addToHistory) {
                 byte[] data = outputLine.getBytes(UTF_8);
-                byte[] enc;
-                String outEnc = null;
+                String outEnc = DatatypeConverter.printBase64Binary(data);
+                byte[] wsOutEnc = WebSocketDataframe.toFrame(1, outEnc);
                 try {
-                    synchronized(cipherLock) {
-                        enc = cipherE.doFinal(data);
-                    }
-                    outEnc = DatatypeConverter.printBase64Binary(enc);
-                    byte[] wsOutEnc = WebSocketDataframe.toFrame(1, outEnc);
                     synchronized(outStreamLock) {
                         wsSocket.getOutputStream().write(wsOutEnc);
                     }
-                } catch(IllegalBlockSizeException | BadPaddingException e) {
+                } catch (IOException e) {
                     e.printStackTrace();
-                } catch(IOException e) {
-                    this.close();
                 }
-                if(addToHistory && userDataPath != null && outEnc != null) {
-                    try(PrintWriter history = new PrintWriter(new OutputStreamWriter(new FileOutputStream(userDataPath, true), UTF_8), true)) {
-                        history.write(outEnc);
-                        history.write("\n");
-                    } catch(IOException e) {
-                        e.printStackTrace();
-                    }
-                }
+//                if(addToHistory && userDataPath != null && outEnc != null) {
+//                    try(PrintWriter history = new PrintWriter(new OutputStreamWriter(new FileOutputStream(userDataPath, true), UTF_8), true)) {
+//                        history.write(outEnc);
+//                        history.write("\n");
+//                    } catch(IOException e) {
+//                        e.printStackTrace();
+//                    }
+//                }
             }
-
-        }
+        } // end class ClientThread
 
         final List<ClientThread> threads = new ArrayList<>();
         final peerUpdateCompat<ClientThread> messenger = new peerUpdateCompat<ClientThread>() {
@@ -519,20 +284,6 @@ public class ChatServer {
             }
         };
 
-        Map<String, String> persistent = MariaDBReader.selectAllUserIDs();
-        if(persistent == null) {
-            System.out.println("Warning: Persistent sessions are not available without a configured MariaDB database.");
-        } else if(!persistent.isEmpty()) {
-            synchronized(userNamesMapLock) {
-                persistent.forEach((chatID, name) -> {
-                    if(AuthUtils.isValidUUID(chatID)) {
-                        userNamesMap.put(chatID, name);
-                        System.out.format("Persistent: %s -> %s\n", chatID, name);
-                    }
-                });
-            }
-        }
-
         int authPortNumber = 8081;
         InetSocketAddress bind = new InetSocketAddress(authPortNumber);
         System.out.println("Server @ " + bind.getAddress().getHostAddress() + ":" + bind.getPort());
@@ -550,13 +301,20 @@ public class ChatServer {
         class DelegateHandler implements HttpHandler {
             @Override
             public void handle(HttpExchange conn) throws IOException {
-                String uuid, input;
-                boolean sane = false;
+                String uuid = null, userName = null, input;
+                boolean join = false;
                 boolean resume = false;
                 try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getRequestBody(), UTF_8))
                 ) {
                     input = in.readLine();
-                    sane = AuthUtils.isValidUUID(input);
+                    if(input.startsWith("join ")) {
+                        join = true;
+                        userName = input.substring(5);
+                        if(!userName.matches("[0-9A-Za-z-_\\.]+")) {
+                            join = false;
+                            System.out.println("The trusted input has betrayed me");
+                        }
+                    }
                 }
 
                 // Allow file:// urls to request authorization if testing
@@ -565,33 +323,32 @@ public class ChatServer {
                 }
                 try(PrintWriter out = new PrintWriter(new OutputStreamWriter(conn.getResponseBody(), UTF_8), true)
                 ) {
-                    if(!sane) {
+                    if(!join) {
                         conn.sendResponseHeaders(400, 2);
                         out.print("\r\n");
                         out.close();
                         return;
                     }
 
+                    uuid = UUID.randomUUID().toString().replace("-", "");
                     synchronized(userNamesMapLock) {
-                        resume = userNamesMap.containsKey(input);
+                        resume = userNamesMap.containsKey(userName);
+                        userNamesMap.put(userName, uuid);
                     }
 
                     if(resume) {
-                        uuid = input;
                         synchronized(threads) {
                             for(ClientThread currentThread : threads) {
-                                if(uuid.equals(currentThread.uuid)) {
+                                if(userName.equals(currentThread.userName)) {
                                     currentThread.close();
                                     threads.remove(currentThread);
                                     break;
                                 }
                             }
                         }
-                    } else {
-                        uuid = UUID.randomUUID().toString().replace("-", "");
                     }
 
-                    ClientThread thread = new ClientThread(uuid, messenger, "AES/CBC/PKCS5Padding");
+                    ClientThread thread = new ClientThread(uuid, userName, messenger);
                     synchronized(wsServer.authorizedLock) {
                         wsServer.authorized.add(uuid);
                     }
@@ -601,21 +358,11 @@ public class ChatServer {
                     }
                     thread.start();
 
-                    while(!thread.cryptHandlerLockReady) {
-                        try {  // Allow cryptHandlerLock to be locked by the thread's ChatCrypt instance
-                            Thread.sleep(10);
-                        } catch(InterruptedException ignored) {
-                        }
-                    }
-
-                    synchronized(thread.cryptHandlerLock) {
-                        conn.sendResponseHeaders(200, 32);
-                        out.print(uuid);
-                        out.close();
-                    }
+                    conn.sendResponseHeaders(200, 32);
+                    out.print(uuid);
                 }
             }
-        } // Remove unnecessary
+        }
 
         authServer.createContext("/", new DelegateHandler());
     }
