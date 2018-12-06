@@ -1,4 +1,10 @@
 import ChatUtils.*;
+import com.jsoniter.JsonIterator;
+import com.jsoniter.any.Any;
+import com.jsoniter.output.EncodingMode;
+import com.jsoniter.output.JsonStream;
+import com.jsoniter.spi.DecodingMode;
+import com.jsoniter.spi.JsonException;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -19,7 +25,8 @@ public class ChatServer {
 
     private static HttpServer authServer;
     private static WebSocketServer wsServer;
-    private static CNConversationStore conversations = new CNConversationStore(null);
+    private static Map<Integer, JSONStructs.Conversation> conversations = new HashMap<>();
+    private static final Object conversationsLock = new Object();
     private static volatile Map<String, String> userNamesMap = new HashMap<>();
     private static final Object userNamesMapLock = new Object();
     private static final String[] commandsAvailable = new String[] { "color ", "format ", "help", "status", "_conversation_request " };
@@ -80,16 +87,127 @@ public class ChatServer {
                         messageClasses = "hide";
                         if(message.length() == 21) return true;
                         List<String> otherUsers = Arrays.asList(message.substring(21).split(";"));
-                        StringBuilder _outputBody = new StringBuilder();
-                        _outputBody.append(MariaDBReader.retrieveKeys(userName, true));
-                        for(String u : otherUsers) {
-                            String ks = MariaDBReader.retrieveKeys(u, false);
-                            if(ks != null) {
+                        if(otherUsers.indexOf(userName) != -1) return true;
+                        for(int i = 0; i < otherUsers.size(); i++) {
+                            if(otherUsers.lastIndexOf(otherUsers.get(i)) != i) {
+                                // must be unique
+                                return true;
+                            }
+                        }
+                        boolean collision = false;
+                        synchronized(conversationsLock) {
+                            for(JSONStructs.Conversation existing : conversations.values()) {
+                                collision = existing.users.length == (otherUsers.size() + 1);
+                                for(int i = 0; collision && i < existing.users.length; i++) {
+                                    if(!userName.equals(existing.users[i].user) &&
+                                            otherUsers.indexOf(existing.users[i].user) == -1) {
+                                        collision = false;
+                                    }
+                                }
+                            }
+                        }
+                        if(collision) {
+                            outputBody = "failure";
+                        } else {
+                            StringBuilder _outputBody = new StringBuilder("[");
+                            _outputBody.append(MariaDBReader.retrieveKeysSelf(userName));
+                            for(String u : otherUsers) {
+                                String ks = MariaDBReader.retrieveKeysOther(u, userName);
+                                if(ks == null) {
+                                    return true;
+                                }
+                                _outputBody.append(",");
                                 _outputBody.append("\n");
                                 _outputBody.append(ks);
                             }
+                            _outputBody.append("]");
+                            outputBody = _outputBody.toString();
                         }
-                        outputBody = _outputBody.toString();
+                    } else if(message.startsWith("conversation_add ")) {
+                        messageClasses = "hide";
+                        if(message.length() == 17) return true;
+                        String conversationJson = message.substring(17);
+                        JSONStructs.Conversation toAdd = null;
+                        try {
+                            Any conv = JsonIterator.deserialize(conversationJson);
+                            toAdd = new JSONStructs.Conversation();
+                            toAdd = conv.bindTo(toAdd);
+                            List<String> cUsers = new ArrayList<>();
+                            for(JSONStructs.ConversationUser u : toAdd.users) {
+                                cUsers.add(u.user);
+                            }
+                            if(cUsers.indexOf(userName) == -1) return true;
+                            for(int i = 0; i < cUsers.size(); i++) {
+                                if(cUsers.lastIndexOf(cUsers.get(i)) != i) {
+                                    // must be unique
+                                    return true;
+                                }
+                            }
+                            toAdd.exchange_complete = false;
+                            toAdd.crypt_expiration = System.currentTimeMillis() + (14 * 24 * 3600 * 1000);
+                            synchronized(conversationsLock) {
+                                if(conversations.size() == 0)
+                                    toAdd.id = 1;
+                                else
+                                    toAdd.id = Collections.max(conversations.keySet()) + 1;
+                                if(toAdd.validateNew(userName)) {
+                                    boolean collision = false;
+                                    for(JSONStructs.Conversation existing : conversations.values()) {
+                                        collision = existing.users.length == (cUsers.size());
+                                        for(int i = 0; collision && i < existing.users.length; i++) {
+                                            if(cUsers.indexOf(existing.users[i].user) == -1) {
+                                                collision = false;
+                                            }
+                                        }
+                                    }
+                                    if(collision) {
+                                        return true;
+                                    }
+                                    conversations.put(toAdd.id, toAdd);
+                                    // todo write to store
+                                }
+                            }
+                        } catch(JsonException e) {
+                            e.printStackTrace();
+                            return true;
+                        }
+                        outputBody = "success";
+                        System.out.println("conversation added: " + toAdd.id);
+                        for(JSONStructs.ConversationUser u : toAdd.users) {
+                            if(u.role != 1) {
+                                String protocol1 = "c;;" + toAdd.sendToUser(u.user);
+                                peerMessage.execute(this, protocol1, Collections.singletonList(u.user), false);
+                            }
+                        }
+                    } else if(message.startsWith("conversation_set_key ")) {
+                        messageClasses = "hide";
+                        if(message.length() == 21) return true;
+                        try {
+                            String[] fields = message.substring(21).split(" ");
+                            if(fields.length != 2) return true;
+                            int cID = Integer.parseInt(fields[0]);
+                            if(!fields[1].matches("[0-9A-Za-z+/]*[=]{0,2}") || fields[1].length() < 21) {
+                                // Non base-64 or fewer than 128 bits
+                                return true;
+                            }
+                            synchronized(conversationsLock) {
+                                JSONStructs.Conversation c = conversations.get(cID);
+                                if(c != null) {
+                                    JSONStructs.ConversationUser u = c.getUser(userName);
+                                    if(u != null) {
+                                        u.key_wrapped = fields[1];
+                                        outputBody = "success";
+                                    } else {
+                                        outputBody = "failure";
+                                    }
+                                } else {
+                                    outputBody = "failure";
+                                }
+                            }
+                        } catch(JsonException e) {
+                            e.printStackTrace();
+                            return true;
+                        }
                     } else if(message.startsWith("quit")) {
                         return false;
                     } else if(message.startsWith("format ")) {
@@ -168,7 +286,7 @@ public class ChatServer {
                 while(pos1 < 2) {
                     pos1 += wsSocket.getInputStream().read(header1, pos1, 2 - pos1);
                 }
-                System.out.println("header1: " + Arrays.toString(header1));
+                // System.out.println("header1: " + Arrays.toString(header1));
 
                 int opcode = (header1[0] & 0x0F);
                 boolean lastFrame = ((header1[0] & 0x80) != 0);
@@ -184,7 +302,7 @@ public class ChatServer {
                     while(pos2 < 2) {
                         pos2 += wsIn.read(header2, pos2, 2 - pos2);
                     }
-                    System.out.println("header2: " + Arrays.toString(header2));
+                    // System.out.println("header2: " + Arrays.toString(header2));
                     len = 0;
                     for(int k = 0; k < 2; k++) {
                         len |= (header2[k] & 0xFF);
@@ -196,7 +314,7 @@ public class ChatServer {
                     while(pos2 < 8) {
                         pos2 += wsIn.read(header2, pos2, 8 - pos2);
                     }
-                    System.out.println("header2: " + Arrays.toString(header2));
+                    // System.out.println("header2: " + Arrays.toString(header2));
                     len = 0;
                     for(int k = 0; k < 8; k++) {
                         len |= (header2[k] & 0xFF);
@@ -214,7 +332,7 @@ public class ChatServer {
                 }
                 // System.out.println("data: " + Arrays.toString(data));
                 String msg = WebSocketDataframe.getText(data);
-                System.out.println(msg);
+                // System.out.println(msg);
                 if(opcode == 1) {
                     if(lastFrame) {
                         return msg;
@@ -264,6 +382,28 @@ public class ChatServer {
 //                }
             }
         } // end class ClientThread
+
+
+        Any.registerEncoders();
+        JsonIterator.setMode(DecodingMode.REFLECTION_MODE);
+        JsonStream.setMode(EncodingMode.REFLECTION_MODE);
+        try(BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream("/root/CNChat/persistent/conversations.json"), UTF_8))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while((line = in.readLine()) != null) {
+                sb.append(line).append("\n");
+            }
+            Any convArray = JsonIterator.deserialize(sb.substring(0, sb.length() - 1));
+            for(Any conv : convArray) {
+                JSONStructs.Conversation c = new JSONStructs.Conversation();
+                c = conv.bindTo(c);
+                if(c.validate()) {
+                    conversations.put(c.id, c);  // no one can connect yet, don't need lock
+                }
+            }
+        } catch(IOException ignored) {
+        }
+        System.out.format("%d conversation(s) loaded\n", conversations.size());
 
         final List<ClientThread> threads = new ArrayList<>();
         final peerUpdateCompat<ClientThread> messenger = new peerUpdateCompat<ClientThread>() {
