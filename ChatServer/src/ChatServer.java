@@ -208,6 +208,36 @@ public class ChatServer {
                             e.printStackTrace();
                             return true;
                         }
+                    } else if(message.startsWith("retrieve_keys_self")) {
+                        messageClasses = "hide";
+                        String ks = MariaDBReader.retrieveKeysSelf(userName);
+                        if(ks == null) {
+                            return false;
+                        }
+                        outputBody = ks;
+                    } else if(message.startsWith("retrieve_keys_other ")) {
+                        if(message.length() == 21) return true;
+                        List<String> otherUsers = Arrays.asList(message.substring(21).split(";"));
+                        if(otherUsers.indexOf(userName) != -1) return true;
+                        for(int i = 0; i < otherUsers.size(); i++) {
+                            if(otherUsers.lastIndexOf(otherUsers.get(i)) != i) {
+                                // must be unique
+                                return true;
+                            }
+                        }
+                        StringBuilder _outputBody = new StringBuilder("[");
+                        _outputBody.append(MariaDBReader.retrieveKeysSelf(userName));
+                        for(String u : otherUsers) {
+                            String ks = MariaDBReader.retrieveKeysOther(u, userName);
+                            if(ks == null) {
+                                return true;
+                            }
+                            _outputBody.append(",");
+                            _outputBody.append("\n");
+                            _outputBody.append(ks);
+                        }
+                        _outputBody.append("]");
+                        outputBody = _outputBody.toString();
                     } else if(message.startsWith("quit")) {
                         return false;
                     } else if(message.startsWith("format ")) {
