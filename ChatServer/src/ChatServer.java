@@ -114,14 +114,17 @@ public class ChatServer {
                 System.out.println("message received");
                 System.out.println(message);
                 int conversationID = -1;
-                String messageAuthenticityCode = "";
+                String hmac = "";
+                String cipherParams = "";
                 String messageClasses = "";
                 try {
                     int f1 = message.indexOf(";");
                     conversationID = Integer.parseInt(message.substring(0, f1));
                     int f2 = message.indexOf(";", f1 + 1);
-                    messageAuthenticityCode = message.substring(f1 + 1, f2);
-                    message = message.substring(f2 + 1);
+                    cipherParams = message.substring(f1 + 1, f2);
+                    int f3 = message.indexOf(";", f2 + 1);
+                    hmac = message.substring(f2 + 1, f3);
+                    message = message.substring(f3 + 1);
                 } catch(NumberFormatException | IndexOutOfBoundsException e) {
                     return true;
                 }
@@ -231,7 +234,7 @@ public class ChatServer {
                             return true;
                         }
                         for(String u : toAdd.userNameList) {
-                            String protocol1 = "0;;command;conversation_add;" + toAdd.sendToUser(u);
+                            String protocol1 = "0;command;conversation_ls;" + toAdd.sendToUser(u);
                             peerMessage.execute(this, protocol1, Collections.singletonList(u), null);
                         }
                         return true;  // peerMessage above sends reply
@@ -344,7 +347,7 @@ public class ChatServer {
                             _outputBody.setLength(_outputBody.length() - 2);  // remove last comma and line break
                         }
                         _outputBody.append("]");
-                        outputBody = "retreive_keys_other;" + _outputBody.toString();
+                        outputBody = "retrieve_keys_other;" + _outputBody.toString();
                     } else if(message.startsWith("quit")) {
                         return false;
                     } else if(message.startsWith("format ")) {
@@ -366,7 +369,6 @@ public class ChatServer {
 
                     StringBuilder outMessage = new StringBuilder();
                     outMessage.append(conversationID).append(";");
-                    outMessage.append(messageAuthenticityCode).append(";");
                     outMessage.append(messageClasses).append(";");
                     outMessage.append(outputBody);
                     enqueue(outMessage.toString(), null);
@@ -379,10 +381,11 @@ public class ChatServer {
                     messageClasses = "user " + (markDown ? "markdown" : "plaintext");
                     StringBuilder outMessage = new StringBuilder();
                     outMessage.append(conversationID).append(";");
-                    outMessage.append(messageAuthenticityCode).append(";");
                     outMessage.append(userName).append(";");
                     outMessage.append(System.currentTimeMillis()).append(";");
                     outMessage.append(messageClasses).append(";");
+                    outMessage.append(cipherParams).append(";");
+                    outMessage.append(hmac).append(";");
                     outMessage.append(message);
                     peerMessage.execute(this, outMessage.toString(), c.userNameList, conversationID);
                 }

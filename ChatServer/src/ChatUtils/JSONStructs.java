@@ -55,6 +55,7 @@ public class JSONStructs {
         public int role;
         public String key_ephemeral_public;
         public String key_wrapped;
+        public String initial_message;
 
         public ConversationUser() {}
 
@@ -62,11 +63,13 @@ public class JSONStructs {
         public ConversationUser(@JsonProperty("user") String user,
                                 @JsonProperty("role") int role,
                                 @JsonProperty("key_ephemeral_public") String key_ephemeral_public,
-                                @JsonProperty("key_wrapped") String key_wrapped) {
+                                @JsonProperty("key_wrapped") String key_wrapped,
+                                @JsonProperty("initial_message") String initial_message) {
             this.user = user;
             this.role = role;
             this.key_ephemeral_public = key_ephemeral_public;
             this.key_wrapped = key_wrapped;
+            this.initial_message = initial_message;
         }
     }
 
@@ -77,6 +80,7 @@ public class JSONStructs {
         public String role1;
         public String key_ephemeral_public;
         public String key_wrapped;
+        public String initial_message;
 
         public Conversation2() {}
 
@@ -86,13 +90,15 @@ public class JSONStructs {
                              @JsonProperty("users") List<String> users,
                              @JsonProperty("role1") String role1,
                              @JsonProperty("key_ephemeral_public") String key_ephemeral_public,
-                             @JsonProperty("key_wrapped") String key_wrapped) {
+                             @JsonProperty("key_wrapped") String key_wrapped,
+                             @JsonProperty("initial_message") String initial_message) {
             this.id = id;
             this.exchange_complete = exchange_complete;
             this.users = users;
             this.role1 = role1;
             this.key_ephemeral_public = key_ephemeral_public;
             this.key_wrapped = key_wrapped;
+            this.initial_message = initial_message;
         }
     }
 
@@ -127,7 +133,8 @@ public class JSONStructs {
             for(ConversationUser u : this.users) {
                 if(u.role < 1 || u.role > 3) return false;
                 if((u.role == 1 || this.exchange_complete) && u.key_wrapped == null) return false;
-                if(u.role != 1 && u.key_ephemeral_public == null) return false;
+                if(u.role != 1 && !this.exchange_complete &&
+                        (u.key_ephemeral_public == null || u.initial_message == null)) return false;
 
                 if(u.role == 1) {
                     if(hasRole1) return false;
@@ -145,14 +152,15 @@ public class JSONStructs {
         public synchronized boolean validateNew(String userName) {
             if(this.id <= 0) return false;
             if(this.users == null || this.users.length < 2) return false;
-            if(!this.exchange_complete) {
-                if(this.crypt_expiration < System.currentTimeMillis()) return false;
+            if(this.exchange_complete) {
+                return false;
             }
+            if(this.crypt_expiration < System.currentTimeMillis()) return false;
             boolean hasRole1 = false, hasRole2 = false;
             for(ConversationUser u : this.users) {
                 if(u.role < 1 || u.role > 3) return false;
-                if((u.role == 1 || this.exchange_complete) && u.key_wrapped == null) return false;
-                if(u.role != 1 && u.key_ephemeral_public == null) return false;
+                if(u.role == 1 && u.key_wrapped == null) return false;
+                if(u.role != 1 && (u.key_ephemeral_public == null || u.initial_message == null)) return false;
 
                 if(u.role == 1) {
                     if(hasRole1 || !userName.equals(u.user)) return false;
@@ -193,7 +201,8 @@ public class JSONStructs {
             if(u == null) return null;
             ConversationUser u1 = this.getRole(1);
             if(u1 == null) return null;
-            Conversation2 c2 = new Conversation2(this.id, this.exchange_complete, this.userNameList, u1.user, u.key_ephemeral_public, u.key_wrapped);
+            Conversation2 c2 = new Conversation2(this.id, this.exchange_complete, this.userNameList, u1.user,
+                    u.key_ephemeral_public, u.key_wrapped, u.initial_message);
             return JsonStream.serialize(c2);
         }
     }
