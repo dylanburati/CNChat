@@ -35,7 +35,7 @@ public class ChatServer {
 
         class ClientThread extends Thread {
 
-            private String first = "Class:hide\nBody:connected";
+            private String first = "0;;server;Connected";
 
             private final String uuid;
             private final peerUpdateCompat<ClientThread> peerMessage;
@@ -57,7 +57,8 @@ public class ChatServer {
                 System.out.println("message received");
                 System.out.println(message);
                 int conversationID = -1;
-                String messageAuthenticityCode = null;  // todo
+                String messageAuthenticityCode = "";
+                String messageClasses = "";
                 try {
                     int f1 = message.indexOf(";");
                     conversationID = Integer.parseInt(message.substring(0, f1));
@@ -70,8 +71,7 @@ public class ChatServer {
                 if(conversationID < 0) {
                     return true;
                 } else if(conversationID == 0) {
-                    String messageClasses;
-                    String outputBody;
+                    String outputBody = "";
                     if(message.startsWith("help")) {
                         messageClasses = "server";
                         outputBody = "Commands start with a colon (:)" +
@@ -84,7 +84,7 @@ public class ChatServer {
                                 "\n :format for Markdown" +
                                 "\n :unformat for plain text";
                     } else if(message.startsWith("conversation_request ")) {
-                        messageClasses = "hide";
+                        messageClasses = "command";
                         if(message.length() == 21) return true;
                         List<String> otherUsers = Arrays.asList(message.substring(21).split(";"));
                         if(otherUsers.indexOf(userName) != -1) return true;
@@ -98,16 +98,16 @@ public class ChatServer {
                         synchronized(conversationsLock) {
                             for(JSONStructs.Conversation existing : conversations.values()) {
                                 collision = existing.users.length == (otherUsers.size() + 1);
-                                for(int i = 0; collision && i < existing.users.length; i++) {
-                                    if(!userName.equals(existing.users[i].user) &&
-                                            otherUsers.indexOf(existing.users[i].user) == -1) {
+                                for(String existingUser : existing.userNameList) {
+                                    if(!userName.equals(existingUser) &&
+                                            otherUsers.indexOf(existingUser) == -1) {
                                         collision = false;
                                     }
                                 }
                             }
                         }
                         if(collision) {
-                            outputBody = "failure";
+                            outputBody = "conversation_request;failure";
                         } else {
                             StringBuilder _outputBody = new StringBuilder("[");
                             _outputBody.append(MariaDBReader.retrieveKeysSelf(userName));
@@ -121,10 +121,10 @@ public class ChatServer {
                                 _outputBody.append(ks);
                             }
                             _outputBody.append("]");
-                            outputBody = _outputBody.toString();
+                            outputBody = "conversation_request;" + _outputBody.toString();
                         }
                     } else if(message.startsWith("conversation_add ")) {
-                        messageClasses = "hide";
+                        messageClasses = "command";
                         if(message.length() == 17) return true;
                         String conversationJson = message.substring(17);
                         JSONStructs.Conversation toAdd = null;
@@ -154,8 +154,8 @@ public class ChatServer {
                                     boolean collision = false;
                                     for(JSONStructs.Conversation existing : conversations.values()) {
                                         collision = existing.users.length == (cUsers.size());
-                                        for(int i = 0; collision && i < existing.users.length; i++) {
-                                            if(cUsers.indexOf(existing.users[i].user) == -1) {
+                                        for(String existingUser : existing.userNameList) {
+                                            if(cUsers.indexOf(existingUser) == -1) {
                                                 collision = false;
                                             }
                                         }
@@ -171,16 +171,13 @@ public class ChatServer {
                             e.printStackTrace();
                             return true;
                         }
-                        outputBody = "success";
-                        System.out.println("conversation added: " + toAdd.id);
-                        for(JSONStructs.ConversationUser u : toAdd.users) {
-                            if(u.role != 1) {
-                                String protocol1 = "c;;" + toAdd.sendToUser(u.user);
-                                peerMessage.execute(this, protocol1, Collections.singletonList(u.user), false);
-                            }
+                        for(String u : toAdd.userNameList) {
+                            String protocol1 = "0;;command;conversation_add;" + toAdd.sendToUser(u);
+                            peerMessage.execute(this, protocol1, Collections.singletonList(u), false);
                         }
+                        return true;  // peerMessage above sends reply
                     } else if(message.startsWith("conversation_set_key ")) {
-                        messageClasses = "hide";
+                        messageClasses = "command";
                         if(message.length() == 21) return true;
                         try {
                             String[] fields = message.substring(21).split(" ");
@@ -196,28 +193,47 @@ public class ChatServer {
                                     JSONStructs.ConversationUser u = c.getUser(userName);
                                     if(u != null) {
                                         u.key_wrapped = fields[1];
-                                        outputBody = "success";
+                                        outputBody = "conversation_set_key;success";
                                     } else {
-                                        outputBody = "failure";
+                                        outputBody = "conversation_set_key;failure";
                                     }
                                 } else {
-                                    outputBody = "failure";
+                                    outputBody = "conversation_set_key;failure";
                                 }
                             }
                         } catch(JsonException e) {
                             e.printStackTrace();
                             return true;
                         }
+                    } else if(message.startsWith("conversation_ls")) {
+                        messageClasses = "command";
+                        StringBuilder _outputBody = new StringBuilder("[");
+                        synchronized(conversationsLock) {
+                            for(JSONStructs.Conversation c : conversations.values()) {
+                                if(c.hasUser(userName)) {
+                                    String cs = c.sendToUser(userName);
+                                    _outputBody.append(cs);
+                                    _outputBody.append(",");
+                                    _outputBody.append("\n");
+                                }
+                            }
+                        }
+                        if(_outputBody.length() > 1) {
+                            _outputBody.setLength(_outputBody.length() - 2);  // remove last comma and line break
+                        }
+                        _outputBody.append("]");
+                        outputBody = "conversation_ls;" + _outputBody.toString();
                     } else if(message.startsWith("retrieve_keys_self")) {
-                        messageClasses = "hide";
+                        messageClasses = "command";
                         String ks = MariaDBReader.retrieveKeysSelf(userName);
                         if(ks == null) {
                             return false;
                         }
-                        outputBody = ks;
+                        outputBody = "retrieve_keys_self;" + ks;
                     } else if(message.startsWith("retrieve_keys_other ")) {
-                        if(message.length() == 21) return true;
-                        List<String> otherUsers = Arrays.asList(message.substring(21).split(";"));
+                        messageClasses = "command";
+                        if(message.length() == 20) return true;
+                        List<String> otherUsers = Arrays.asList(message.substring(20).split(";"));
                         if(otherUsers.indexOf(userName) != -1) return true;
                         for(int i = 0; i < otherUsers.size(); i++) {
                             if(otherUsers.lastIndexOf(otherUsers.get(i)) != i) {
@@ -226,18 +242,20 @@ public class ChatServer {
                             }
                         }
                         StringBuilder _outputBody = new StringBuilder("[");
-                        _outputBody.append(MariaDBReader.retrieveKeysSelf(userName));
                         for(String u : otherUsers) {
                             String ks = MariaDBReader.retrieveKeysOther(u, userName);
                             if(ks == null) {
                                 return true;
                             }
+                            _outputBody.append(ks);
                             _outputBody.append(",");
                             _outputBody.append("\n");
-                            _outputBody.append(ks);
+                        }
+                        if(_outputBody.length() > 1) {
+                            _outputBody.setLength(_outputBody.length() - 2);  // remove last comma and line break
                         }
                         _outputBody.append("]");
-                        outputBody = _outputBody.toString();
+                        outputBody = "retreive_keys_other;" + _outputBody.toString();
                     } else if(message.startsWith("quit")) {
                         return false;
                     } else if(message.startsWith("format ")) {
@@ -257,7 +275,25 @@ public class ChatServer {
                         return true;
                     }
 
-                    enqueue(outputBody, false);
+                    StringBuilder outMessage = new StringBuilder();
+                    outMessage.append(conversationID).append(";");
+                    outMessage.append(messageAuthenticityCode).append(";");
+                    outMessage.append(messageClasses).append(";");
+                    outMessage.append(outputBody);
+                    enqueue(outMessage.toString(), false);
+                } else {
+                    JSONStructs.Conversation c = null;
+                    synchronized(conversationsLock) {
+                        c = conversations.get(conversationID);
+                        if(c == null || !c.hasUser(userName)) return true;
+                    }
+                    messageClasses = "user " + (markDown ? "markdown" : "plaintext");
+                    StringBuilder outMessage = new StringBuilder();
+                    outMessage.append(conversationID).append(";");
+                    outMessage.append(messageAuthenticityCode).append(";");
+                    outMessage.append(messageClasses).append(";");
+                    outMessage.append(message);
+                    peerMessage.execute(this, outMessage.toString(), c.userNameList, true);
                 }
 
 
@@ -391,10 +427,8 @@ public class ChatServer {
                 }
             }
 
-            private void enqueue(String outputLine, boolean addToHistory) {
-                byte[] data = outputLine.getBytes(UTF_8);
-                String outEnc = DatatypeConverter.printBase64Binary(data);
-                byte[] wsOutEnc = WebSocketDataframe.toFrame(1, outEnc);
+            private void enqueue(String outMessage, boolean addToHistory) {
+                byte[] wsOutEnc = WebSocketDataframe.toFrame(1, outMessage);
                 try {
                     synchronized(outStreamLock) {
                         wsSocket.getOutputStream().write(wsOutEnc);

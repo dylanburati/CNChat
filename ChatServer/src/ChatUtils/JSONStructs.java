@@ -4,6 +4,9 @@ import com.jsoniter.annotation.JsonCreator;
 import com.jsoniter.annotation.JsonProperty;
 import com.jsoniter.output.JsonStream;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class JSONStructs {
     public static class KeySet {
         public String user;
@@ -69,7 +72,8 @@ public class JSONStructs {
     private static class Conversation2 {
         public int id;
         public boolean exchange_complete;
-        public String[] users;
+        public List<String> users;
+        public String role1;
         public String key_ephemeral_public;
         public String key_wrapped;
 
@@ -78,12 +82,14 @@ public class JSONStructs {
         @JsonCreator
         public Conversation2(@JsonProperty("id") int id,
                              @JsonProperty("exchange_complete") boolean exchange_complete,
-                             @JsonProperty("users") String[] users,
+                             @JsonProperty("users") List<String> users,
+                             @JsonProperty("role1") String role1,
                              @JsonProperty("key_ephemeral_public") String key_ephemeral_public,
                              @JsonProperty("key_wrapped") String key_wrapped) {
             this.id = id;
             this.exchange_complete = exchange_complete;
             this.users = users;
+            this.role1 = role1;
             this.key_ephemeral_public = key_ephemeral_public;
             this.key_wrapped = key_wrapped;
         }
@@ -94,6 +100,7 @@ public class JSONStructs {
         public boolean exchange_complete;
         public long crypt_expiration;
         public ConversationUser[] users;
+        public List<String> userNameList = new ArrayList<String>();
 
         public Conversation() {}
 
@@ -127,6 +134,7 @@ public class JSONStructs {
                     if(hasRole2) return false;
                     hasRole2 = true;
                 }
+                this.userNameList.add(u.user);
             }
             if(!(hasRole1 && hasRole2)) return false;
             return true;
@@ -151,6 +159,7 @@ public class JSONStructs {
                     if(hasRole2) return false;
                     hasRole2 = true;
                 }
+                this.userNameList.add(u.user);
             }
             if(!(hasRole1 && hasRole2)) return false;
             return true;
@@ -163,17 +172,26 @@ public class JSONStructs {
             return null;
         }
 
+        public synchronized ConversationUser getRole(int role) {
+            if(role < 1 || role > 2) {
+                return null;
+            }
+            for(ConversationUser u : this.users) {
+                if(u.role == role) return u;
+            }
+            return null;
+        }
+
         public synchronized boolean hasUser(String userName) {
             return (this.getUser(userName) != null);
         }
 
         public synchronized String sendToUser(String userName) {
-            String[] c2Users = new String[this.users.length];
-            for(int i = 0; i < this.users.length; i++) {
-                c2Users[i] = this.users[i].user;
-            }
             ConversationUser u = this.getUser(userName);
-            Conversation2 c2 = new Conversation2(this.id, this.exchange_complete, c2Users, u.key_ephemeral_public, u.key_wrapped);
+            if(u == null) return null;
+            ConversationUser u1 = this.getRole(1);
+            if(u1 == null) return null;
+            Conversation2 c2 = new Conversation2(this.id, this.exchange_complete, this.userNameList, u1.user, u.key_ephemeral_public, u.key_wrapped);
             return JsonStream.serialize(c2);
         }
     }
