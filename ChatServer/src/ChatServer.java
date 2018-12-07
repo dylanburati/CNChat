@@ -234,7 +234,7 @@ public class ChatServer {
                             return true;
                         }
                         for(String u : toAdd.userNameList) {
-                            String protocol1 = "0;command;conversation_ls;" + toAdd.sendToUser(u);
+                            String protocol1 = "0;command;conversation_ls;[" + toAdd.sendToUser(u) + "]";
                             peerMessage.execute(this, protocol1, Collections.singletonList(u), null);
                         }
                         return true;  // peerMessage above sends reply
@@ -259,7 +259,7 @@ public class ChatServer {
                                         u.initial_message = null;
                                         c.checkExchangeComplete();
                                         updateConversationStore();
-                                        outputBody = "conversation_set_key;success";
+                                        outputBody = "conversation_ls;[" + c.sendToUser(userName) + "]";
                                     } else {
                                         outputBody = "conversation_set_key;failure";
                                     }
