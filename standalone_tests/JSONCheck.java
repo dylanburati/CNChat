@@ -78,6 +78,7 @@ public class JSONCheck {
             Any any = JsonIterator.deserialize(sb.substring(0, sb.length() - 1));
             Conversation c = new Conversation();
             c = any.bindTo(c);
+            System.out.println(JsonStream.serialize(c));
             System.out.println("Conversation.crypt_expiration: " + c.crypt_expiration);
             System.out.println("Conversation.users[0].user: " + c.users[0].user);
 //            for(Any a : any) {

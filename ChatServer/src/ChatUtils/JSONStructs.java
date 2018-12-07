@@ -1,6 +1,7 @@
 package ChatUtils;
 
 import com.jsoniter.annotation.JsonCreator;
+import com.jsoniter.annotation.JsonIgnore;
 import com.jsoniter.annotation.JsonProperty;
 import com.jsoniter.output.JsonStream;
 
@@ -100,6 +101,7 @@ public class JSONStructs {
         public boolean exchange_complete;
         public long crypt_expiration;
         public ConversationUser[] users;
+        @JsonIgnore
         public List<String> userNameList = new ArrayList<String>();
 
         public Conversation() {}
