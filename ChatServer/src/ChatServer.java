@@ -375,7 +375,7 @@ public class ChatServer {
                     outMessage.append(conversationID).append(";");
                     outMessage.append(messageClasses).append(";");
                     outMessage.append(outputBody);
-                    enqueue(outMessage.toString(), null);
+                    enqueue(outMessage.toString());
                 } else {
                     JSONStructs.Conversation c = null;
                     synchronized(conversationsLock) {
@@ -416,7 +416,7 @@ public class ChatServer {
                     return;
                 }
                 System.out.println("WebSocket obtained");
-                enqueue(first, null);
+                enqueue(first);
                 try {
                     boolean finished = false;
                     while(!finished) {
@@ -520,7 +520,7 @@ public class ChatServer {
                 }
             }
 
-            private void enqueue(String outMessage, Integer addToHistory) {
+            private void enqueue(String outMessage) {
                 byte[] wsOutEnc = WebSocketDataframe.toFrame(1, outMessage);
                 try {
                     synchronized(outStreamLock) {
@@ -528,14 +528,6 @@ public class ChatServer {
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
-                }
-                if(addToHistory != null && addToHistory > 0) {
-                    synchronized(messagesLock) {
-                        List<String> ml = messageStore.get(addToHistory);
-                        // Null messageStore entry should be caught by conversation check in handleMessage
-                        ml.add(outMessage);
-                        updateMessageStore(addToHistory);
-                    }
                 }
             }
         } // end class ClientThread
@@ -582,6 +574,14 @@ public class ChatServer {
         final peerUpdateCompat<ClientThread> messenger = new peerUpdateCompat<ClientThread>() {
             @Override
             public void execute(ClientThread caller, String message, List<String> recipients, Integer addToHistory) {
+                if(addToHistory != null && addToHistory > 0) {
+                    synchronized(messagesLock) {
+                        List<String> ml = messageStore.get(addToHistory);
+                        // Null messageStore entry should be caught by conversation check in handleMessage
+                        ml.add(message);
+                        updateMessageStore(addToHistory);
+                    }
+                }
                 synchronized(threads) {
                     for(Iterator<ClientThread> threadIter = threads.iterator(); threadIter.hasNext(); /* nothing */) {
                         ClientThread currentThread = threadIter.next();
@@ -590,7 +590,7 @@ public class ChatServer {
                                 threadIter.remove();
                                 continue;
                             }
-                            currentThread.enqueue(message, addToHistory);
+                            currentThread.enqueue(message);
                         }
                     }
                 }
