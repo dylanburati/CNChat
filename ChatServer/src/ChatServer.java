@@ -255,6 +255,10 @@ public class ChatServer {
                                     JSONStructs.ConversationUser u = c.getUser(userName);
                                     if(u != null) {
                                         u.key_wrapped = fields[1];
+                                        u.key_ephemeral_public = null;
+                                        u.initial_message = null;
+                                        c.checkExchangeComplete();
+                                        updateConversationStore();
                                         outputBody = "conversation_set_key;success";
                                     } else {
                                         outputBody = "conversation_set_key;failure";

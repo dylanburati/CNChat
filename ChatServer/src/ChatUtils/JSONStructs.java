@@ -205,5 +205,12 @@ public class JSONStructs {
                     u.key_ephemeral_public, u.key_wrapped, u.initial_message);
             return JsonStream.serialize(c2);
         }
+
+        public synchronized void checkExchangeComplete() {
+            for(ConversationUser u : this.users) {
+                if(u.key_wrapped == null) return;
+            }
+            this.exchange_complete = true;
+        }
     }
 }
