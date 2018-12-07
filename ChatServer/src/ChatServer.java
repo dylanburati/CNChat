@@ -66,6 +66,13 @@ public class ChatServer {
         }
     }
 
+    private static void updateConversationStore(Integer... changed) {
+        for(Integer i : changed) {
+            conversationStore.put(i, JsonStream.serialize(conversations.get(i)));
+        }
+        updateConversationStore();
+    }
+
     private static void storeConversation(Integer i, JSONStructs.Conversation o, boolean write) {
         conversations.put(i, o);
         conversationStore.put(i, JsonStream.serialize(o));
@@ -258,7 +265,7 @@ public class ChatServer {
                                         u.key_ephemeral_public = null;
                                         u.initial_message = null;
                                         c.checkExchangeComplete();
-                                        updateConversationStore();
+                                        updateConversationStore(cID);
                                         outputBody = "conversation_ls;[" + c.sendToUser(userName) + "]";
                                     } else {
                                         outputBody = "conversation_set_key;failure";
