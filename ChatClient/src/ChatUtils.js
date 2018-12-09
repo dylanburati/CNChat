@@ -7,8 +7,14 @@ function toUTF8Bytes(str) {
     } else if(field <= 0x7FF) {
       b256.push(0xC0 | (field >> 6));
       b256.push(0x80 | (field & 0x3F));
-    } else {
+    } else if(field <= 0xFFFF) {
       b256.push(0xE0 | (field >> 12));
+      b256.push(0x80 | ((field >> 6) & 0x3F));
+      b256.push(0x80 | (field & 0x3F));
+    } else {
+      i++;  // skip second character of UTF-16 pair, codePoint contains both
+      b256.push(0xF0 | (field >> 18));
+      b256.push(0x80 | ((field >> 12) & 0x3F));
       b256.push(0x80 | ((field >> 6) & 0x3F));
       b256.push(0x80 | (field & 0x3F));
     }
@@ -25,6 +31,8 @@ function fromUTF8Bytes(b256) {
         field = ((b256[i++] & 0x1F) << 6) | (b256[i] & 0x3F);
       } else if((field & 0x10) == 0) {
         field = ((b256[i++] & 0x0F) << 12) | ((b256[i++] & 0x3F) << 6) | (b256[i] & 0x3F);
+      } else if((field & 0x08) == 0) {
+        field = ((b256[i++] & 0x07) << 18) | ((b256[i++] & 0x3F) << 12) | ((b256[i++] & 0x3F) << 6) | (b256[i] & 0x3F);
       }
     }
     out += String.fromCodePoint(field);
@@ -47,7 +55,7 @@ function base64decodebytes(str) {
     }
     b64[i] = rep;
   }
-  
+
   var b256 = [];
   var tail64 = b64.length % 4;
   var tail256 = Math.max(0, tail64 - 1);
@@ -65,7 +73,7 @@ function base64decodebytes(str) {
     b256[i256++] = (field >> 8) & 255;
     b256[i256] = field & 255;
   }
-  
+
   return b256;
 }
 
@@ -199,7 +207,7 @@ function der_encode_bit_string(seq) {
 }
 
 var DH_data_bytes = [42, 134, 72, 134, 247, 13, 1, 3, 1];
-function DHKeyPair() {  
+function DHKeyPair(eph) {
   this.otrModulus = bigInt("24103124269210325885520760221975" +
                 "66074856950548502459942654116941" +
                 "95810883168261222889009385826134" +
@@ -220,22 +228,55 @@ function DHKeyPair() {
   this.modBits = this.otrModulus.bitLength().value;
   this.expBits = Math.max(384, this.modBits >> 1);
 
-  var valid = false;
-  while(!valid) {
-    var randLen = Math.floor((this.expBits + 7) / 8);
-    var randArr = new Uint8Array(randLen);
-    var lastByteBits = this.expBits - ((randLen - 1) * 8);
-    window.crypto.getRandomValues(randArr);
-    var mask = (~(-1 << lastByteBits));
-    randArr[0] &= mask;
+  if(eph) {
+    var valid = false;
+    while(!valid) {
+      var randLen = Math.floor((this.expBits + 7) / 8);
+      var randArr = new Uint8Array(randLen);
+      var lastByteBits = this.expBits - ((randLen - 1) * 8);
+      window.crypto.getRandomValues(randArr);
+      var mask = (~(-1 << lastByteBits));
+      randArr[0] &= mask;
 
-    this.privKey = bigInt.fromArray(Array(randLen).fill(0).map((e,i)=>randArr[i]), 256);
-    valid = !(this.privKey.compare(1) < 0 ||
-      this.privKey.compare(this.otrModulus.minus(2)) > 0 ||
-      this.privKey.bitLength().compare(this.expBits) != 0);
+      this.privKey = bigInt.fromArray(Array(randLen).fill(0).map((e,i)=>randArr[i]), 256);
+      valid = !(this.privKey.compare(1) < 0 ||
+              this.privKey.compare(this.otrModulus.minus(2)) > 0 ||
+              this.privKey.bitLength().compare(this.expBits) != 0);
+    }
+
+    this.pubKey = this.otrBase.modPow(this.privKey, this.otrModulus);
   }
-  
-  this.pubKey = this.otrBase.modPow(this.privKey, this.otrModulus);
+}
+
+DHKeyPair.fromSerialized = function(privWrapped, pubX509, pad) {
+  privWrapped = base64decodebytes(privWrapped);
+  pubX509 = base64decodebytes(pubX509);
+  pad = base64decodebytes(pad);
+  var pair = new DHKeyPair(false);
+  if(!Array.isArray(privWrapped) || !Array.isArray(pubX509) || !Array.isArray(pad)) {
+    return false;
+  }
+  if(privWrapped.findIndex(e => (!Number.isInteger(e) || e < 0 || e > 255)) != -1) {
+    return false;
+  }
+  if(pubX509.findIndex(e => (!Number.isInteger(e) || e < 0 || e > 255)) != -1) {
+    return false;
+  }
+  if(pad.findIndex(e => (!Number.isInteger(e) || e < 0 || e > 255)) != -1) {
+    return false;
+  }
+
+  var privArr = privWrapped.map((e,i)=>(e ^ pad[i]));
+  pair.privKey = bigInt.fromArray(privArr, 256);
+  if(pair.privKey.compare(1) < 0 ||
+          pair.privKey.compare(pair.otrModulus.minus(2)) > 0 ||
+          pair.privKey.bitLength().compare(pair.expBits) != 0) {
+    throw new Error("invalid private key in serialized data");
+    return false;
+  }
+  pair.pubKey = pair.validateParty2PubKey(pubX509);
+
+  return pair;
 }
 
 DHKeyPair.prototype.getPublicEncoded = function() {
@@ -253,6 +294,34 @@ DHKeyPair.prototype.getPublicEncoded = function() {
 
   var keyEncFinal = der_encode_sequence(keyEnc1);
   return keyEncFinal;
+}
+
+DHKeyPair.prototype.getPrivate = function() {
+  var toEncode = this.privKey.toArray(256).value;
+  if((toEncode[0] & 0x80) != 0) {
+    // Add sign bit
+    toEncode = [0].concat(toEncode);
+  }
+  return toEncode;
+}
+
+DHKeyPair.prototype.getPrivateWrapped = function(pad) {
+  if(!Array.isArray(pad) || pad.length < (this.privKey.bitLength().value / 8)) {
+    return false;
+  }
+  if(pad.findIndex(e => (!Number.isInteger(e) || e < 0 || e > 255)) != -1) {
+    return false;
+  }
+
+  var toEncode = this.privKey.toArray(256).value;
+  if((toEncode[0] & 0x80) != 0) {
+    // Add sign bit
+    toEncode = [0].concat(toEncode);
+  }
+  for(var i = 0; i < toEncode.length; i++) {
+    toEncode[i] = toEncode[i] ^ pad[i];
+  }
+  return toEncode;
 }
 
 function get_der_interval(data, i) {
@@ -350,47 +419,30 @@ DHKeyPair.prototype.generateSecretKey = function(party2PubKey) {
   return secretKeyBuffer;
 }
 
-function CipherStore() {
-  this.ivInit = false;
-  this.initDH = async function(dhSecret) {
-    if(!this.ivInit) {
-      this.iv = new ArrayBuffer(16);
-      var ivV = new Uint8Array(this.iv);
-      window.crypto.getRandomValues(ivV);
-      this.ivInit = true;
-    }
-    var keyMat = new ArrayBuffer(16);
-    var keyMatV = new Uint8Array(keyMat);
-    var hash = await window.crypto.subtle.digest('sha-256', dhSecret);
-    var hashV = new Uint8Array(hash);
-    for(var i = 0; i < 16; i++) {
-      keyMatV[i] = hashV[i];
-    }
-    this.key = await window.crypto.subtle.importKey("raw",
-                    keyMat,
-                    {"name": "AES-CBC"},
-                    false,
-                    ["encrypt", "decrypt"]);
-  };
-
-  this.initRaw = async function(keyArr) {
-    if(!this.ivInit) {
-      this.iv = new ArrayBuffer(16);
-      var ivV = new Uint8Array(this.iv);
-      window.crypto.getRandomValues(ivV);
-      this.ivInit = true;
-    }
-    var keyMat = new ArrayBuffer(16);
-    var keyMatV = new Uint8Array(keyMat);
-    for(var i = 0; i < 16; i++) {
-      keyMatV[i] = keyArr[i];
-    }
-    this.key = await window.crypto.subtle.importKey("raw",
-                    keyMat,
-                    {"name": "AES-CBC"},
-                    false,
-                    ["encrypt", "decrypt"]);
+function CipherStore(keyArr, ivInit) {
+  if(ivInit) {
+    this.iv = new ArrayBuffer(16);
+    var ivV = new Uint8Array(this.iv);
+    window.crypto.getRandomValues(ivV);
+    this.ivInit = true;
   }
+  this.keyMat = new ArrayBuffer(32);
+  var keyMatV = new Uint8Array(this.keyMat);
+  for(var i = 0; i < 32; i++) {
+    keyMatV[i] = keyArr[i];
+  }
+  this.key = null;
+  this.readyPromise = new Promise((resolve, reject) => {
+    window.crypto.subtle.importKey("raw",
+                    this.keyMat,
+                    {"name": "AES-CBC"},
+                    false,
+                    ["encrypt", "decrypt"]).then(
+    genKey => {
+      this.key = genKey;
+      resolve();
+    });
+  });
 }
 
 CipherStore.prototype.getParamsEncoded = function() {
@@ -408,12 +460,128 @@ CipherStore.prototype.getParamsEncoded = function() {
 }
 
 CipherStore.prototype.setParamsRandom = function() {
-  if(this.ivInit) return false;
   this.iv = new ArrayBuffer(16);
   var ivV = new Uint8Array(this.iv);
   window.crypto.getRandomValues(ivV);
-  this.ivInit = true;
   return this.getParamsEncoded();
+}
+
+CipherStore.prototype.encrypt = async function(str) {
+  if(this.iv === undefined || this.iv === null) {
+    return false;
+  }
+  var toEncrypt = toUTF8Bytes(str);
+  return this.encryptBytes(toEncrypt);
+}
+
+CipherStore.prototype.encryptBytes = async function(b256) {
+  if(this.iv === undefined || this.iv === null) {
+    return false;
+  }
+  var encBuffer = new ArrayBuffer(b256.length);
+  var encBufferV = new Uint8Array(encBuffer);
+  for(var i = 0; i < b256.length; i++) {
+    encBufferV[i] = b256[i];
+  }
+  var outBuffer = await window.crypto.subtle.encrypt(
+      {name: "AES-CBC", iv: this.iv}, this.key, encBuffer);
+  var outBufferV = new Uint8Array(outBuffer);
+
+  var ivV = new Uint8Array(this.iv);
+  var kV = new Uint8Array(this.keyMat);
+  var hmac2 = new ArrayBuffer(64 + ivV.length + outBufferV.length);
+  var hmac2V = new Uint8Array(hmac2);
+  for(var i = 0; i < 32; i++) {
+    hmac2V[i] = kV[i] ^ 0x36;
+  }
+  for(var i = 32; i < 64; i++) {
+    hmac2V[i] = 0x36;
+  }
+  for(var i = 64; i < 64 + ivV.length; i++) {
+    hmac2V[i] = ivV[i - 64];
+  }
+  for(var i = 64 + ivV.length; i < hmac2V.length; i++) {
+    hmac2V[i] = outBufferV[i - 64 - ivV.length];
+  }
+  var hmac2H = await window.crypto.subtle.digest('sha-256', hmac2);
+  var hmac2HV = new Uint8Array(hmac2H);
+  var hmac = new ArrayBuffer(64 + hmac2HV.length);
+  var hmacV = new Uint8Array(hmac);
+  for(var i = 0; i < 32; i++) {
+    hmacV[i] = kV[i] ^ 0x5c;
+  }
+  for(var i = 32; i < 64; i++) {
+    hmacV[i] = 0x5c;
+  }
+  for(var i = 64; i < hmacV.length; i++) {
+    hmacV[i] = hmac2HV[i - 64];
+  }
+  var hmacH = await window.crypto.subtle.digest('sha-256', hmac);
+  var hmacHV = new Uint8Array(hmacH);
+
+  return {iv: new Uint8Array(this.iv), ciphertext: outBufferV, hmac: hmacHV};
+}
+
+CipherStore.prototype.decryptBytes = async function(ivArr, hmacArr, b256e) {
+  if(hmacArr.length != 32 || ivArr.length != 16) {
+    throw new Error("Incorrect IV or HMAC size");
+  }
+  var kV = new Uint8Array(this.keyMat);
+  var hmac2 = new ArrayBuffer(64 + ivArr.length + b256e.length);
+  var hmac2V = new Uint8Array(hmac2);
+  for(var i = 0; i < 32; i++) {
+    hmac2V[i] = kV[i] ^ 0x36;
+  }
+  for(var i = 32; i < 64; i++) {
+    hmac2V[i] = 0x36;
+  }
+  for(var i = 64; i < 64 + ivArr.length; i++) {
+    hmac2V[i] = ivArr[i - 64];
+  }
+  for(var i = 64 + ivArr.length; i < hmac2V.length; i++) {
+    hmac2V[i] = b256e[i - 64 - ivArr.length];
+  }
+  var hmac2H = await window.crypto.subtle.digest('sha-256', hmac2);
+  var hmac2HV = new Uint8Array(hmac2H);
+  var hmac = new ArrayBuffer(64 + hmac2HV.length);
+  var hmacV = new Uint8Array(hmac);
+  for(var i = 0; i < 32; i++) {
+    hmacV[i] = kV[i] ^ 0x5c;
+  }
+  for(var i = 32; i < 64; i++) {
+    hmacV[i] = 0x5c;
+  }
+  for(var i = 64; i < hmacV.length; i++) {
+    hmacV[i] = hmac2HV[i - 64];
+  }
+  var hmacH = await window.crypto.subtle.digest('sha-256', hmac);
+  var hmacHV = new Uint8Array(hmacH);
+
+  for(var i = 0; i < hmacHV.length; i++) {
+    if(hmacArr[i] != hmacHV[i]) {
+      throw new Error("HMAC-SHA256 failed");
+    }
+  }
+
+  var iv = new ArrayBuffer(16);
+  var ivV = new Uint8Array(iv);
+  for(var i = 0; i < 16; i++) {
+    ivV[i] = ivArr[i];
+  }
+  var decBuffer = new ArrayBuffer(b256e.length);
+  var decBufferV = new Uint8Array(decBuffer);
+  for(var i = 0; i < b256e.length; i++) {
+    decBufferV[i] = b256e[i];
+  }
+  var outBuffer = await window.crypto.subtle.decrypt(
+      {name: "AES-CBC", iv: iv}, this.key, decBuffer);
+  var outBufferV = new Uint8Array(outBuffer);
+  return outBufferV;
+}
+
+CipherStore.prototype.decrypt = async function(ivArr, hmacArr, b256e) {
+  var b256 = await this.decryptBytes(ivArr, hmacArr, b256e);
+  return fromUTF8Bytes(b256);
 }
 
 function isValidUUID(s) {
@@ -429,38 +597,113 @@ function isValidUUID(s) {
 }
 
 function tryGetUUID() {
-  if(authEndpoint === undefined || authEndpoint === null) {
-    throw new Error("authEndpoint undefined");
-  }
-  var randomUUID = "";
-  for(var i = 0; i < 4; i++) {
-    var r = Math.floor(Math.random() * Math.pow(2, 31));
-    for(var j = 0; j < 8; j++) {
-      randomUUID += "0123456789abcdef"[(r >> (7 - j)) & 15];
-    }
-  }
   return new Promise(function(resolve, reject) {
-    $.post(authEndpoint, randomUUID, function(input, textStatus) {
-      if(input !== undefined && input !== null) {
+    $.post("/backend-chat.php", {command: "join"}, function(input, textStatus) {
+      if(input['data'] !== undefined && input['data'] !== null) {
         resolve(input);
       } else {
-        reject(input);
+        reject(input['error']);
       }
     });
   });
 }
 
 function sendAndReceiveBytes(data, uuid) {
-  if(authEndpoint === undefined || authEndpoint === null) {
-    throw new Error("authEndpoint undefined");
-  }
   return new Promise(function(resolve, reject) {
-    $.post(authEndpoint + uuid, base64encodebytes(data), function(input, textStatus) {
-      if(input !== undefined && input !== null) {
-        resolve(input);
+    $.post("/backend-chat.php", {data: base64encodebytes(data), uuid: uuid}, function(input, textStatus) {
+      if(input['data'] !== undefined && input['data'] !== null) {
+        resolve(input['data']);
       } else {
-        reject(input);
+        reject(input['error']);
       }
     });
   });
+}
+
+async function tripleKeyAgree(selfSerializedKeys, otherSerializedKeys, party1) {
+	var retval = {};
+	var hashpass = sessionStorage.getItem('hashpass')
+	if(typeof hashpass != 'string') {
+		return false;
+	}
+	var selfKeys = {};
+	var otherKeys = {};
+
+	selfKeys['identity'] = DHKeyPair.fromSerialized(selfSerializedKeys['identity_private'], selfSerializedKeys['identity_public'], hashpass);
+	if(!party1) {
+		selfKeys['prekey'] = DHKeyPair.fromSerialized(selfSerializedKeys['prekey_private'], selfSerializedKeys['prekey_public'], hashpass);
+	} else {
+		selfKeys['ephemeral'] = new DHKeyPair(true);
+		retval['key_ephemeral_public'] = base64encodebytes(selfKeys['ephemeral'].getPublicEncoded());
+	}
+
+	otherKeys['identity_public'] = selfKeys['identity'].validateParty2PubKey(base64decodebytes(otherSerializedKeys['identity_public']));
+	if(party1) {
+		otherKeys['prekey_public'] = selfKeys['identity'].validateParty2PubKey(base64decodebytes(otherSerializedKeys['prekey_public']));
+    var bufArr = [];
+		bufArr.push(selfKeys['identity'].generateSecretKey(otherKeys['prekey_public']));
+		bufArr.push(selfKeys['ephemeral'].generateSecretKey(otherKeys['identity_public']));
+		bufArr.push(selfKeys['ephemeral'].generateSecretKey(otherKeys['prekey_public']));
+    var sharedSecret = new ArrayBuffer(bufArr[0].byteLength + bufArr[1].byteLength + bufArr[2].byteLength);
+    var sharedSecretV = new Uint8Array(sharedSecret);
+    var j = 0;
+    for(var i = 0; i < 3; i++) {
+      var bV = new Uint8Array(bufArr[i])
+      for(var ji = j; j < ji + bV.length; j++) {
+        sharedSecretV[j] = bV[j - ji];
+      }
+    }
+    var keyMat = new ArrayBuffer(16);
+    var keyMatV = new Uint8Array(keyMat);
+    var hash = await window.crypto.subtle.digest('sha-256', sharedSecret);
+    var hashV = new Uint8Array(hash);
+    for(var i = 0; i < 16; i++) {
+      keyMatV[i] = hashV[i];
+    }
+    retval['key_secret'] = keyMat;
+	} else {
+		otherKeys['ephemeral_public'] = selfKeys['identity'].validateParty2PubKey(base64decodebytes(otherSerializedKeys['ephemeral_public']));
+    var bufArr = [];
+		bufArr.push(selfKeys['prekey'].generateSecretKey(otherKeys['identity_public']));
+		bufArr.push(selfKeys['identity'].generateSecretKey(otherKeys['ephemeral_public']));
+		bufArr.push(selfKeys['prekey'].generateSecretKey(otherKeys['ephemeral_public']));
+    var sharedSecret = new ArrayBuffer(bufArr[0].byteLength + bufArr[1].byteLength + bufArr[2].byteLength);
+    var sharedSecretV = new Uint8Array(sharedSecret);
+    var j = 0;
+    for(var i = 0; i < 3; i++) {
+      var bV = new Uint8Array(bufArr[i])
+      for(var ji = j; j < ji + bV.length; j++) {
+        sharedSecretV[j] = bV[j - ji];
+      }
+    }
+    var keyMat = new ArrayBuffer(16);
+    var keyMatV = new Uint8Array(keyMat);
+    var hash = await window.crypto.subtle.digest('sha-256', sharedSecret);
+    var hashV = new Uint8Array(hash);
+    for(var i = 0; i < 16; i++) {
+      keyMatV[i] = hashV[i];
+    }
+    retval['key_secret'] = keyMat;
+	}
+  return retval;
+}
+
+function wrapKey(k) {
+  var hashpass = sessionStorage.getItem('hashpass');
+	if(typeof hashpass != 'string') {
+		return false;
+	}
+  var keyWrapper = base64decodebytes(hashpass);
+  if(keyWrapper.length < k.length) {
+    return false;
+  }
+  var keyWrapped = new Array(k.length);
+  for(var i = 0; i < k.length; i++) {
+    keyWrapped[i] = keyWrapper[i] ^ k[i];
+  }
+  return keyWrapped;
+}
+
+function unwrapKey(k) {
+  return wrapKey(k);
 }
