@@ -2,12 +2,14 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+
 function ChatSession(conn, mCallback) {
   this.uuid = conn['data'];
   this.conversations = [];
   this.keysets = [];
   this.messages = [];
   this.pendingConversations = [];
+  this.keyWrapper = null;
   if(!isValidUUID(this.uuid)) {
     throw new Error("Not connected");
   }
@@ -79,7 +81,7 @@ ChatSession.prototype.addConversationFromRequest = async function(cr) {
   for(let other of cr) {
     if(other == self) continue;
     userNameList.push(other.user);
-    var tka = await tripleKeyAgree(self, other, true);
+    var tka = await tripleKeyAgree(self, other, true, this.keyWrapper);
     var uObj = {'user': other.user, role: (role2 === false ? 2 : 3), key_ephemeral_public: tka['key_ephemeral_public']};
     if(!role2) role2 = true;
     var initialCipher = new CipherStore(tka['key_secret'], true);
@@ -90,7 +92,8 @@ ChatSession.prototype.addConversationFromRequest = async function(cr) {
             base64encodebytes(initialMessageRaw['ciphertext']);
     ca.users.push(uObj);
   }
-  ca.users.push({user: self.user, role: 1, key_wrapped: base64encodebytes(wrapKey(skV))});
+  var skW = await wrapKey(skV, this.keyWrapper);
+  ca.users.push({user: self.user, role: 1, key_wrapped: skW});
   return ca;
 }
 
@@ -99,7 +102,8 @@ ChatSession.prototype.addConversationFromLS = async function(cl) {
     if(this.conversations.findIndex(e => (e['id'] == cl['id'])) != -1) {
       return true;
     }
-    var convCipher = new CipherStore(unwrapKey(base64decodebytes(cl['key_wrapped'])), true);
+    var ski = await unwrapKey(cl['key_wrapped'], this.keyWrapper);
+    var convCipher = new CipherStore(ski, true);
     await convCipher.readyPromise;
     this.conversations.splice(0,0, {id: cl['id'], users: cl['users'], cipher: convCipher});
     return true;
@@ -110,7 +114,7 @@ ChatSession.prototype.addConversationFromLS = async function(cl) {
       return false;
     }
     var otherFull = Object.assign({}, other, {ephemeral_public: cl['key_ephemeral_public']})
-    var tka = await tripleKeyAgree(self, otherFull, false);
+    var tka = await tripleKeyAgree(self, otherFull, false, this.keyWrapper);
     var initialMessageRaw = cl['initial_message'].split(";");
     if(initialMessageRaw.length != 3) {
       return false;
@@ -124,7 +128,8 @@ ChatSession.prototype.addConversationFromLS = async function(cl) {
     await convCipher.readyPromise;
 
     this.conversations.splice(0,0, {id: cl['id'], users: cl['users'], cipher: convCipher});
-    return base64encodebytes(wrapKey(skV));
+    var skW = await wrapKey(skV, this.keyWrapper);
+    return skW;
   }
 }
 
@@ -136,9 +141,12 @@ function chatClientBegin() {
     })
   	.then(uuid => {
     		var ref = new ChatSession(uuid, messageHandler);
-        ref.enqueue("retrieve_keys_self", 0)
-        .then(() => ref.enqueue("conversation_ls", 0))
-        .then(() => resolve2(ref));
+        ref.keyWrapper = new CipherStore(base64decodebytes(sessionStorage.getItem('keyWrapper')), false);
+        ref.keyWrapper.readyPromise.then(() => {
+          ref.enqueue("retrieve_keys_self", 0)
+          .then(() => ref.enqueue("conversation_ls", 0))
+          .then(() => resolve2(ref))
+        });
     });
   });
 }

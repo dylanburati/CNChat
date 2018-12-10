@@ -66,6 +66,10 @@ async function messageHandler(m, sess) {
                     base64decodebytes(pmFields[5]) /*hmac*/,
                     base64decodebytes(pmessage) /*b256e*/);
             sess.messages.push(pmObj);
+            // Code to display the message to the screen goes here
+            // Should depend on the message classes `mFields[3]`, which is a
+            // space separated string specifying the type of message and the sender's
+            // preferred format (markdown or plaintext)
           }
         }
       } else if(command == "retrieve_keys_self") {
@@ -87,6 +91,18 @@ async function messageHandler(m, sess) {
               }
             }
           }
+        }
+        if(sess.pendingConversations.length == 0) {
+          var toCat = sess.conversations.map(e => e['id']);
+          new Promise((resolve, reject) => {
+            for(let catID of toCat) {
+              if(sess.conversations.findIndex(e => (e['id'] == catID)) == -1) {
+                continue;
+              }
+              sess.enqueue("conversation_cat " + catID, 0);
+              sleep(300);
+            }
+          });
         }
       }
     }

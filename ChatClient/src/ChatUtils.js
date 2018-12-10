@@ -248,12 +248,17 @@ function DHKeyPair(eph) {
   }
 }
 
-DHKeyPair.fromSerialized = function(privWrapped, pubX509, pad) {
-  privWrapped = base64decodebytes(privWrapped);
+DHKeyPair.fromSerialized = async function(privWrapped, pubX509, keyWrapper) {
+  var privFields = privWrapped.split(";");
+  var privIV = base64decodebytes(privFields[0]);
+  var privHMAC = base64decodebytes(privFields[1]);
+  privWrapped = base64decodebytes(privFields[2]);
   pubX509 = base64decodebytes(pubX509);
-  pad = base64decodebytes(pad);
   var pair = new DHKeyPair(false);
-  if(!Array.isArray(privWrapped) || !Array.isArray(pubX509) || !Array.isArray(pad)) {
+  if(!(keyWrapper instanceof CipherStore)) {
+    return false;
+  }
+  if(!Array.isArray(privWrapped) || !Array.isArray(pubX509)) {
     return false;
   }
   if(privWrapped.findIndex(e => (!Number.isInteger(e) || e < 0 || e > 255)) != -1) {
@@ -262,11 +267,12 @@ DHKeyPair.fromSerialized = function(privWrapped, pubX509, pad) {
   if(pubX509.findIndex(e => (!Number.isInteger(e) || e < 0 || e > 255)) != -1) {
     return false;
   }
-  if(pad.findIndex(e => (!Number.isInteger(e) || e < 0 || e > 255)) != -1) {
-    return false;
-  }
 
-  var privArr = privWrapped.map((e,i)=>(e ^ pad[i]));
+  var privTypedArr = await keyWrapper.decryptBytes(privIV, privHMAC, privWrapped);
+  var privArr = new Array(privTypedArr.length);
+  for(var i = 0; i < privTypedArr.length; i++) {
+    privArr[i] = privTypedArr[i];
+  }
   pair.privKey = bigInt.fromArray(privArr, 256);
   if(pair.privKey.compare(1) < 0 ||
           pair.privKey.compare(pair.otrModulus.minus(2)) > 0 ||
@@ -305,12 +311,9 @@ DHKeyPair.prototype.getPrivate = function() {
   return toEncode;
 }
 
-DHKeyPair.prototype.getPrivateWrapped = function(pad) {
-  if(!Array.isArray(pad) || pad.length < (this.privKey.bitLength().value / 8)) {
-    return false;
-  }
-  if(pad.findIndex(e => (!Number.isInteger(e) || e < 0 || e > 255)) != -1) {
-    return false;
+DHKeyPair.prototype.getPrivateWrapped = async function(keyWrapper) {
+  if(!(keyWrapper instanceof CipherStore)) {
+    throw new Error("keyWrapper is not a CipherStore");
   }
 
   var toEncode = this.privKey.toArray(256).value;
@@ -318,10 +321,11 @@ DHKeyPair.prototype.getPrivateWrapped = function(pad) {
     // Add sign bit
     toEncode = [0].concat(toEncode);
   }
-  for(var i = 0; i < toEncode.length; i++) {
-    toEncode[i] = toEncode[i] ^ pad[i];
-  }
-  return toEncode;
+
+  var encrypted = await keyWrapper.encryptBytes(toEncode);
+  return base64encodebytes(encrypted['iv']) + ";" +
+          base64encodebytes(encrypted['hmac']) + ";" +
+          base64encodebytes(encrypted['ciphertext']);
 }
 
 function get_der_interval(data, i) {
@@ -475,9 +479,7 @@ CipherStore.prototype.encrypt = async function(str) {
 }
 
 CipherStore.prototype.encryptBytes = async function(b256) {
-  if(this.iv === undefined || this.iv === null) {
-    return false;
-  }
+  this.setParamsRandom();
   var encBuffer = new ArrayBuffer(b256.length);
   var encBufferV = new Uint8Array(encBuffer);
   for(var i = 0; i < b256.length; i++) {
@@ -620,18 +622,17 @@ function sendAndReceiveBytes(data, uuid) {
   });
 }
 
-async function tripleKeyAgree(selfSerializedKeys, otherSerializedKeys, party1) {
+async function tripleKeyAgree(selfSerializedKeys, otherSerializedKeys, party1, keyWrapper) {
 	var retval = {};
-	var hashpass = sessionStorage.getItem('hashpass')
-	if(typeof hashpass != 'string') {
+	if(!(keyWrapper instanceof CipherStore)) {
 		return false;
 	}
 	var selfKeys = {};
 	var otherKeys = {};
 
-	selfKeys['identity'] = DHKeyPair.fromSerialized(selfSerializedKeys['identity_private'], selfSerializedKeys['identity_public'], hashpass);
+	selfKeys['identity'] = await DHKeyPair.fromSerialized(selfSerializedKeys['identity_private'], selfSerializedKeys['identity_public'], keyWrapper);
 	if(!party1) {
-		selfKeys['prekey'] = DHKeyPair.fromSerialized(selfSerializedKeys['prekey_private'], selfSerializedKeys['prekey_public'], hashpass);
+		selfKeys['prekey'] = await DHKeyPair.fromSerialized(selfSerializedKeys['prekey_private'], selfSerializedKeys['prekey_public'], keyWrapper);
 	} else {
 		selfKeys['ephemeral'] = new DHKeyPair(true);
 		retval['key_ephemeral_public'] = base64encodebytes(selfKeys['ephemeral'].getPublicEncoded());
@@ -688,22 +689,25 @@ async function tripleKeyAgree(selfSerializedKeys, otherSerializedKeys, party1) {
   return retval;
 }
 
-function wrapKey(k) {
-  var hashpass = sessionStorage.getItem('hashpass');
-	if(typeof hashpass != 'string') {
-		return false;
-	}
-  var keyWrapper = base64decodebytes(hashpass);
-  if(keyWrapper.length < k.length) {
+async function wrapKey(k, keyWrapper) {
+  if(!(keyWrapper instanceof CipherStore)) {
     return false;
   }
-  var keyWrapped = new Array(k.length);
-  for(var i = 0; i < k.length; i++) {
-    keyWrapped[i] = keyWrapper[i] ^ k[i];
-  }
-  return keyWrapped;
+  var encrypted = await keyWrapper.encryptBytes(k);
+  return base64encodebytes(encrypted['iv']) + ";" +
+          base64encodebytes(encrypted['hmac']) + ";" +
+          base64encodebytes(encrypted['ciphertext']);
 }
 
-function unwrapKey(k) {
-  return wrapKey(k);
+async function unwrapKey(kW, keyWrapper) {
+  var kFields = kW.split(";");
+  var kIV = base64decodebytes(kFields[0]);
+  var kHMAC = base64decodebytes(kFields[1]);
+  var kWrapped = base64decodebytes(kFields[2]);
+  if(!(keyWrapper instanceof CipherStore)) {
+    return false;
+  }
+
+  var decrypted = await keyWrapper.decryptBytes(kIV, kHMAC, kWrapped);
+  return decrypted;
 }
