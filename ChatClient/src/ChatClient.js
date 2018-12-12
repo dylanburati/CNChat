@@ -2,7 +2,6 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-
 function ChatSession(conn, mCallback) {
   this.uuid = conn['data'];
   this.conversations = [];
@@ -75,15 +74,13 @@ ChatSession.prototype.addConversationFromRequest = async function(cr) {
   window.crypto.getRandomValues(skV);
   var convCipher = new CipherStore(skV, true);
   await convCipher.readyPromise;
-  var role2 = false;
   var userNameList = [self.user];
 
   for(let other of cr) {
     if(other == self) continue;
     userNameList.push(other.user);
     var tka = await tripleKeyAgree(self, other, true, this.keyWrapper);
-    var uObj = {'user': other.user, role: (role2 === false ? 2 : 3), key_ephemeral_public: tka['key_ephemeral_public']};
-    if(!role2) role2 = true;
+    var uObj = {'user': other.user, role: 2, key_ephemeral_public: tka['key_ephemeral_public']};
     var initialCipher = new CipherStore(tka['key_secret'], true);
     await initialCipher.readyPromise;
     var initialMessageRaw = await initialCipher.encryptBytes(skV);

@@ -131,7 +131,7 @@ public class JSONStructs {
             }
             boolean hasRole1 = false, hasRole2 = false;
             for(ConversationUser u : this.users) {
-                if(u.role < 1 || u.role > 3) return false;
+                if(u.role != 1 && u.role != 2) return false;
                 if((u.role == 1 || this.exchange_complete) && u.key_wrapped == null) return false;
                 if(u.role != 1 && !this.exchange_complete &&
                         (u.key_ephemeral_public == null || u.initial_message == null)) return false;
@@ -140,7 +140,6 @@ public class JSONStructs {
                     if(hasRole1) return false;
                     hasRole1 = true;
                 } else if(u.role == 2) {
-                    if(hasRole2) return false;
                     hasRole2 = true;
                 }
                 this.userNameList.add(u.user);
@@ -158,7 +157,7 @@ public class JSONStructs {
             if(this.crypt_expiration < System.currentTimeMillis()) return false;
             boolean hasRole1 = false, hasRole2 = false;
             for(ConversationUser u : this.users) {
-                if(u.role < 1 || u.role > 3) return false;
+                if(u.role != 1 && u.role != 2) return false;
                 if(u.role == 1 && u.key_wrapped == null) return false;
                 if(u.role != 1 && (u.key_ephemeral_public == null || u.initial_message == null)) return false;
 
@@ -166,7 +165,6 @@ public class JSONStructs {
                     if(hasRole1 || !userName.equals(u.user)) return false;
                     hasRole1 = true;
                 } else if(u.role == 2) {
-                    if(hasRole2) return false;
                     hasRole2 = true;
                 }
                 this.userNameList.add(u.user);
@@ -183,7 +181,7 @@ public class JSONStructs {
         }
 
         public synchronized ConversationUser getRole(int role) {
-            if(role < 1 || role > 2) {
+            if(role != 1 && role != 2) {
                 return null;
             }
             for(ConversationUser u : this.users) {
