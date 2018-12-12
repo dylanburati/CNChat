@@ -280,7 +280,7 @@ DHKeyPair.fromSerialized = async function(privWrapped, pubX509, keyWrapper) {
     throw new Error("invalid private key in serialized data");
     return false;
   }
-  pair.pubKey = pair.validateParty2PubKey(pubX509);
+  pair.pubKey = pair.validateSelfPubKey(pubX509);
 
   return pair;
 }
@@ -397,6 +397,18 @@ DHKeyPair.prototype.validateParty2PubKey = function(inEnc) {
   }
 
   return party2PubKey;
+}
+
+DHKeyPair.prototype.validateSelfPubKey = function(inEnc) {
+  if(this.privKey === undefined || this.privKey === null || !bigInt.isInstance(this.privKey)) {
+    throw new Error("Private key not set");
+  }
+  var pubKey = this.validateParty2PubKey(inEnc);
+  var correctPubKey = this.otrBase.modPow(this.privKey, this.otrModulus);
+  if(correctPubKey.compare(pubKey) != 0) {
+    throw new Error("Public key is incorrect");
+  }
+  return pubKey;
 }
 
 DHKeyPair.prototype.generateSecretKey = function(party2PubKey) {
