@@ -118,8 +118,6 @@ public class ChatServer {
             }
 
             private boolean handleMessage(String message) {
-                System.out.println("message received");
-                System.out.println(message);
                 int conversationID = -1;
                 String hmac = "";
                 String cipherParams = "";
@@ -416,13 +414,12 @@ public class ChatServer {
 
             @Override
             public void run() {
-                System.out.println("Waiting for WebSocket");
                 wsSocket = wsServer.getSocketWhenAvailable(uuid);
                 if(wsSocket == null) {
                     this.close();
                     return;
                 }
-                System.out.println("WebSocket obtained");
+                System.out.format("WebSocket connected @ %s\n", uuid);
                 enqueue(first);
                 try {
                     boolean finished = false;
@@ -446,13 +443,11 @@ public class ChatServer {
             private String getWSMessages() throws IOException {
                 InputStream wsIn = wsSocket.getInputStream();
 
-                System.out.println("reading");
                 byte[] header1 = new byte[2];  // opcode, first length
                 int pos1 = 0;
                 while(pos1 < 2) {
                     pos1 += wsSocket.getInputStream().read(header1, pos1, 2 - pos1);
                 }
-                // System.out.println("header1: " + Arrays.toString(header1));
 
                 int opcode = (header1[0] & 0x0F);
                 boolean lastFrame = ((header1[0] & 0x80) != 0);
@@ -468,7 +463,6 @@ public class ChatServer {
                     while(pos2 < 2) {
                         pos2 += wsIn.read(header2, pos2, 2 - pos2);
                     }
-                    // System.out.println("header2: " + Arrays.toString(header2));
                     len = 0;
                     for(int k = 0; k < 2; k++) {
                         len |= (header2[k] & 0xFF);
@@ -480,7 +474,6 @@ public class ChatServer {
                     while(pos2 < 8) {
                         pos2 += wsIn.read(header2, pos2, 8 - pos2);
                     }
-                    // System.out.println("header2: " + Arrays.toString(header2));
                     len = 0;
                     for(int k = 0; k < 8; k++) {
                         len |= (header2[k] & 0xFF);
@@ -490,15 +483,13 @@ public class ChatServer {
                 if(len > 0x7FFFFFFB) {  // len doesn't include mask
                     throw new RuntimeException("Message over 2GB");
                 }
-                // System.out.println("len: " + len);
                 byte[] data = new byte[(int)len + 4];
                 int pos = 0;
                 while(pos < data.length) {
                     pos += wsIn.read(data, pos, data.length - pos);
                 }
-                // System.out.println("data: " + Arrays.toString(data));
+
                 String msg = WebSocketDataframe.getText(data);
-                // System.out.println(msg);
                 if(opcode == 1) {
                     if(lastFrame) {
                         return msg;
@@ -672,7 +663,7 @@ public class ChatServer {
                     synchronized(wsServer.authorizedLock) {
                         wsServer.authorized.add(uuid);
                     }
-                    System.out.format("Client connected @ %s\n", thread.uuid);
+                    System.out.format("WebSocket waiting @ %s\n", thread.uuid);
                     synchronized(threads) {
                         threads.add(thread);
                     }

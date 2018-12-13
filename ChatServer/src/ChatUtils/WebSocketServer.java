@@ -17,16 +17,16 @@ import java.util.concurrent.locks.ReentrantLock;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class WebSocketServer {
-	private ServerSocket serverSocket = null;
-	private volatile Map<String, Socket> pendingConnections = new HashMap<>();
-	private final Object pendingConnectionsLock = new Object();
-	public volatile List<String> authorized = new ArrayList<>();
+    private ServerSocket serverSocket = null;
+    private volatile Map<String, Socket> pendingConnections = new HashMap<>();
+    private final Object pendingConnectionsLock = new Object();
+    public volatile List<String> authorized = new ArrayList<>();
     public final Object authorizedLock = new Object();
 
-	private Lock availLock = new ReentrantLock();
-	private Condition availCheck = availLock.newCondition();
+    private Lock availLock = new ReentrantLock();
+    private Condition availCheck = availLock.newCondition();
 
-	private boolean upgradeFromHttp(Socket socket) {
+    private boolean upgradeFromHttp(Socket socket) {
         BufferedReader in = null;
         PrintWriter out = null;
         boolean upgrade = true;
@@ -99,9 +99,6 @@ public class WebSocketServer {
             }
 
             out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), UTF_8), true);
-            for(String s : output.split("\r\n")) {
-                System.out.println("< " + s);
-            }
             out.print(output);
             out.flush();
 
@@ -111,7 +108,6 @@ public class WebSocketServer {
                     synchronized(pendingConnectionsLock) {
                         pendingConnections.put(uuid, socket);
                     }
-                    System.out.println("WebSocket ready");
                     availCheck.signal();
                 } finally {
                     availLock.unlock();
@@ -125,21 +121,21 @@ public class WebSocketServer {
     }
 
     public Socket getSocketWhenAvailable(String uuid) {
-	    // Should be called by ClientThread
-	    if(!AuthUtils.isValidUUID(uuid)) return null;
-	    Socket s = null;
+        // Should be called by ClientThread
+        if(!AuthUtils.isValidUUID(uuid)) return null;
+        Socket s = null;
         synchronized(pendingConnectionsLock) {
             s = pendingConnections.remove(uuid);
         }
         if(s != null) return s;
         availLock.lock();
         try {
-	        Date deadline = new Date();
-	        deadline.setTime(deadline.getTime() + 15000);
-	        while(s == null && (new Date()).before(deadline)) {
-	            availCheck.awaitUntil(deadline);
-	            synchronized(pendingConnectionsLock) {
-	                s = pendingConnections.remove(uuid);
+            Date deadline = new Date();
+            deadline.setTime(deadline.getTime() + 15000);
+            while(s == null && (new Date()).before(deadline)) {
+                availCheck.awaitUntil(deadline);
+                synchronized(pendingConnectionsLock) {
+                    s = pendingConnections.remove(uuid);
                 }
             }
         } catch(InterruptedException e) {
@@ -150,7 +146,7 @@ public class WebSocketServer {
         return s;
     }
 
-	public WebSocketServer(String keyStoreLocation) throws Exception {
+    public WebSocketServer(String keyStoreLocation) throws Exception {
         int portNumber = 8082;
         if(new File(keyStoreLocation).canRead()) {
             SSLContext sc = SSLContext.getInstance("TLSv1.2");
@@ -167,25 +163,23 @@ public class WebSocketServer {
             System.out.println("Warning: SSL certificate not found, falling back to HTTP");
             this.serverSocket = new ServerSocket(portNumber);
         }
-		
-		System.out.println("Server @ " + serverSocket.getInetAddress().getHostAddress() + ":" + serverSocket.getLocalPort());
 
-		Thread upgrader = new Thread(new Runnable() {
+        System.out.println("Server @ " + serverSocket.getInetAddress().getHostAddress() + ":" + serverSocket.getLocalPort());
+
+        Thread upgrader = new Thread(new Runnable() {
             @Override
             public void run() {
                 while(true) {
                     try {
                         Socket socket = serverSocket.accept();
-                        if(upgradeFromHttp(socket)) {
-                            System.out.println("Client @ " + socket.getInetAddress().getHostAddress() + ":" + socket.getPort());
-                        }
+                        upgradeFromHttp(socket);
                     } catch(IOException e) {
                         e.printStackTrace();
                     }
                 }
             }
         });
-		upgrader.start();
-	}
+        upgrader.start();
+    }
 }
 
