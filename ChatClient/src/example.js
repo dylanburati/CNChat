@@ -32,12 +32,12 @@ async function messageHandler(m, sess) {
             sess.pendingConversations.push(conv);
             keyReqs[conv['role1']] = 1;
           } else if(wrk !== true) {
-            sess.enqueue("conversation_set_key " + conv['id'] + " " + wrk, 0);
+            sess.enqueue("conversation_set_key " + conv['id'] + " " + wrk, 0).filter(id => (sess.catComplete.indexOf(id) == -1));
           }
         }
         var toRequest = Object.keys(keyReqs).join(";");
         if(toRequest.length > 0) {
-          sess.enqueue("retrieve_keys_other " + toRequest, 0)
+          sess.enqueue("retrieve_keys_other " + toRequest, 0);
         } else if(sess.pendingConversations.length == 0) {
           var toCat = sess.conversations.map(e => e['id']);
           new Promise((resolve, reject) => {
@@ -56,6 +56,7 @@ async function messageHandler(m, sess) {
           var pmcID = parseInt(pastMessages[0].split(";")[0]);
           var conv = sess.conversations.find(e => (e['id'] == pmcID));
           if(conv == null) return null;
+          sess.catComplete.push(pmcID);
           for(let pm of pastMessages) {
             pmObj = {id: pmcID};
             var pmFields = pm.split(";", 6);

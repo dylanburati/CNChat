@@ -8,6 +8,7 @@ function ChatSession(conn, mCallback) {
   this.keysets = [];
   this.messages = [];
   this.pendingConversations = [];
+  this.catComplete = [];
   this.keyWrapper = null;
   if(!isValidUUID(this.uuid)) {
     throw new Error("Not connected");
