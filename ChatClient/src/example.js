@@ -32,14 +32,15 @@ async function messageHandler(m, sess) {
             sess.pendingConversations.push(conv);
             keyReqs[conv['role1']] = 1;
           } else if(wrk !== true) {
-            sess.enqueue("conversation_set_key " + conv['id'] + " " + wrk, 0).filter(id => (sess.catComplete.indexOf(id) == -1));
+            sess.enqueue("conversation_set_key " + conv['id'] + " " + wrk, 0);
           }
         }
         var toRequest = Object.keys(keyReqs).join(";");
         if(toRequest.length > 0) {
           sess.enqueue("retrieve_keys_other " + toRequest, 0);
         } else if(sess.pendingConversations.length == 0) {
-          var toCat = sess.conversations.map(e => e['id']);
+          var toCat = sess.conversations.map(e => e['id']).filter(id => (sess.catSent.indexOf(id) == -1));
+          for(let id of toCat) sess.catSent.push(id);
           new Promise((resolve, reject) => {
             for(let catID of toCat) {
               if(sess.conversations.findIndex(e => (e['id'] == catID)) == -1) {
@@ -56,7 +57,6 @@ async function messageHandler(m, sess) {
           var pmcID = parseInt(pastMessages[0].split(";")[0]);
           var conv = sess.conversations.find(e => (e['id'] == pmcID));
           if(conv == null) return null;
-          sess.catComplete.push(pmcID);
           for(let pm of pastMessages) {
             pmObj = {id: pmcID};
             var pmFields = pm.split(";", 6);
@@ -94,7 +94,8 @@ async function messageHandler(m, sess) {
           }
         }
         if(sess.pendingConversations.length == 0) {
-          var toCat = sess.conversations.map(e => e['id']);
+          var toCat = sess.conversations.map(e => e['id']).filter(id => (sess.catSent.indexOf(id) == -1));
+          for(let id of toCat) sess.catSent.push(id);
           new Promise((resolve, reject) => {
             for(let catID of toCat) {
               if(sess.conversations.findIndex(e => (e['id'] == catID)) == -1) {

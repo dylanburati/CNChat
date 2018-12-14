@@ -250,9 +250,31 @@ public class ChatServer {
                             String[] fields = message.substring(21).split(" ");
                             if(fields.length != 2) return true;
                             int cID = Integer.parseInt(fields[0]);
-                            if(!fields[1].matches("[0-9A-Za-z+/]*[=]{0,2}") || fields[1].length() < 21) {
-                                // Non base-64 or fewer than 128 bits
-                                return true;
+                            String[] keyFields = fields[1].split(";");
+                            if(keyFields.length != 3) return true;
+                            for(int i = 0; i < 3; i++) {
+                                switch(i) {
+                                    case 0:
+                                        // IV is 16 bytes -> 22 base64 chars
+                                        if(!keyFields[i].matches("[0-9A-Za-z+/]{22}[=]{0,2}")) {
+                                            return true;
+                                        }
+                                        break;
+                                    case 1:
+                                        // HMAC is exactly 32 bytes -> 43 base64 chars
+                                        if(!keyFields[i].matches("[0-9A-Za-z+/]{43}[=]{0,1}")) {
+                                            return true;
+                                        }
+                                        break;
+                                    case 2:
+                                        // Wrapped key can be 32 or 48 bytes (multiple of AES block size)
+                                        // 43 base64 chars or 64
+                                        if(!keyFields[i].matches("[0-9A-Za-z+/]{43}[=]{0,1}") &&
+                                                !keyFields[i].matches("[0-9A-Za-z+/]{64}")) {
+                                            return true;
+                                        }
+                                        break;
+                                }
                             }
                             synchronized(conversationsLock) {
                                 JSONStructs.Conversation c = conversations.get(cID);
