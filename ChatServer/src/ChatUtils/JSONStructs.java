@@ -225,6 +225,7 @@ public class JSONStructs {
         }
 
         public synchronized void assign(Preferences other) {
+            if(other == null) return;
             if(other.markdown != null) this.markdown = other.markdown;
         }
     }

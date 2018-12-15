@@ -9,15 +9,10 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
-import javax.xml.bind.DatatypeConverter;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.*;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -38,11 +33,16 @@ public class ChatServer {
     private static volatile Map<Integer, String> conversationStore = new HashMap<>();
     private static ExecutorService storeWriter = Executors.newSingleThreadExecutor();
 
-    private static Map<Integer, List<String>> messageStore = new HashMap<>();
+    private static volatile Map<Integer, List<String>> messageStore = new HashMap<>();
     private static final Object messagesLock = new Object();
     private static final String messageStorePathPrefix = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
             getParent() + System.getProperty("file.separator") + "messages";
     private static final String messageStorePathSuffix = ".json";
+
+    private static volatile Map<String, JSONStructs.Preferences> allPreferences = new HashMap<>();
+    private static final Object preferencesLock = new Object();
+    private static final String preferenceStorePath = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
+            getParent() + System.getProperty("file.separator") + "preferences.json";
 
     private static volatile Map<String, String> userNamesMap = new HashMap<>();
     private static final Object userNamesMapLock = new Object();
@@ -95,6 +95,21 @@ public class ChatServer {
         }
     }
 
+    private static void updatePreferenceStore(String user, JSONStructs.Preferences prefs) {
+        allPreferences.put(user, prefs);
+        String toWrite = JsonStream.serialize(allPreferences);
+        if(toWrite.length() > 0) {
+            storeWriter.submit(() -> {
+                try(PrintWriter history = new PrintWriter(new OutputStreamWriter(new FileOutputStream(
+                        preferenceStorePath), UTF_8), true)) {
+                    history.write(toWrite);
+                } catch(IOException e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+    }
+
     public static void main(String[] args) throws IOException {
 
         class ClientThread extends Thread {
@@ -104,7 +119,7 @@ public class ChatServer {
             private final String uuid;
             private final peerUpdateCompat<ClientThread> peerMessage;
             String userName;
-            private JSONStructs.Preferences preferences = new JSONStructs.Preferences();
+            private JSONStructs.Preferences userPreferences = new JSONStructs.Preferences();
 
             private Socket wsSocket;
             private final Object outStreamLock = new Object();
@@ -373,12 +388,15 @@ public class ChatServer {
                             Any prf = JsonIterator.deserialize(preferencesJson);
                             toUpdate = new JSONStructs.Preferences();
                             toUpdate = prf.bindTo(toUpdate);
-                            preferences.assign(toUpdate);
+                            userPreferences.assign(toUpdate);
                         } catch(JsonException e) {
                             e.printStackTrace();
                             return true;
                         }
-                        outputBody = "set_preferences;" + JsonStream.serialize(preferences);
+                        synchronized(preferencesLock) {
+                            updatePreferenceStore(userName, userPreferences);
+                        }
+                        outputBody = "set_preferences;" + JsonStream.serialize(userPreferences);
                     } else {
                         // invalid server command
                         return true;
@@ -409,7 +427,7 @@ public class ChatServer {
                         c = conversations.get(conversationID);
                         if(c == null || !c.hasUser(userName)) return true;
                     }
-                    messageClasses = "user " + (preferences.markdown ? "markdown" : "plaintext");
+                    messageClasses = "user " + (userPreferences.markdown ? "markdown" : "plaintext");
                     StringBuilder outMessage = new StringBuilder();
                     outMessage.append(conversationID).append(";");
                     outMessage.append(userName).append(";");
@@ -443,6 +461,14 @@ public class ChatServer {
                 }
                 System.out.format("WebSocket connected @ %s\n", uuid);
                 enqueue(first);
+                synchronized(preferencesLock) {
+                    JSONStructs.Preferences toUpdate = allPreferences.get(userName);
+                    if(toUpdate == null) {
+                        updatePreferenceStore(userName, this.userPreferences);
+                    } else {
+                        this.userPreferences.assign(toUpdate);
+                    }
+                }
                 try {
                     boolean finished = false;
                     while(!finished) {
@@ -587,6 +613,17 @@ public class ChatServer {
             } catch(IOException ignored) {
             }
             messageStore.put(cID, ml);
+        }
+
+        try(BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(preferenceStorePath), UTF_8))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while((line = in.readLine()) != null) {
+                sb.append(line).append("\n");
+            }
+            Any allPrefs = JsonIterator.deserialize(sb.substring(0, sb.length() - 1));
+            allPreferences = allPrefs.bindTo(allPreferences);
+        } catch(IOException ignored) {
         }
         System.out.format("%d conversation(s) loaded\n", conversations.size());
 
