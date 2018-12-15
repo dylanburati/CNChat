@@ -32,7 +32,7 @@ ChatSession.prototype.enqueue = async function(str, cID) {
   }
 
   if(cID == 0) {
-    str = "0;;;" + str;
+    str = "0;" + str;
     if(this.websocket === undefined || this.websocket === null) {
       this.error = "WebSocket uninitialized";
       return false;

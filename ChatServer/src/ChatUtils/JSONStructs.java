@@ -211,4 +211,21 @@ public class JSONStructs {
             this.exchange_complete = true;
         }
     }
+
+    public static class Preferences {
+        public Boolean markdown;
+
+        public Preferences() {
+            this.markdown = false;
+        }
+
+        @JsonCreator
+        public Preferences(@JsonProperty("markdown") Boolean markdown) {
+            if(markdown != null) this.markdown = markdown;
+        }
+
+        public synchronized void assign(Preferences other) {
+            if(other.markdown != null) this.markdown = other.markdown;
+        }
+    }
 }

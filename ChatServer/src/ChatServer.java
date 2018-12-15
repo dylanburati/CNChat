@@ -99,13 +99,12 @@ public class ChatServer {
 
         class ClientThread extends Thread {
 
-            private String first = "0;;server;Connected";
+        private String first = "0;server;Connected";
 
             private final String uuid;
             private final peerUpdateCompat<ClientThread> peerMessage;
             String userName;
-            private boolean markDown = false;
-            private String userDataPath = null;
+            private JSONStructs.Preferences preferences = new JSONStructs.Preferences();
 
             private Socket wsSocket;
             private final Object outStreamLock = new Object();
@@ -119,36 +118,21 @@ public class ChatServer {
 
             private boolean handleMessage(String message) {
                 int conversationID = -1;
-                String hmac = "";
-                String cipherParams = "";
                 String messageClasses = "";
+                int headerParsedL = 0, headerParsedR = -1;
                 try {
-                    int f1 = message.indexOf(";");
-                    conversationID = Integer.parseInt(message.substring(0, f1));
-                    int f2 = message.indexOf(";", f1 + 1);
-                    cipherParams = message.substring(f1 + 1, f2);
-                    int f3 = message.indexOf(";", f2 + 1);
-                    hmac = message.substring(f2 + 1, f3);
-                    message = message.substring(f3 + 1);
+                    headerParsedR = message.indexOf(";");
+                    conversationID = Integer.parseInt(message.substring(headerParsedL, headerParsedR));
+                    headerParsedL = headerParsedR + 1;
                 } catch(NumberFormatException | IndexOutOfBoundsException e) {
                     return true;
                 }
                 if(conversationID < 0) {
                     return true;
                 } else if(conversationID == 0) {
+                    message = message.substring(headerParsedL);
                     String outputBody = "";
-                    if(message.startsWith("help")) {
-                        messageClasses = "server";
-                        outputBody = "Commands start with a colon (:)" +
-                                "\n:status sends you key info\n";
-                    } else if(message.startsWith("status")) {
-                        messageClasses = "server";
-                        outputBody = "<< Status >>" +
-                                "\nUsername: " + userName +
-                                "\nFormat: " + (markDown ? "Markdown" : "plain text") +
-                                "\n :format for Markdown" +
-                                "\n :unformat for plain text";
-                    } else if(message.startsWith("conversation_request ")) {
+                    if(message.startsWith("conversation_request ")) {
                         messageClasses = "command";
                         if(message.length() == 21) return true;
                         List<String> otherUsers = Arrays.asList(message.substring(21).split(";"));
@@ -381,18 +365,20 @@ public class ChatServer {
                         outputBody = "retrieve_keys_other;" + _outputBody.toString();
                     } else if(message.startsWith("quit")) {
                         return false;
-                    } else if(message.startsWith("format ")) {
+                    } else if(message.startsWith("set_preferences ")) {
                         messageClasses = "hide";
-                        if(message.substring(7).equals("on")) {
-                            markDown = true;
-                            outputBody = "format on";
-                        } else if(message.substring(7).equals("off")) {
-                            markDown = false;
-                            outputBody = "format off";
-                        } else {
-                            // invalid format command
+                        String preferencesJson = message.substring(16);
+                        JSONStructs.Preferences toUpdate = null;
+                        try {
+                            Any prf = JsonIterator.deserialize(preferencesJson);
+                            toUpdate = new JSONStructs.Preferences();
+                            toUpdate = prf.bindTo(toUpdate);
+                            preferences.assign(toUpdate);
+                        } catch(JsonException e) {
+                            e.printStackTrace();
                             return true;
                         }
+                        outputBody = "set_preferences;" + JsonStream.serialize(preferences);
                     } else {
                         // invalid server command
                         return true;
@@ -404,12 +390,26 @@ public class ChatServer {
                     outMessage.append(outputBody);
                     enqueue(outMessage.toString());
                 } else {
+                    String cipherParams = "";
+                    String hmac = "";
+                    try {
+                        headerParsedR = message.indexOf(";", headerParsedL);
+                        cipherParams = message.substring(headerParsedL, headerParsedR);
+                        headerParsedL = headerParsedR + 1;
+                        headerParsedR = message.indexOf(";", headerParsedL);
+                        hmac = message.substring(headerParsedL, headerParsedR);
+                        headerParsedL = headerParsedR + 1;
+                        message = message.substring(headerParsedL);
+                    } catch(NumberFormatException | IndexOutOfBoundsException e) {
+                        return true;
+                    }
+
                     JSONStructs.Conversation c = null;
                     synchronized(conversationsLock) {
                         c = conversations.get(conversationID);
                         if(c == null || !c.hasUser(userName)) return true;
                     }
-                    messageClasses = "user " + (markDown ? "markdown" : "plaintext");
+                    messageClasses = "user " + (preferences.markdown ? "markdown" : "plaintext");
                     StringBuilder outMessage = new StringBuilder();
                     outMessage.append(conversationID).append(";");
                     outMessage.append(userName).append(";");
