@@ -410,7 +410,11 @@ public class ChatServer {
                 } else {
                     String cipherParams = "";
                     String hmac = "";
+                    String contentType = "";
                     try {
+                        headerParsedR = message.indexOf(";", headerParsedL);
+                        contentType = message.substring(headerParsedL, headerParsedR);
+                        headerParsedL = headerParsedR + 1;
                         headerParsedR = message.indexOf(";", headerParsedL);
                         cipherParams = message.substring(headerParsedL, headerParsedR);
                         headerParsedL = headerParsedR + 1;
@@ -427,7 +431,11 @@ public class ChatServer {
                         c = conversations.get(conversationID);
                         if(c == null || !c.hasUser(userName)) return true;
                     }
-                    messageClasses = "user " + (userPreferences.markdown ? "markdown" : "plaintext");
+                    if(contentType.isEmpty()) {
+                        messageClasses = "user " + (userPreferences.markdown ? "markdown" : "plaintext");
+                    } else {
+                        messageClasses = "user " + contentType;
+                    }
                     StringBuilder outMessage = new StringBuilder();
                     outMessage.append(conversationID).append(";");
                     outMessage.append(userName).append(";");

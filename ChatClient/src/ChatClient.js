@@ -22,9 +22,12 @@ function ChatSession(conn, mCallback) {
   };
 }
 
-ChatSession.prototype.enqueue = async function(str, cID) {
+ChatSession.prototype.enqueueWithContentType = async function(str, ctype, cID) {
   if(this.uuid == null) {
     this.error = "Not connected";
+    return false;
+  }
+  if(typeof ctype !== "string") {
     return false;
   }
   if(str.length == 0) {
@@ -60,12 +63,17 @@ ChatSession.prototype.enqueue = async function(str, cID) {
       return false;
     }
     var outObj = await sendToConv.cipher.encrypt(str);
-    var outStr = "" + cID + ";";
+    var outStr = "" + cID + ";" + ctype + ";";
     outStr += base64encodebytes(outObj['iv']) + ";";
     outStr += base64encodebytes(outObj['hmac']) + ";";
     outStr += base64encodebytes(outObj['ciphertext']);
     this.websocket.send(outStr);
   }
+}
+
+ChatSession.prototype.enqueue = async function(str, cID) {
+  var retval = await this.enqueueWithContentType(str, "", cID);
+  return retval;
 }
 
 ChatSession.prototype.addConversationFromRequest = async function(cr) {
