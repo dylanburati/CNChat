@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700|Roboto+Mono" rel="stylesheet">
+    <style type="text/css">
+      body {
+        background-color: #F4F5FA;
+        font-family: Roboto, Arial, sans-serif;
+      }
+
+      /*
+        * Content
+        */
+
+      .container {
+        max-width: 1140px !important;
+      }
+
+      [role="main"] {
+        padding-top: 4rem; /* Space for fixed navbar */
+        padding-left: .5rem;
+        padding-right: .5rem;
+      }
+
+      .anchor {
+        float: left;
+        transform: translateY(-5rem);
+      }
+
+      .dropdown-item-sm {
+        padding: 0.25rem 1rem;
+        /*font-size: 0.875rem;*/
+      }
+
+      @media (max-width: 1199.98px) {
+        .td-r {
+          text-align: right;
+          margin-left: auto;
+        }
+      }
+
+      .card, .card-border {
+        border: 1px solid rgba(0,0,0,.2);
+      }
+
+      .card-link {
+        font-size: 0.875rem;
+      }
+
+      .card-title {
+        margin-bottom: .5rem !important;
+      }
+
+      .h5_5 {
+        font-size: 1.15rem;
+      }
+
+      .read-more a.collapsed:after {
+        content: '+ show info';
+      }
+
+      .read-more a:not(.collapsed):after {
+        content: '- hide info';
+      }
+
+      .read-more * {
+        transition: all .3s cubic-bezier(.4,0,.2,1);
+        overflow: hidden;
+      }
+
+      .multiline-text {
+        white-space: pre-wrap;
+        margin-bottom: .5rem !important;
+      }
+
+      code {
+        background-color: #E9EAF0;
+        color: #2F2F97;
+        padding: .2rem .4rem;
+      }
+
+      /*
+        * Navbar
+        */
+
+      .navbar {
+        padding: 0.25rem 0.75rem;
+      }
+
+      .navbar-brand {
+        padding-top: .75rem;
+        padding-bottom: .75rem;
+        font-size: 1rem;
+        max-width: 50vw;
+      }
+
+      .navbar-collapse.show .ml-semiauto,
+      .navbar-collapse.collapsing .ml-semiauto {
+        margin-left: auto !important;
+      }
+
+      .navbar-collapse.show .nav-expand-only,
+      .navbar-collapse.collapsing .nav-expand-only {
+        display: none;
+      }
+
+      @media (min-width: 768px) {
+        .nav-collapse-only {
+          display: none;
+        }
+      }
+    </style>
+    <title>ChatClient</title>
+  </head>
+  <body>
+    <nav class="navbar fixed-top navbar-expand-md navbar-dark bg-dark px-0">
+      <div class="container">
+    <a class="navbar-brand col-sm-3 col-md-2 mx-0 px-md-2 pl-sm-3" href="https://github.com/dylanburati/CNChat">CNChat</a>
+      <button class="navbar-toggler mr-2" type="button" data-toggle="collapse" data-target="#navbarNavDropdown"
+              aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNavDropdown">
+        <ul class="navbar-nav w-100 text-right">
+          <li class="nav-item dropdown ml-auto">
+            <a class="nav-link dropdown-toggle" id="navdrop-more" href="#"
+                    data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              More
+            </a>
+            <div class="dropdown-menu dropdown-menu-right text-right" aria-labelledby="navbarDropdownMenuLink">
+              <a class="dropdown-item" href="./key-exchange.html">Key Exchange</a>
+              <a class="dropdown-item" href="./server.html">Server Docs</a>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+    </nav>
+
+    <div class="row container-fluid justify-content-center mx-0 px-0">
+      <main role="main" class="container d-flex justify-content-center">
+        <div class="col-md-10" style="max-width: 1000px !important">
+
+        <div class="px-1 pt-4 pb-2">
+          <p class="h2 font-weight-light">ChatClient</p>
+        </div>
+
+        <div class="px-1 py-2">
+          <span class="anchor" id="overview"></span>
+          <p class="h4">Overview</p>
+          <p>
+            The JavaScript client is organized into 3 files: <i>ChatUtils.js</i>, <i>ChatClient.js</i>, and <i>example.js</i>.
+          </p>
+          <ul>
+            <li>ChatUtils provides support for base64 and defines 2 cryptography classes, DHKeyPair and CipherStore.</li>
+            <li>
+              ChatClient provides the ChatSession class, along with the implementation of the different steps in the
+              <a href="./key-exchange.html">key-exchange protocol</a>. It also provides a wrapper around the constructor
+              for ChatSession, which attaches a <i>message handler</i> function.
+            </li>
+            <li>
+              example.js is an example of a message handler, leaving out the communication with the user interface. It runs steps
+              in the key-exchange protocol or updates the session data based on the content of the message.
+            </li>
+          </ul>
+        </div>
+
+        <div class="px-1 py-2">
+          <span class="anchor" id="chatsession"></span>
+          <p class="h4">ChatSession</p>
+          <p>
+            The ChatSession object holds the user's conversations, messages, and keysets. It is used to send messages via
+            the function <code>enqueue(string, conversationID)</code>.
+          </p>
+          <p class="mb-2">
+            The conversationID 0 represents the server. This conversation does not need to be present in the ChatSession's
+            conversation list, as it is not encrypted. To create a new conversation, the client executes:
+          </p>
+          <code class="ml-3">session.enqueue("conversation_request &lt;user_list&gt;", 0)</code>
+          <p class="mt-2">
+            where <i>user_list</i> is a semicolon-delimited list of usernames.
+          </p>
+          <p class="mb-2">
+            To send a message to a conversation, the client executes:
+          </p>
+          <code class="ml-3">session.enqueue(messageText, conversationID)</code>
+          <p class="mt-3">
+            These two actions should be accessible from the user interface. Everything else is done automatically in
+            <i>messageHandler</i>.
+          </p>
+          <br>
+          <p>
+            The ChatSession stores an array called <i>conversations</i>, in which each element is an object with the
+            following properties:
+          </p>
+          <code class="d-block multiline-text">  id: &lt;positive integer&gt;
+  users: &lt;array of usernames, including own name&gt;
+  cipher: &lt;CipherStore for encrypting and decrypting messages&gt;</code>
+          <p>
+            The ChatSession stores an array called <i>messages</i>, in which each element is an object with the
+            following properties:
+          </p>
+          <code class="d-block multiline-text">  id: &lt;id of conversation&gt;
+  from: &lt;username of the sender&gt;
+  time: &lt;timestamp of message in milliseconds since 1970-01-01&gt;
+  data" &lt;the content of the message&gt;</code>
+          <p>
+            These arrays should be used to populate the conversation picker and message panel in the user interface.
+          </p>
+        </div>
+
+        <div class="px-1 py-2">
+          <span class="anchor" id="libraries"></span>
+          <p class="h4">Libraries used</p>
+          <ul>
+            <li style="white-space: pre-wrap;">BigInteger.js    <a href="https://github.com/peterolson/BigInteger.js">Github</a>    <a href="https://www.npmjs.com/package/big-integer">NPM</a></li>
+            <li style="white-space: pre-wrap;">Axios    <a href="https://github.com/axios/axios">Github</a>    <a href="https://www.npmjs.com/package/axios">NPM</a></li>
+          </ul>
+        </div>
+
+        <div class="text-secondary text-center" style="margin-top: 5rem; margin-bottom: 3rem">
+          <p class="multiline-text"><a class="text-secondary" href="#">Contact</a>         <span style="position: relative; bottom: .1rem">&#x2B25;</span>         <a class="text-secondary" href="#">About</a></p>
+        </div>
+      </div>
+    </main>
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"
+            integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"
+            integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"
+            integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+    <script type="text/javascript">
+    </script>
+  </body>
+</html>

@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700|Roboto+Mono" rel="stylesheet">
+    <style type="text/css">
+      body {
+        background-color: #F4F5FA;
+        font-family: Roboto, Arial, sans-serif;
+      }
+
+      /*
+        * Content
+        */
+
+      .container {
+        max-width: 1140px !important;
+      }
+
+      [role="main"] {
+        padding-top: 4rem; /* Space for fixed navbar */
+        padding-left: .5rem;
+        padding-right: .5rem;
+      }
+
+      .anchor {
+        float: left;
+        transform: translateY(-5rem);
+      }
+
+      .dropdown-item-sm {
+        padding: 0.25rem 1rem;
+        /*font-size: 0.875rem;*/
+      }
+
+      @media (max-width: 1199.98px) {
+        .td-r {
+          text-align: right;
+          margin-left: auto;
+        }
+      }
+
+      .card, .card-border {
+        border: 1px solid rgba(0,0,0,.2);
+      }
+
+      .card-link {
+        font-size: 0.875rem;
+      }
+
+      .card-title {
+        margin-bottom: .5rem !important;
+      }
+
+      .h5_5 {
+        font-size: 1.15rem;
+      }
+
+      .read-more a.collapsed:after {
+        content: '+ show info';
+      }
+
+      .read-more a:not(.collapsed):after {
+        content: '- hide info';
+      }
+
+      .read-more * {
+        transition: all .3s cubic-bezier(.4,0,.2,1);
+        overflow: hidden;
+      }
+
+      .multiline-text {
+        white-space: pre-wrap;
+        margin-bottom: .5rem !important;
+      }
+
+      code {
+        background-color: #E9EAF0;
+        color: #2F2F97;
+        padding: .2rem .4rem;
+      }
+
+      /*
+        * Navbar
+        */
+
+      .navbar {
+        padding: 0.25rem 0.75rem;
+      }
+
+      .navbar-brand {
+        padding-top: .75rem;
+        padding-bottom: .75rem;
+        font-size: 1rem;
+        max-width: 50vw;
+      }
+
+      .navbar-collapse.show .ml-semiauto,
+      .navbar-collapse.collapsing .ml-semiauto {
+        margin-left: auto !important;
+      }
+
+      .navbar-collapse.show .nav-expand-only,
+      .navbar-collapse.collapsing .nav-expand-only {
+        display: none;
+      }
+
+      @media (min-width: 768px) {
+        .nav-collapse-only {
+          display: none;
+        }
+      }
+    </style>
+    <title>Modified X3DH</title>
+  </head>
+  <body>
+    <nav class="navbar fixed-top navbar-expand-md navbar-dark bg-dark px-0">
+      <div class="container">
+    <a class="navbar-brand col-sm-3 col-md-2 mx-0 px-md-2 pl-sm-3" href="https://github.com/dylanburati/CNChat">CNChat</a>
+      <button class="navbar-toggler mr-2" type="button" data-toggle="collapse" data-target="#navbarNavDropdown"
+              aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNavDropdown">
+        <ul class="navbar-nav w-100 text-right">
+          <li class="nav-item dropdown ml-auto">
+            <a class="nav-link dropdown-toggle" id="navdrop-more" href="#"
+                    data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              More
+            </a>
+            <div class="dropdown-menu dropdown-menu-right text-right" aria-labelledby="navbarDropdownMenuLink">
+              <a class="dropdown-item" href="./server.html">Server Docs</a>
+              <a class="dropdown-item" href="./client.html">Client Docs</a>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+    </nav>
+
+    <div class="row container-fluid justify-content-center mx-0 px-0">
+      <main role="main" class="container d-flex justify-content-center">
+        <div class="col-md-10" style="max-width: 1000px !important">
+
+        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-bottom pt-3 pb-2 mb-2" id="page-header">
+          <div style="text-align: left" class="col-sm-4 p-0 m-0 mt-auto"></div>
+          <div style="text-align: center" class="col-sm-4 p-0 m-0 mt-auto"><p class="h2 font-weight-light mb-1">Modified X3DH</p></div>
+          <div style="text-align: right" class="col-sm-4 p-0 m-0 mt-auto">
+            <p class="mr-1 mb-0">by Dylan Burati</p><p class="mr-1 mb-0">2018-12-10</p>
+          </div>
+        </div>
+
+        <div class="px-1 pt-4 pb-2">
+          <p class="h4">Table of Contents</p>
+          <ul>
+            <li><a href="#introduction">1. Introduction</a></li>
+            <li><a href="#names-and-definitions">2. Names and Definitions</a></li>
+            <li><a href="#protocol">3. Protocol</a></li>
+            <ul>
+              <li><a href="#protocol-1">3.1. Adding a new conversation</a></li>
+              <li><a href="#protocol-2">3.2. Using an existing conversation</a></li>
+            </ul>
+            <li><a href="#security-considerations">4. Security Considerations</a></li>
+            <li><a href="#references">5. References</a></li>
+          </ul>
+        </div>
+
+        <div class="px-1 py-2">
+          <span class="anchor" id="introduction"></span>
+          <p class="h4">Introduction</p>
+          <p>
+            This document describes a key agreement protocol based on the <a href="https://signal.org/docs/specifications/x3dh/">X3DH protocol</a> [1].
+            It does not have all of the features included in the full protocol, which should be used if it is possible to include it in your application.
+          </p>
+          <p>
+            This protocol is designed for the case where users will not be able to store data between sessions, and there is no
+            viable way to support Elliptic Curve Diffie Hellman keys on the client's side. For most applications, it is easier
+            to implement this protocol than to integrate with
+            <a href="https://github.com/signalapp/libsignal-protocol-javascript">libsignal</a>.
+          </p>
+        </div>
+
+        <div class="px-1 py-2">
+          <span class="anchor" id="names-and-definitions"></span>
+          <p class="h4">Names and Definitions</p>
+          <ul>
+            <li><i>X || Y</i> represents the concatenation of byte sequences X and Y.</li>
+            <li>
+              <i>DH(<span style="text-decoration: underline">K1</span></i>, <i>K2)</i> represents the shared secret output of
+              a Diffie-Hellman function involving <i>K1</i> and <i>K2</i>. The underline denotes the key pair which belongs to
+              the user calling the function.
+            </li>
+            <li><i>Hash(X)</i> represents the SHA-256 hash of the byte sequence X.</li>
+          </ul>
+          <ul>
+            <li>A user computes their <i>key wrapper</i> when they log in. It is an AES-256 key derived from the password.</li>
+            <ul>
+              <li>
+                If possible, the password that is sent to the server to verify the login should be hashed so that it is not
+                possible for the server to calculate the key wrapper.
+              </li>
+            </ul>
+            <li>
+              A <i>wrapped key</i> is the tuple <i>(IV, HMAC, key<sub>W</sub>)</i> where <i>key<sub>W</sub></i> is the key encrypted by a second key,
+              <i>IV</i> is the initialization vector used, <i>HMAC</i> is the HMAC of <i>IV || key<sub>W</sub></i>
+              [<a href="https://tools.ietf.org/html/rfc2104">2</a>].
+            </li>
+            <li>
+              The end result of the key exchange is a <i>conversation key</i> for the client, and a <i>conversation object</i> stored on the server,
+              which contains an array of <i>user objects</i>.
+            </li>
+            <li>
+              A <i>user object</i> stores the state of the user in the conversation. It allows the user who owns it to compute the conversation key,
+              by either completing the key exchange or unwrapping the conversation key (once the exchange is complete).
+            </li>
+          </ul>
+          <ul>
+            <li>
+              To participate in the protocol, a user must store 2 key pairs to the server: the identity key <i>IK</i> and the prekey <i>PK</i>.
+              The private key in each pair is wrapped with their key wrapper.
+            </li>
+          </ul>
+        </div>
+
+        <div class="px-1 py-2">
+          <span class="anchor" id="protocol"></span>
+          <p class="h4">Protocol</p>
+          <p>
+            The protocol is described as a sequence of steps, where each step is either a command sent to the server
+            and a message returned by the server (&#x21C4;), or a client-side action (<span style="color: #005fbf;">&#x25E7;</span>).
+            The first set of steps is followed by the user that initiates a conversation, while the second set is followed by all other users
+            in the conversation.
+          </p>
+          <span class="anchor" id="protocol-1"></span>
+          <p class="h5">Adding a new conversation</p>
+          <div class="card p-3 pb-2 mb-2">
+            <div class="d-flex align-items-start">
+              <p class="h5_5 card-title mt-1 font-weight-normal">1. retrieve_keys_self</p>
+              <div style="flex-grow: 1"></div>
+              <span style="font-size: 1.25rem; cursor: default;">&#x21C4;</span>
+            </div>
+            <p class="card-text pt-1 mb-2">Downloads user's own identity key and prekey.</p>
+            <!-- <div class="card-text read-more">
+              <div class="collapse">
+                <code class="multiline-text">1 users have contributed public sheets</code>
+              </div>
+              <a class="collapsed text-muted" role="button" data-toggle="collapse" href="#topic1-info" aria-expanded="false" aria-controls="topic1-info"></a>
+              </div>
+            </div> -->
+          </div>
+          <div class="card p-3 pb-2 mb-2">
+            <div class="d-flex align-items-start">
+              <p class="h5_5 card-title mt-1 font-weight-normal">2. retrieve_keys_other</p>
+              <div style="flex-grow: 1"></div>
+              <span style="font-size: 1.25rem; cursor: default;">&#x21C4;</span>
+            </div>
+            <p class="card-text pt-1 mb-2">User requests a list of users to create a conversation with.
+              The server returns the public keys of each other user's <i>IK</i> and <i>PK</i>.
+              The list of users is called <i>other_users</i>.
+            </p>
+          </div>
+          <div class="card p-3 pb-2 mb-2">
+            <div class="d-flex align-items-start">
+              <p class="h5_5 card-title mt-1 font-weight-normal">3. create_conversation</p>
+              <div style="flex-grow: 1"></div>
+              <span style="font-size: 1.25rem; cursor: default; color: #005fbf;">&#x25E7;</span>
+            </div>
+            <p class="card-text pt-1 mb-2">Generates an initial key and initial message for each user in <i>other_users</i>.
+            The output is stored in an object called <i>conversation</i>, which contains an array of <i>user objects</i> (initially empty).</p>
+          </div>
+          <div class="d-flex flex-row">
+            <div style="width: 3px; background-color: rgba(52,58,64,.18);" class="mb-3 ml-1"></div>
+            <div>
+              <div class="card p-3 pb-2 mb-2 ml-4">
+                <div class="d-flex align-items-start">
+                  <p class="h5_5 card-title mt-1 font-weight-normal">3a. create_conversation_key</p>
+                  <div style="flex-grow: 1"></div>
+                  <span style="font-size: 1.25rem; cursor: default; color: #005fbf;">&#x25E7;</span>
+                </div>
+                <p class="card-text pt-1 mb-2">User creates a new AES-256 key from a secure random source, called <i>SKC</i>.</p>
+              </div>
+              <div class="card-border pt-1 pb-1 px-2 mb-2 ml-4" style="background-color: rgba(52,58,64,.12);">
+                <p class="text-muted text-uppercase" style="margin-bottom: 0; font-size: .875rem;">for each in other_users</p>
+                <div class="card p-3 pb-2 mb-2">
+                  <div class="d-flex align-items-start">
+                    <p class="h5_5 card-title mt-1 font-weight-normal">3b. create_ephemeral_key</p>
+                    <div style="flex-grow: 1"></div>
+                    <span style="font-size: 1.25rem; cursor: default; color: #005fbf;">&#x25E7;</span>
+                  </div>
+                  <p class="card-text pt-1 mb-2">User creates a new DH key, called <i>EK</i>.</p>
+                </div>
+                <div class="card p-3 pb-2 mb-2">
+                  <div class="d-flex align-items-start">
+                    <p class="h5_5 card-title mt-1 font-weight-normal">3c. triple_key_agree</p>
+                    <div style="flex-grow: 1"></div>
+                    <span style="font-size: 1.25rem; cursor: default; color: #005fbf;">&#x25E7;</span>
+                </div>
+                <p class="card-text pt-1 mb-2">
+                  User computes the following, where <i>role2</i> represents the current user in the loop over <i>other_users:</i>
+                </p>
+                <code class="multiline-text">  DH1 = DH(<span style="text-decoration: underline">IK</span>, PK<sub>role2</sub>)
+  DH2 = DH(<span style="text-decoration: underline">EK</span>, IK<sub>role2</sub>)
+  DH3 = DH(<span style="text-decoration: underline">EK</span>, PK<sub>role2</sub>)
+  SKI = Hash(DH1 || DH2 || DH3)</code>
+              </div>
+              <div class="card p-3 pb-2 mb-2">
+                <div class="d-flex align-items-start">
+                  <p class="h5_5 card-title mt-1 font-weight-normal">3d. create_initial_message</p>
+                  <div style="flex-grow: 1"></div>
+                  <span style="font-size: 1.25rem; cursor: default; color: #005fbf;">&#x25E7;</span>
+                </div>
+                <p class="card-text pt-1 mb-2">User wraps the conversation key <i>SKC</i> using the initial key <i>SKI</i>.
+                  The <i>initial_message</i> equals the tuple <i>(IV, HMAC, SKC<sub>W</sub>).</i>
+                </p>
+              </div>
+              <div class="card p-3 pb-2 mb-2">
+                <div class="d-flex align-items-start">
+                  <p class="h5_5 card-title mt-1 font-weight-normal">3e. create_user_object</p>
+                  <div style="flex-grow: 1"></div>
+                  <span style="font-size: 1.25rem; cursor: default; color: #005fbf;">&#x25E7;</span>
+                </div>
+                <p class="card-text pt-1 mb-2">User creates an object with the following key-value pairs:</p>
+                <code class="multiline-text">  user: &lt;role2's username&gt;
+  role: 2
+  key_ephemeral_public: EK<sub>pub</sub>
+  initial_message: (IV, HMAC, SKC<sub>W</sub>)</code>
+                <p class="card-text pt-1 mb-2">The user object is appended to the array of user objects in <i>conversation</i>.</p>
+              </div>
+            </div>
+            <div class="card p-3 pb-2 mb-2 ml-4">
+              <div class="d-flex align-items-start">
+                <p class="h5_5 card-title mt-1 font-weight-normal">3f. create_user_object</p>
+                <div style="flex-grow: 1"></div>
+                <span style="font-size: 1.25rem; cursor: default; color: #005fbf;">&#x25E7;</span>
+              </div>
+              <p class="card-text pt-1 mb-2">
+                User wraps <i>SKC</i> using their key wrapper, and creates an object with the following key-value pairs.
+              </p>
+              <code class="multiline-text">  user: &lt;username&gt;
+  role: 1
+  key_wrapped: (IV, HMAC, SKC<sub>W</sub>)</code>
+              <p class="card-text pt-1 mb-2">The user object is appended to the array of user objects in <i>conversation</i>.</p>
+            </div>
+          </div>
+        </div>
+        <div class="card p-3 pb-2 mb-2">
+          <div class="d-flex align-items-start">
+            <p class="h5_5 card-title mt-1 font-weight-normal">4. conversation_add</p>
+            <div style="flex-grow: 1"></div>
+            <span style="font-size: 1.25rem; cursor: default;">&#x21C4;</span>
+          </div>
+          <p class="card-text pt-1 mb-2">
+            User uploads the conversation object. The server gives it a unique ID and an expiration date, after which the key exchange will
+            be cancelled if it is not complete. The conversation ID is sent back to the client, and the client associates the conversation key
+            with the ID.
+          </p>
+        </div>
+
+        <div style="height: 2px; margin: 1.5rem -.375rem 2.25rem -.375rem; background-color: rgba(52,58,64,.36);"></div>
+
+        <span class="anchor" id="protocol-2"></span>
+        <p class="h5">Using an existing conversation</p>
+        <div class="card p-3 pb-2 mb-2">
+          <div class="d-flex align-items-start">
+            <p class="h5_5 card-title mt-1 font-weight-normal">1. retrieve_keys_self</p>
+            <div style="flex-grow: 1"></div>
+            <span style="font-size: 1.25rem; cursor: default;">&#x21C4;</span>
+          </div>
+          <p class="card-text pt-1 mb-2">Downloads user's own identity key and prekey.</p>
+        </div>
+        <div class="card p-3 pb-2 mb-2">
+          <div class="d-flex align-items-start">
+            <p class="h5_5 card-title mt-1 font-weight-normal">2. conversation_ls</p>
+            <div style="flex-grow: 1"></div>
+            <span style="font-size: 1.25rem; cursor: default;">&#x21C4;</span>
+          </div>
+          <p class="card-text pt-1 mb-2">
+            User requests a list of conversations which they are a member of.
+            The server returns a list of elements; each one has the following key-value pairs:
+          </p>
+          <code class="multiline-text">  id: &lt;unique id of conversation&gt;
+  users: &lt;usernames of conversation members&gt;
+  role1: &lt;username of the conversation creator&gt;
+
+  <span style="color: #2c8147">// only if key exchange has not been completed</span>
+  key_ephemeral_public: key_ephemeral_public
+  initial_message: initial_message
+
+  <span style="color: #2c8147">// only if key exchange has been completed</span>
+  key_wrapped: key_wrapped</code>
+          <p class="card-text pt-1 mb-2">
+            The following steps are applied to all conversations in the list which do not have <i>key_wrapped</i> set.
+          </p>
+        </div>
+        <div class="card p-3 pb-2 mb-2">
+          <div class="d-flex align-items-start">
+            <p class="h5_5 card-title mt-1 font-weight-normal">3. retrieve_keys_other</p>
+            <div style="flex-grow: 1"></div>
+            <span style="font-size: 1.25rem; cursor: default;">&#x21C4;</span>
+          </div>
+          <p class="card-text pt-1 mb-2">
+            User requests the keys of the conversation creator <i>role1</i>.
+            The server returns the public keys of their <i>IK</i> and <i>PK</i>.
+            <!-- (The prekey is not needed for this part of the agreement, but if the user wants to create a conversation
+            with <i>role1</i> as a member, they will already have the keys downloaded.) -->
+          </p>
+        </div>
+        <div class="card p-3 pb-2 mb-2">
+          <div class="d-flex align-items-start">
+            <p class="h5_5 card-title mt-1 font-weight-normal">4. decrypt_conversation_key</p>
+            <div style="flex-grow: 1"></div>
+            <span style="font-size: 1.25rem; cursor: default; color: #005fbf;">&#x25E7;</span>
+          </div>
+          <p class="card-text pt-1 mb-2">User computes the following:</p>
+          <code class="multiline-text">  DH1 = DH(<span style="text-decoration: underline">PK</span>, IK<sub>role1</sub>)
+  DH2 = DH(<span style="text-decoration: underline">IK</span>, key_ephemeral_public)
+  DH3 = DH(<span style="text-decoration: underline">PK</span>, key_ephemeral_public)
+  SKI = Hash(DH1 || DH2 || DH3)
+  SKC = &lt;initial_message decrypted using SKI&gt;</code>
+          <p class="card-text pt-1 mb-2">The user associates the conversation ID with the conversation key <i>SKC</i>.</p>
+        </div>
+        <div class="card p-3 pb-2 mb-4">
+          <div class="d-flex align-items-start">
+            <p class="h5_5 card-title mt-1 font-weight-normal">5. conversation_set_key</p>
+            <div style="flex-grow: 1"></div>
+            <span style="font-size: 1.25rem; cursor: default;">&#x21C4;</span>
+          </div>
+          <p class="card-text pt-1 mb-2">
+            User wraps <i>SKC</i> using their key wrapper, and uploads the conversation ID and wrapped key (IV, HMAC, SKC<sub>W</sub>).
+            The server sets the user's <i>key_wrapped</i> for the specified conversation to the value given.
+            The user's <i>key_ephemeral_public</i> and <i>initial_message</i> are deleted, as they are no longer needed.
+          </p>
+        </div>
+      </div>
+
+      <div class="px-1 py-2">
+        <span class="anchor" id="security-considerations"></span>
+        <p class="h4">Security Considerations</p>
+        <p>
+          Signal.org's <a href="https://signal.org/docs/specifications/x3dh/">documentation for X3DH</a> gives a more complete analysis
+          of the security risks that are present when using the key exchange protocol. These points are an overview of the consequences
+          of using a server to store wrapped keys, and the consequences of the other deviations this protocol has from the original:
+          the prekey is not signed by the identity key, and there are no one-time prekeys (used for a fourth DH secret calculation to
+          prevent key reuse when performing different protocol runs with the same user).
+        </p>
+        <ul>
+          <li>
+            Someone with a user's key wrapper can compute all of their present and future conversation keys,
+            if they have access to the server or access to the user's account.
+          </li>
+          <li>
+            Someone with a user's private identity key and private prekey can compute conversation keys for any conversation
+            in which the <i>key_ephemeral_public</i> and <i>initial_message</i> values for the user have not been deleted. However,
+            these keys only need to be accessed in their unwrapped form when calculating <i>DH1</i>, <i>DH2</i>, and <i>DH3</i>,
+            so it is very unlikely that they will be compromised unless the key wrapper is.
+          </li>
+          <ul>
+            <li>
+              The use of one-time prekeys would force the attacker to compromise an extra private key for each conversation they
+              want to compute the key for, but because the one-time prekey is only accessed by role 2 users (just before the
+              <i>key_ephemeral_public</i> and <i>initial_message</i> are deleted), it effectively prevents the key compromise attack
+              unless the attacker knows the key wrapper. It does not provide any extra security if the key wrapper is known.
+            </li>
+          </ul>
+          <li>
+            The omission of the prekey signature means that the prekey provided by the server is not guaranteed to be created by the
+            same party as the identity key. However, when reading one's own private keys (step 1 of both variations of the protocol),
+            the HMAC is proof of knowledge of the key wrapper used to encrypt them, which prevents the server from changing users'
+            public or private keys.
+          </li>
+          <li>
+            Man-in-the-middle attacks are only possible if the server is malicious, since they require two separate conversations to appear
+            like one conversation to users. The server would have to send forged public keys to both parties in order to execute this attack.
+            Since the keys sent in response to <i>retrieve_keys_self</i> must be authentic to be accepted, both parties can compare the other's
+            actual public keys to the ones used in their calculation of <i>SKI</i> using a separate channel to check if their conversation is secure.
+          </li>
+        </ul>
+      </div>
+
+      <div class="px-1 py-2">
+        <span class="anchor" id="references"></span>
+        <p class="h4">References</p>
+        [1] M. Marlinspike and T. Perrin, "The X3DH Key Agreement Protocol." Open Whisper Systems, 4 Nov. 2016.
+        <a href="https://signal.org/docs/specifications/x3dh/">https://signal.org/docs/specifications/x3dh/</a>
+        <p class="mb-2"></p>
+        [2] H. Krawczyk, M. Bellare, and R. Canetti, "HMAC: Keyed-Hashing for Message Authentication." Internet Engineering Task Force, RFC 2104,
+        IETF, February 1997. <a href="https://tools.ietf.org/html/rfc2104">https://tools.ietf.org/html/rfc2104</a>
+      </div>
+
+      <div class="text-secondary text-center" style="margin-top: 5rem; margin-bottom: 3rem">
+        <p class="multiline-text"><a class="text-secondary" href="#">Contact</a>         <span style="position: relative; bottom: .1rem">&#x2B25;</span>         <a class="text-secondary" href="#">About</a></p>
+      </div>
+
+      </div>
+    </main>
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"
+            integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"
+            integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"
+            integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+    <script type="text/javascript">
+    </script>
+  </body>
+</html>

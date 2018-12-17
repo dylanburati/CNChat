@@ -1,0 +1,25 @@
+# Created by .ignore support plugin (hsz.mobi)
+
+# IntelliJ project files
+.idea
+*.iml
+
+# IntelliJ builds
+/out/
+
+# Only .zip needed
+/src/
+srcREADME.txt
+
+# Other
+/ChatClient/src/config.txt
+android-update.sh
+cnupdate.sh
+checkout*.sh
+charsTo0xff.txt
+CodecCheck.class
+CryptoCheck.class
+precompile.sh
+postcompile.sh
+TestClient.jar
+WebsocketTest/
