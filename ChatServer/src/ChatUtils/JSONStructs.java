@@ -106,9 +106,9 @@ public class JSONStructs {
         public int id;
         public boolean exchange_complete;
         public long crypt_expiration;
-        public ConversationUser[] users;
+        public List<ConversationUser> users = new ArrayList<>();
         @JsonIgnore
-        public List<String> userNameList = new ArrayList<String>();
+        public List<String> userNameList = new ArrayList<>();
 
         public Conversation() {}
 
@@ -116,7 +116,7 @@ public class JSONStructs {
         public Conversation(@JsonProperty("id") Integer id,
                             @JsonProperty("exchange_complete") Boolean exchange_complete,
                             @JsonProperty("crypt_expiration") Long crypt_expiration,
-                            @JsonProperty("users") ConversationUser[] users) {
+                            @JsonProperty("users") List<ConversationUser> users) {
             if(id != null) this.id = id;
             if(exchange_complete != null) this.exchange_complete = exchange_complete;
             if(crypt_expiration != null) this.crypt_expiration = crypt_expiration;
@@ -125,7 +125,7 @@ public class JSONStructs {
 
         public synchronized boolean validate() {
             if(this.id <= 0) return false;
-            if(this.users == null || this.users.length < 2) return false;
+            if(this.users == null || this.users.size() < 2) return false;
             if(!this.exchange_complete) {
                 if(this.crypt_expiration < System.currentTimeMillis()) return false;
             }
@@ -150,7 +150,7 @@ public class JSONStructs {
 
         public synchronized boolean validateNew(String userName) {
             if(this.id <= 0) return false;
-            if(this.users == null || this.users.length < 2) return false;
+            if(this.users == null || this.users.size() < 2) return false;
             if(this.exchange_complete) {
                 return false;
             }

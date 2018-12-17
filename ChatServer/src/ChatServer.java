@@ -26,74 +26,17 @@ public class ChatServer {
 
     private static HttpServer authServer;
     private static WebSocketServer wsServer;
-    private static volatile Map<Integer, JSONStructs.Conversation> conversations = new HashMap<>();
+    private static volatile Map<Integer, JSONStructs.Conversation> conversations = null;
     private static final Object conversationsLock = new Object();
-    private static final String conversationStorePath = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
-            getParent() + System.getProperty("file.separator") + "conversations.json";
-    private static volatile Map<Integer, String> conversationStore = new HashMap<>();
-    private static ExecutorService storeWriter = Executors.newSingleThreadExecutor();
-
-    private static volatile Map<Integer, List<String>> messageStore = new HashMap<>();
-    private static final Object messagesLock = new Object();
-    private static final String messageStorePathPrefix = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
-            getParent() + System.getProperty("file.separator") + "messages";
-    private static final String messageStorePathSuffix = ".json";
 
     private static volatile Map<String, JSONStructs.Preferences> allPreferences = new HashMap<>();
     private static final Object preferencesLock = new Object();
     private static final String preferenceStorePath = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
             getParent() + System.getProperty("file.separator") + "preferences.json";
+    private static ExecutorService storeWriter = Executors.newSingleThreadExecutor();
 
     private static volatile Map<String, String> userNamesMap = new HashMap<>();
     private static final Object userNamesMapLock = new Object();
-
-    private static void updateConversationStore() {
-        String[] toWrite = conversationStore.values().toArray(new String[0]);
-        if(toWrite.length > 0) {
-            storeWriter.submit(() -> {
-                try(PrintWriter history = new PrintWriter(new OutputStreamWriter(new FileOutputStream(conversationStorePath), UTF_8), true)) {
-                    history.write("[");
-                    for(int j = 0; j < toWrite.length - 1; j++) {
-                        history.write(toWrite[j]);
-                        history.write(",\n");
-                    }
-                    history.write(toWrite[toWrite.length - 1]);
-                    history.write("]");
-                } catch(IOException e) {
-                    e.printStackTrace();
-                }
-            });
-        }
-    }
-
-    private static void updateConversationStore(Integer... changed) {
-        for(Integer i : changed) {
-            conversationStore.put(i, JsonStream.serialize(conversations.get(i)));
-        }
-        updateConversationStore();
-    }
-
-    private static void storeConversation(Integer i, JSONStructs.Conversation o, boolean write) {
-        conversations.put(i, o);
-        conversationStore.put(i, JsonStream.serialize(o));
-        if(write) {
-            updateConversationStore();
-        }
-    }
-
-    private static void updateMessageStore(Integer cID) {
-        String[] toWrite = messageStore.get(cID).toArray(new String[0]);
-        if(toWrite.length > 0) {
-            storeWriter.submit(() -> {
-                try(PrintWriter history = new PrintWriter(new OutputStreamWriter(new FileOutputStream(
-                        messageStorePathPrefix + cID + messageStorePathSuffix), UTF_8), true)) {
-                    history.write(JsonStream.serialize(toWrite));
-                } catch(IOException e) {
-                    e.printStackTrace();
-                }
-            });
-        }
-    }
 
     private static void updatePreferenceStore(String user, JSONStructs.Preferences prefs) {
         allPreferences.put(user, prefs);
@@ -161,7 +104,7 @@ public class ChatServer {
                         boolean collision = false;
                         synchronized(conversationsLock) {
                             for(JSONStructs.Conversation existing : conversations.values()) {
-                                collision = existing.users.length == (otherUsers.size() + 1);
+                                collision = existing.users.size() == (otherUsers.size() + 1);
                                 for(String existingUser : existing.userNameList) {
                                     if(!userName.equals(existingUser) &&
                                             otherUsers.indexOf(existingUser) == -1) {
@@ -217,7 +160,7 @@ public class ChatServer {
                                 if(toAdd.validateNew(userName)) {
                                     boolean collision = false;
                                     for(JSONStructs.Conversation existing : conversations.values()) {
-                                        collision = existing.users.length == (cUsers.size());
+                                        collision = existing.users.size() == (cUsers.size());
                                         for(String existingUser : existing.userNameList) {
                                             if(cUsers.indexOf(existingUser) == -1) {
                                                 collision = false;
@@ -227,10 +170,7 @@ public class ChatServer {
                                     if(collision) {
                                         return true;
                                     }
-                                    storeConversation(toAdd.id, toAdd, true);
-                                }
-                                synchronized(messagesLock) {
-                                    messageStore.put(toAdd.id, new ArrayList<>());
+                                    MariaDBReader.updateConversationStore(toAdd);
                                 }
                             }
                         } catch(JsonException e) {
@@ -284,7 +224,7 @@ public class ChatServer {
                                         u.key_ephemeral_public = null;
                                         u.initial_message = null;
                                         c.checkExchangeComplete();
-                                        updateConversationStore(cID);
+                                        MariaDBReader.updateConversationStore(c);
                                         outputBody = "conversation_ls;[" + c.sendToUser(userName) + "]";
                                     } else {
                                         outputBody = "conversation_set_key;failure";
@@ -338,12 +278,11 @@ public class ChatServer {
                             if(c == null || !c.hasUser(userName)) return true;
                         }
                         StringBuilder _outputBody = new StringBuilder();
-                        synchronized(messagesLock) {
-                            String[] cMessages = messageStore.get(cID).toArray(new String[0]);
-                            if(cMessages.length > nBack)
-                                cMessages = Arrays.copyOfRange(cMessages, cMessages.length - nBack, cMessages.length);
-                            _outputBody.append(JsonStream.serialize(cMessages));
+                        List<String> cMessages = MariaDBReader.getMessages(cID, nBack);
+                        if(cMessages == null) {
+                            return true;
                         }
+                        _outputBody.append(JsonStream.serialize(cMessages));
                         outputBody = "conversation_cat;" + _outputBody.toString();
                     } else if(message.startsWith("retrieve_keys_self")) {
                         messageClasses = "command";
@@ -586,43 +525,12 @@ public class ChatServer {
             }
         } // end class ClientThread
 
+        conversations = MariaDBReader.getConversationStore();
+        if(conversations == null) throw new RuntimeException("Failed to load conversations");
 
         Any.registerEncoders();
         JsonIterator.setMode(DecodingMode.REFLECTION_MODE);
         JsonStream.setMode(EncodingMode.REFLECTION_MODE);
-        try(BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(conversationStorePath), UTF_8))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while((line = in.readLine()) != null) {
-                sb.append(line).append("\n");
-            }
-            Any convArray = JsonIterator.deserialize(sb.substring(0, sb.length() - 1));
-            for(Any conv : convArray) {
-                JSONStructs.Conversation c = new JSONStructs.Conversation();
-                c = conv.bindTo(c);
-                if(c.validate()) {
-                    storeConversation(c.id, c, false);  // no one can connect yet, don't need lock
-                }
-            }
-        } catch(IOException ignored) {
-        }
-
-        for(Integer cID : conversations.keySet()) {
-            List<String> ml = new ArrayList<>();
-            try(BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(
-                    messageStorePathPrefix + cID + messageStorePathSuffix), UTF_8))) {
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while((line = in.readLine()) != null) {
-                    sb.append(line).append("\n");
-                }
-                Any mArray = JsonIterator.deserialize(sb.substring(0, sb.length() - 1));
-                ml = mArray.bindTo(ml);
-            } catch(IOException ignored) {
-            }
-            messageStore.put(cID, ml);
-        }
-
         try(BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(preferenceStorePath), UTF_8))) {
             StringBuilder sb = new StringBuilder();
             String line;
@@ -630,7 +538,12 @@ public class ChatServer {
                 sb.append(line).append("\n");
             }
             Any allPrefs = JsonIterator.deserialize(sb.substring(0, sb.length() - 1));
-            allPreferences = allPrefs.bindTo(allPreferences);
+            Any.EntryIterator iter = allPrefs.entries();
+            while(iter.next()) {
+                JSONStructs.Preferences p = new JSONStructs.Preferences();
+                p = iter.value().bindTo(p);
+                allPreferences.put(iter.key(), p);
+            }
         } catch(IOException ignored) {
         }
         System.out.format("%d conversation(s) loaded\n", conversations.size());
@@ -640,12 +553,7 @@ public class ChatServer {
             @Override
             public void execute(ClientThread caller, String message, List<String> recipients, Integer addToHistory) {
                 if(addToHistory != null && addToHistory > 0) {
-                    synchronized(messagesLock) {
-                        List<String> ml = messageStore.get(addToHistory);
-                        // Null messageStore entry should be caught by conversation check in handleMessage
-                        ml.add(message);
-                        updateMessageStore(addToHistory);
-                    }
+                    storeWriter.submit(() -> MariaDBReader.updateMessageStore(addToHistory, message));
                 }
                 synchronized(threads) {
                     for(Iterator<ClientThread> threadIter = threads.iterator(); threadIter.hasNext(); /* nothing */) {
