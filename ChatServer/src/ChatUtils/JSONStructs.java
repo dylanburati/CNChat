@@ -6,6 +6,7 @@ import com.jsoniter.annotation.JsonProperty;
 import com.jsoniter.output.JsonStream;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class JSONStructs {
@@ -116,11 +117,11 @@ public class JSONStructs {
         public Conversation(@JsonProperty("id") Integer id,
                             @JsonProperty("exchange_complete") Boolean exchange_complete,
                             @JsonProperty("crypt_expiration") Long crypt_expiration,
-                            @JsonProperty("users") List<ConversationUser> users) {
+                            @JsonProperty("users") ConversationUser[] users) {
             if(id != null) this.id = id;
             if(exchange_complete != null) this.exchange_complete = exchange_complete;
             if(crypt_expiration != null) this.crypt_expiration = crypt_expiration;
-            this.users = users;
+            this.users = Arrays.asList(users);
         }
 
         public synchronized boolean validate() {
@@ -167,9 +168,12 @@ public class JSONStructs {
                 } else if(u.role == 2) {
                     hasRole2 = true;
                 }
+
+                if(this.userNameList.contains(u.user)) return false;
                 this.userNameList.add(u.user);
             }
             if(!(hasRole1 && hasRole2)) return false;
+            if(!this.userNameList.contains(userName)) return false;
             return true;
         }
 

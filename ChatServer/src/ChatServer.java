@@ -134,35 +134,25 @@ public class ChatServer {
                         messageClasses = "command";
                         if(message.length() == 17) return true;
                         String conversationJson = message.substring(17);
-                        JSONStructs.Conversation toAdd = null;
+                        JSONStructs.Conversation toAdd = new JSONStructs.Conversation();
                         try {
                             Any conv = JsonIterator.deserialize(conversationJson);
-                            toAdd = new JSONStructs.Conversation();
+
                             toAdd = conv.bindTo(toAdd);
-                            List<String> cUsers = new ArrayList<>();
-                            for(JSONStructs.ConversationUser u : toAdd.users) {
-                                cUsers.add(u.user);
-                            }
-                            if(cUsers.indexOf(userName) == -1) return true;
-                            for(int i = 0; i < cUsers.size(); i++) {
-                                if(cUsers.lastIndexOf(cUsers.get(i)) != i) {
-                                    // must be unique
-                                    return true;
-                                }
-                            }
                             toAdd.exchange_complete = false;
                             toAdd.crypt_expiration = System.currentTimeMillis() + (14 * 24 * 3600 * 1000);
                             synchronized(conversationsLock) {
-                                if(conversations.size() == 0)
+                                if(conversations.size() == 0) {
                                     toAdd.id = 1;
-                                else
+                                } else {
                                     toAdd.id = Collections.max(conversations.keySet()) + 1;
+                                }
                                 if(toAdd.validateNew(userName)) {
                                     boolean collision = false;
                                     for(JSONStructs.Conversation existing : conversations.values()) {
-                                        collision = existing.users.size() == (cUsers.size());
+                                        collision = existing.users.size() == (toAdd.userNameList.size());
                                         for(String existingUser : existing.userNameList) {
-                                            if(cUsers.indexOf(existingUser) == -1) {
+                                            if(toAdd.userNameList.indexOf(existingUser) == -1) {
                                                 collision = false;
                                             }
                                         }
@@ -170,6 +160,7 @@ public class ChatServer {
                                     if(collision) {
                                         return true;
                                     }
+                                    conversations.put(toAdd.id, toAdd);
                                     MariaDBReader.updateConversationStore(toAdd);
                                 }
                             }
