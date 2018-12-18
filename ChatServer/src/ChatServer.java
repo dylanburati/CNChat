@@ -404,8 +404,12 @@ public class ChatServer {
                 wsSocket = wsServer.getSocketWhenAvailable(uuid);
                 if(wsSocket == null) {
                     this.close();
+                    synchronized(wsServer.authorizedLock) {
+                        wsServer.authorized.remove(uuid);
+                    }
                     return;
                 }
+
                 System.out.format("WebSocket connected @ %s\n", uuid);
                 enqueue(first);
                 synchronized(preferencesLock) {
@@ -589,16 +593,16 @@ public class ChatServer {
             public void handle(HttpExchange conn) throws IOException {
                 String uuid = null, userName = null, input;
                 boolean join = false;
-                boolean resume = false;
                 try(BufferedReader in = new BufferedReader(new InputStreamReader(conn.getRequestBody(), UTF_8))
                 ) {
                     input = in.readLine();
-                    if(input.startsWith("join ")) {
+                    if(input != null && input.startsWith("join ")) {
                         join = true;
                         userName = input.substring(5);
                         if(!userName.matches("[0-9A-Za-z-_\\.]+")) {
                             join = false;
-                            System.out.println("The trusted input has betrayed me");
+                            System.out.println("Username has illegal characters\n" +
+                                    "Please make sure your auth server port (defaults to 8081) is not open to the Internet");
                         }
                     }
                 }
@@ -617,22 +621,6 @@ public class ChatServer {
                     }
 
                     uuid = UUID.randomUUID().toString().replace("-", "");
-                    synchronized(userNamesMapLock) {
-                        resume = userNamesMap.containsKey(userName);
-                        userNamesMap.put(userName, uuid);
-                    }
-
-                    if(resume) {
-                        synchronized(threads) {
-                            for(ClientThread currentThread : threads) {
-                                if(userName.equals(currentThread.userName)) {
-                                    currentThread.close();
-                                    threads.remove(currentThread);
-                                    break;
-                                }
-                            }
-                        }
-                    }
 
                     ClientThread thread = new ClientThread(uuid, userName, messenger);
                     synchronized(wsServer.authorizedLock) {

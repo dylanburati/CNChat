@@ -32,32 +32,39 @@ public class WebSocketServer {
         boolean upgrade = true;
         boolean complete = false;
         try {
-            String input = "";
+            StringBuilder inputB = new StringBuilder();
             in = new BufferedReader(new InputStreamReader(socket.getInputStream(), UTF_8));
             String inLine;
             while((inLine = in.readLine()) != null) {
                 if(inLine.isEmpty()) break;
-                input += inLine + "\n";
+                inputB.append(inLine).append("\n");
             }
-            input = input.substring(0, input.lastIndexOf("\n"));
+            String input = "";
+            if(inputB.length() > 0) {
+                input = inputB.substring(0, inputB.length() - 1);
+            }
 
             String uuid = null;
             String wsKey = null;
             for(int i = 0; i < 4 && upgrade; i++) {
                 switch(i) {
                     case 0:
-                        if(!input.startsWith("GET "))
+                        if(!input.startsWith("GET ")) {
                             upgrade = false;
+                        }
                         break;
                     case 1:
                         int secondSpace = input.indexOf(" ", 4);
-                        if(secondSpace == -1)
+                        if(secondSpace == -1) {
                             upgrade = false;
+                        }
                         String path = input.substring(4, secondSpace);
-                        if(path.length() == 33 && path.startsWith("/"))
+                        if(path.length() == 33 && path.startsWith("/")) {
                             uuid = path.substring(1);
-                        if(!AuthUtils.isValidUUID(uuid))
+                        }
+                        if(!AuthUtils.isValidUUID(uuid)) {
                             upgrade = false;
+                        }
                         if(upgrade) {
                             synchronized(authorizedLock) {
                                 upgrade = authorized.remove(uuid);
@@ -66,17 +73,19 @@ public class WebSocketServer {
                         break;
                     case 2:
                         int wsKeyIdx = input.indexOf("Sec-WebSocket-Key: ");
-                        if(wsKeyIdx == -1 || wsKeyIdx >= (input.length() - 19))
+                        if(wsKeyIdx == -1 || wsKeyIdx >= (input.length() - 19)) {
                             upgrade = false;
-                        else
+                        } else {
                             input = input.substring(wsKeyIdx + 19);
+                        }
                         break;
                     case 3:
                         int endKeyIdx = input.indexOf("\n");
-                        if(endKeyIdx == -1)
+                        if(endKeyIdx == -1) {
                             upgrade = false;
-                        else
+                        } else {
                             wsKey = input.substring(0, endKeyIdx);
+                        }
                         break;
                 }
             }
