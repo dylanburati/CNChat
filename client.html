@@ -5,114 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700|Roboto+Mono" rel="stylesheet">
-    <style type="text/css">
-      body {
-        background-color: #F4F5FA;
-        font-family: Roboto, Arial, sans-serif;
-      }
-
-      /*
-        * Content
-        */
-
-      .container {
-        max-width: 1140px !important;
-      }
-
-      [role="main"] {
-        padding-top: 4rem; /* Space for fixed navbar */
-        padding-left: .5rem;
-        padding-right: .5rem;
-      }
-
-      .anchor {
-        float: left;
-        transform: translateY(-5rem);
-      }
-
-      .dropdown-item-sm {
-        padding: 0.25rem 1rem;
-        /*font-size: 0.875rem;*/
-      }
-
-      @media (max-width: 1199.98px) {
-        .td-r {
-          text-align: right;
-          margin-left: auto;
-        }
-      }
-
-      .card, .card-border {
-        border: 1px solid rgba(0,0,0,.2);
-      }
-
-      .card-link {
-        font-size: 0.875rem;
-      }
-
-      .card-title {
-        margin-bottom: .5rem !important;
-      }
-
-      .h5_5 {
-        font-size: 1.15rem;
-      }
-
-      .read-more a.collapsed:after {
-        content: '+ show info';
-      }
-
-      .read-more a:not(.collapsed):after {
-        content: '- hide info';
-      }
-
-      .read-more * {
-        transition: all .3s cubic-bezier(.4,0,.2,1);
-        overflow: hidden;
-      }
-
-      .multiline-text {
-        white-space: pre-wrap;
-        margin-bottom: .5rem !important;
-      }
-
-      code {
-        background-color: #E9EAF0;
-        color: #2F2F97;
-        padding: .2rem .4rem;
-      }
-
-      /*
-        * Navbar
-        */
-
-      .navbar {
-        padding: 0.25rem 0.75rem;
-      }
-
-      .navbar-brand {
-        padding-top: .75rem;
-        padding-bottom: .75rem;
-        font-size: 1rem;
-        max-width: 50vw;
-      }
-
-      .navbar-collapse.show .ml-semiauto,
-      .navbar-collapse.collapsing .ml-semiauto {
-        margin-left: auto !important;
-      }
-
-      .navbar-collapse.show .nav-expand-only,
-      .navbar-collapse.collapsing .nav-expand-only {
-        display: none;
-      }
-
-      @media (min-width: 768px) {
-        .nav-collapse-only {
-          display: none;
-        }
-      }
-    </style>
+    <link href="./css/style.css" rel="stylesheet">
     <title>ChatClient</title>
   </head>
   <body>
@@ -125,7 +18,7 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarNavDropdown">
         <ul class="navbar-nav w-100 text-right">
-          <li class="nav-item dropdown ml-auto">
+          <li class="nav-item dropdown ml-auto nav-expand-only">
             <a class="nav-link dropdown-toggle" id="navdrop-more" href="#"
                     data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
               More
@@ -134,6 +27,12 @@
               <a class="dropdown-item" href="./key-exchange.html">Key Exchange</a>
               <a class="dropdown-item" href="./server.html">Server Docs</a>
             </div>
+          </li>
+          <li class="nav-item nav-collapse-only pr-3">
+            <a class="nav-link" href="./key-exchange.html">Key Exchange</a>
+          </li>
+          <li class="nav-item nav-collapse-only pr-3">
+            <a class="nav-link" href="./server.html">Server Docs</a>
           </li>
         </ul>
       </div>
