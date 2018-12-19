@@ -105,10 +105,18 @@ public class ChatServer {
                         synchronized(conversationsLock) {
                             for(JSONStructs.Conversation existing : conversations.values()) {
                                 collision = existing.users.size() == (otherUsers.size() + 1);
-                                for(String existingUser : existing.userNameList) {
-                                    if(!userName.equals(existingUser) &&
-                                            otherUsers.indexOf(existingUser) == -1) {
-                                        collision = false;
+                                if(collision) {
+                                    for(String existingUser : existing.userNameList) {
+                                        if(!userName.equals(existingUser) &&
+                                                otherUsers.indexOf(existingUser) == -1) {
+                                            collision = false;
+                                            // This means that at least 1 of the users in `existing` is not part of this conversation
+                                            break;  // inner loop
+                                        }
+                                    }
+                                    // if inner loop finishes, collision=true and the requested conversation already exists
+                                    if(collision) {
+                                        break;  // outer loop
                                     }
                                 }
                             }
@@ -154,12 +162,16 @@ public class ChatServer {
                                         for(String existingUser : existing.userNameList) {
                                             if(toAdd.userNameList.indexOf(existingUser) == -1) {
                                                 collision = false;
+                                                // This means that at least 1 of the users in `existing` is not part of this conversation
+                                                break;  // inner loop
                                             }
                                         }
+                                        // if inner loop finishes, collision=true and the requested conversation already exists
+                                        if(collision) {
+                                            return true;
+                                        }
                                     }
-                                    if(collision) {
-                                        return true;
-                                    }
+
                                     conversations.put(toAdd.id, toAdd);
                                     MariaDBReader.updateConversationStore(toAdd);
                                 }
