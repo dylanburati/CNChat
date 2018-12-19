@@ -166,6 +166,11 @@
               in the key-exchange protocol or updates the session data based on the content of the message.
             </li>
           </ul>
+          <p>
+            To use the client, you will need to edit ChatClient.js: the line with <code>new WebSocket(url)</code> must point to the
+            public address of the ChatServer, and the function <code>chatClientBegin()</code> must send a request to the server to
+            join the chat. For more details on this, see the <a href="./server.html">server docs</a>.
+          </p>
         </div>
 
         <div class="px-1 py-2">
@@ -206,7 +211,7 @@
           <code class="d-block multiline-text">  id: &lt;id of conversation&gt;
   from: &lt;username of the sender&gt;
   time: &lt;timestamp of message in milliseconds since 1970-01-01&gt;
-  data" &lt;the content of the message&gt;</code>
+  data: &lt;the content of the message&gt;</code>
           <p>
             These arrays should be used to populate the conversation picker and message panel in the user interface.
           </p>

@@ -157,6 +157,25 @@
             it after checking if the user is logged in. Port 8082 should be open to the internet.
           </p>
           <p>
+            <a href="#connection-diagram" data-toggle="modal">Show diagram</a>
+          </p>
+          <div id="connection-diagram" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="connection-diagram-title" aria-hidden="true"
+                  style="padding-left: 15px;">
+            <div class="modal-dialog" role="document" style="max-width: 1200px !important;">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <p class="h5 mb-2" id="connection-diagram-title">Connection Diagram</p>
+                </div>
+                <div class="modal-body">
+                  <img src="./assets/connection-diag.svg" style="width: 100%; max-width: 100%"></img>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p>
             In order to run the chat app, the server needs to have access to an SSL certificate. If the client is run in a browser, the page needs
             to be loaded over HTTPS in order to use the <code>window.crypto.subtle</code> object.
           </p>
