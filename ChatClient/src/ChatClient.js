@@ -142,11 +142,11 @@ ChatSession.prototype.addConversationFromLS = async function(cl) {
 function chatClientBegin() {
   return new Promise((resolve2, reject2) => {
     new Promise((resolve, reject) => {
-    	axios.post("/backend-chat.php", {command: "join"})
+      axios.post("/backend-chat.php", {command: "join"})
       .then(function(response) { resolve(response.data); })
     })
-  	.then(uuid => {
-    		var ref = new ChatSession(uuid, messageHandler);
+    .then(uuid => {
+        var ref = new ChatSession(uuid, messageHandler);
         ref.keyWrapper = new CipherStore(base64decodebytes(sessionStorage.getItem('keyWrapper')), false);
         ref.keyWrapper.readyPromise.then(() => {
           ref.enqueue("retrieve_keys_self", 0)

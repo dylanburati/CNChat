@@ -635,28 +635,28 @@ function sendAndReceiveBytes(data, uuid) {
 }
 
 async function tripleKeyAgree(selfSerializedKeys, otherSerializedKeys, party1, keyWrapper) {
-	var retval = {};
-	if(!(keyWrapper instanceof CipherStore)) {
-		return false;
-	}
-	var selfKeys = {};
-	var otherKeys = {};
+  var retval = {};
+  if(!(keyWrapper instanceof CipherStore)) {
+    return false;
+  }
+  var selfKeys = {};
+  var otherKeys = {};
 
-	selfKeys['identity'] = await DHKeyPair.fromSerialized(selfSerializedKeys['identity_private'], selfSerializedKeys['identity_public'], keyWrapper);
-	if(!party1) {
-		selfKeys['prekey'] = await DHKeyPair.fromSerialized(selfSerializedKeys['prekey_private'], selfSerializedKeys['prekey_public'], keyWrapper);
-	} else {
-		selfKeys['ephemeral'] = new DHKeyPair(true);
-		retval['key_ephemeral_public'] = base64encodebytes(selfKeys['ephemeral'].getPublicEncoded());
-	}
+  selfKeys['identity'] = await DHKeyPair.fromSerialized(selfSerializedKeys['identity_private'], selfSerializedKeys['identity_public'], keyWrapper);
+  if(!party1) {
+    selfKeys['prekey'] = await DHKeyPair.fromSerialized(selfSerializedKeys['prekey_private'], selfSerializedKeys['prekey_public'], keyWrapper);
+  } else {
+    selfKeys['ephemeral'] = new DHKeyPair(true);
+    retval['key_ephemeral_public'] = base64encodebytes(selfKeys['ephemeral'].getPublicEncoded());
+  }
 
-	otherKeys['identity_public'] = selfKeys['identity'].validateParty2PubKey(base64decodebytes(otherSerializedKeys['identity_public']));
-	if(party1) {
-		otherKeys['prekey_public'] = selfKeys['identity'].validateParty2PubKey(base64decodebytes(otherSerializedKeys['prekey_public']));
+  otherKeys['identity_public'] = selfKeys['identity'].validateParty2PubKey(base64decodebytes(otherSerializedKeys['identity_public']));
+  if(party1) {
+    otherKeys['prekey_public'] = selfKeys['identity'].validateParty2PubKey(base64decodebytes(otherSerializedKeys['prekey_public']));
     var bufArr = [];
-		bufArr.push(selfKeys['identity'].generateSecretKey(otherKeys['prekey_public']));
-		bufArr.push(selfKeys['ephemeral'].generateSecretKey(otherKeys['identity_public']));
-		bufArr.push(selfKeys['ephemeral'].generateSecretKey(otherKeys['prekey_public']));
+    bufArr.push(selfKeys['identity'].generateSecretKey(otherKeys['prekey_public']));
+    bufArr.push(selfKeys['ephemeral'].generateSecretKey(otherKeys['identity_public']));
+    bufArr.push(selfKeys['ephemeral'].generateSecretKey(otherKeys['prekey_public']));
     var sharedSecret = new ArrayBuffer(bufArr[0].byteLength + bufArr[1].byteLength + bufArr[2].byteLength);
     var sharedSecretV = new Uint8Array(sharedSecret);
     var j = 0;
@@ -674,12 +674,12 @@ async function tripleKeyAgree(selfSerializedKeys, otherSerializedKeys, party1, k
       keyMatV[i] = hashV[i];
     }
     retval['key_secret'] = keyMat;
-	} else {
-		otherKeys['ephemeral_public'] = selfKeys['identity'].validateParty2PubKey(base64decodebytes(otherSerializedKeys['ephemeral_public']));
+  } else {
+    otherKeys['ephemeral_public'] = selfKeys['identity'].validateParty2PubKey(base64decodebytes(otherSerializedKeys['ephemeral_public']));
     var bufArr = [];
-		bufArr.push(selfKeys['prekey'].generateSecretKey(otherKeys['identity_public']));
-		bufArr.push(selfKeys['identity'].generateSecretKey(otherKeys['ephemeral_public']));
-		bufArr.push(selfKeys['prekey'].generateSecretKey(otherKeys['ephemeral_public']));
+    bufArr.push(selfKeys['prekey'].generateSecretKey(otherKeys['identity_public']));
+    bufArr.push(selfKeys['identity'].generateSecretKey(otherKeys['ephemeral_public']));
+    bufArr.push(selfKeys['prekey'].generateSecretKey(otherKeys['ephemeral_public']));
     var sharedSecret = new ArrayBuffer(bufArr[0].byteLength + bufArr[1].byteLength + bufArr[2].byteLength);
     var sharedSecretV = new Uint8Array(sharedSecret);
     var j = 0;
@@ -697,7 +697,7 @@ async function tripleKeyAgree(selfSerializedKeys, otherSerializedKeys, party1, k
       keyMatV[i] = hashV[i];
     }
     retval['key_secret'] = keyMat;
-	}
+  }
   return retval;
 }
 

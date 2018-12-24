@@ -41,7 +41,7 @@ async function messageHandler(m, sess) {
         } else if(sess.pendingConversations.length == 0) {
           var toCat = sess.conversations.map(e => e['id']).filter(id => (sess.catSent.indexOf(id) == -1));
           for(let id of toCat) sess.catSent.push(id);
-          new Promise((resolve, reject) => {
+          window.setTimeout(function() {
             for(let catID of toCat) {
               if(sess.conversations.findIndex(e => (e['id'] == catID)) == -1) {
                 continue;
@@ -49,7 +49,7 @@ async function messageHandler(m, sess) {
               sess.enqueue("conversation_cat " + catID, 0);
               sleep(300);
             }
-          });
+          }, 1);
         }
       } else if(command == "conversation_cat") {
         var pastMessages = JSON.parse(commandResults);
