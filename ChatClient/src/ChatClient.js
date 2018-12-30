@@ -1,157 +1,170 @@
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+class ChatSession {
+  constructor(conn, messageHandlerCallback) {
+    if(!isValidUUID(conn.data)) {
+      throw new Error('Not connected');
+    }
+    this.uuid = conn.data;
+    this.conversations = [];
+    this.keysets = [];
+    this.messages = [];
+    this.pendingConversations = [];
+    this.catSent = [];
+    this.keyWrapper = null;
 
-function ChatSession(conn, mCallback) {
-  this.uuid = conn['data'];
-  this.conversations = [];
-  this.keysets = [];
-  this.messages = [];
-  this.pendingConversations = [];
-  this.catComplete = [];
-  this.keyWrapper = null;
-  if(!isValidUUID(this.uuid)) {
-    throw new Error("Not connected");
+    this.websocket = new WebSocket('wss://' + window.location.host + ':8082/' + this.uuid);
+    this.websocket.onmessage = (m) => {
+      messageHandlerCallback(m.data, this);
+    };
   }
 
-  this.websocket = new WebSocket("wss://" + window.location.host + ":8082/" + this.uuid);
-  this.websocket.onmessage = (m) => {
-    mCallback(m.data, this).then(_m => {
-      if(_m != null) this.messages.push(_m);
-    });
-  };
-}
-
-ChatSession.prototype.enqueueWithContentType = async function(str, ctype, cID) {
-  if(this.uuid == null) {
-    this.error = "Not connected";
-    return false;
-  }
-  if(typeof ctype !== "string") {
-    return false;
-  }
-  if(str.length == 0) {
-    return true;
-  }
-
-  if(cID == 0) {
-    str = "0;" + str;
-    if(this.websocket === undefined || this.websocket === null) {
-      this.error = "WebSocket uninitialized";
-      return false;
-    } else if(this.websocket.readyState < 1) {
-      var _sess = this;
-      var wsOpenBlock = new Promise(function(resolve, reject) {
-        _sess.websocket.onopen = function() {
-          _sess.websocket.send(str);
-          resolve();
-        }
+  async enqueueWithContentType(str, contentType, conversationID) {
+    if(!(this.websocket instanceof WebSocket) || this.websocket.readyState >= WebSocket.CLOSING) {
+      throw new Error('Not connected');
+    }
+    if(this.websocket.readyState === WebSocket.CONNECTING) {
+      await new Promise((resolve, reject) => {
+        this.websocket.onopen = resolve;
       });
-      await wsOpenBlock;
+    }
+    if(typeof contentType !== 'string') {
+      return false;
+    }
+    if(str.length === 0) {
       return true;
-    } else if(this.websocket.readyState == 1) {
-      this.websocket.send(str);
+    }
+
+    if(conversationID === 0) {
+      const msg = '0;' + str;
+      this.websocket.send(msg);
+      return true;
+    } else if(conversationID > 0) {
+      const conv = this.conversations.find(e => (e.id === conversationID));
+      if(conv == null) {
+        return false;
+      }
+      const { iv, hmac, ciphertext } = await conv.cipher.encrypt(str);
+      let msg = `${conversationID};${contentType};`;
+      msg += base64encodebytes(iv) + ';';
+      msg += base64encodebytes(hmac) + ';';
+      msg += base64encodebytes(ciphertext);
+      this.websocket.send(msg);
       return true;
     } else {
-      this.error = "WebSocket closed. Please reload the page";
       return false;
     }
-  } else {
-    var sendToConv = this.conversations.find(e => (e['id'] == cID));
-    if(sendToConv == null) {
-      this.error = "Conversation not found";
-      return false;
+  }
+
+  async enqueue(str, conversationID) {
+    const result = await this.enqueueWithContentType(str, '', conversationID);
+  }
+
+  async addConversationFromRequest(conversationRequest) {
+    const self = conversationRequest.find(e => ('identity_private' in e));
+    if(self == null) {
+      throw new Error('Request is missing required keys');
     }
-    var outObj = await sendToConv.cipher.encrypt(str);
-    var outStr = "" + cID + ";" + ctype + ";";
-    outStr += base64encodebytes(outObj['iv']) + ";";
-    outStr += base64encodebytes(outObj['hmac']) + ";";
-    outStr += base64encodebytes(outObj['ciphertext']);
-    this.websocket.send(outStr);
+    const toAdd = { users: [] };
+    const userNameList = [self.user];
+
+    const conversationKeyBytes = new Uint8Array(32);
+    window.crypto.getRandomValues(conversationKeyBytes);
+    const conversationCipher = new CipherStore(conversationKeyBytes);
+    await conversationCipher.readyPromise;
+
+    const asyncLoopFunction = async (other) => {
+      if(other === self) return;
+      userNameList.push(other.user);
+      const keyAgreement = await tripleKeyAgree(self, other, true, this.keyWrapper);
+      const otherUserObj = {
+        user: other.user,
+        role: 2,
+        key_ephemeral_public: keyAgreement.key_ephemeral_public,
+        initial_message: ''
+      };
+      const initialCipher = new CipherStore(keyAgreement.key_secret);
+      await initialCipher.readyPromise;
+      const { iv, hmac, ciphertext } = await initialCipher.encryptBytes(conversationKeyBytes);
+      otherUserObj.initial_message += base64encodebytes(iv) + ';';
+      otherUserObj.initial_message += base64encodebytes(hmac) + ';';
+      otherUserObj.initial_message += base64encodebytes(ciphertext);
+      toAdd.users.push(otherUserObj);
+    }
+    const promises = [];
+    conversationRequest.forEach(other => {
+      promises.push(asyncLoopFunction(other));
+    });
+    await Promise.all(promises);
+
+    const selfUserObj = {
+      user: self.user,
+      role: 1,
+      key_wrapped: ''
+    };
+    selfUserObj.key_wrapped = await wrapKey(conversationKeyBytes, this.keyWrapper);
+    toAdd.users.push(selfUserObj);
+    return toAdd;
   }
-}
 
-ChatSession.prototype.enqueue = async function(str, cID) {
-  var retval = await this.enqueueWithContentType(str, "", cID);
-  return retval;
-}
+  async addConversationFromLS(conversationObj) {
+    const toAdd = {
+      id: conversationObj.id,
+      users: conversationObj.users,
+      cipher: null
+    };
 
-ChatSession.prototype.addConversationFromRequest = async function(cr) {
-  var ca = {users: []};
-  var self = cr.find(e => (typeof e['identity_private'] != 'undefined'));
-  var skV = new Uint8Array(32);
-  window.crypto.getRandomValues(skV);
-  var convCipher = new CipherStore(skV, true);
-  await convCipher.readyPromise;
-  var userNameList = [self.user];
-
-  for(let other of cr) {
-    if(other == self) continue;
-    userNameList.push(other.user);
-    var tka = await tripleKeyAgree(self, other, true, this.keyWrapper);
-    var uObj = {'user': other.user, role: 2, key_ephemeral_public: tka['key_ephemeral_public']};
-    var initialCipher = new CipherStore(tka['key_secret'], true);
-    await initialCipher.readyPromise;
-    var initialMessageRaw = await initialCipher.encryptBytes(skV);
-    uObj['initial_message'] = base64encodebytes(initialMessageRaw['iv']) + ";" +
-            base64encodebytes(initialMessageRaw['hmac']) + ";" +
-            base64encodebytes(initialMessageRaw['ciphertext']);
-    ca.users.push(uObj);
-  }
-  var skW = await wrapKey(skV, this.keyWrapper);
-  ca.users.push({user: self.user, role: 1, key_wrapped: skW});
-  return ca;
-}
-
-ChatSession.prototype.addConversationFromLS = async function(cl) {
-  if(cl['key_wrapped'] != null && cl['key_wrapped'].length > 21) {
-    if(this.conversations.findIndex(e => (e['id'] == cl['id'])) != -1) {
+    if(!empty(conversationObj.key_wrapped, 'string')) {
+      // User's part of key exchange is complete
+      if(this.conversations.findIndex(e => (e.id === conversationObj.id)) != -1) {
+        // Conversation has already been added
+        return true;
+      }
+      const conversationKeyBytes = await unwrapKey(conversationObj.key_wrapped, this.keyWrapper);
+      toAdd.cipher = new CipherStore(conversationKeyBytes);
+      await toAdd.cipher.readyPromise;
+      this.conversations.push(toAdd);
       return true;
-    }
-    var ski = await unwrapKey(cl['key_wrapped'], this.keyWrapper);
-    var convCipher = new CipherStore(ski, true);
-    await convCipher.readyPromise;
-    this.conversations.splice(0,0, {id: cl['id'], users: cl['users'], cipher: convCipher});
-    return true;
-  } else {
-    var self = this.keysets.find(e => (typeof e['identity_private'] != 'undefined'));
-    var other = this.keysets.find(e => (e['user'] == cl['role1']));
-    if(self == null || other == null || self == other) {
-      return false;
-    }
-    var otherFull = Object.assign({}, other, {ephemeral_public: cl['key_ephemeral_public']})
-    var tka = await tripleKeyAgree(self, otherFull, false, this.keyWrapper);
-    var initialMessageRaw = cl['initial_message'].split(";");
-    if(initialMessageRaw.length != 3) {
-      return false;
-    }
-    var initialCipher = new CipherStore(tka['key_secret'], true);
-    await initialCipher.readyPromise;
-    var skV = await initialCipher.decryptBytes(base64decodebytes(initialMessageRaw[0]) /*iv*/,
-            base64decodebytes(initialMessageRaw[1]) /*hmac*/,
-            base64decodebytes(initialMessageRaw[2]) /*b256e*/);
-    var convCipher = new CipherStore(skV, true);
-    await convCipher.readyPromise;
+    } else {
+      // User's part of key exchange is incomplete
+      const self = this.keysets.find(e => ('identity_private' in e));
+      const other = this.keysets.find(e => (e.user === conversationObj.role1));
+      if(self == null || other == null) {
+        // Message handler should request keys from the server and retry
+        return false;
+      }
 
-    this.conversations.splice(0,0, {id: cl['id'], users: cl['users'], cipher: convCipher});
-    var skW = await wrapKey(skV, this.keyWrapper);
-    return skW;
+      const [ iv, hmac, ciphertext ] = conversationObj.initial_message.split(';');
+      if(empty(iv, 'string') || empty(hmac, 'string') || empty(ciphertext, 'string')) {
+        throw new Error('Initial message is not properly formatted');
+      }
+      const otherUserObj = Object.assign({}, other, {ephemeral_public: conversationObj.key_ephemeral_public});
+      const keyAgreement = await tripleKeyAgree(self, otherUserObj, false, this.keyWrapper);
+      const initialCipher = new CipherStore(keyAgreement.key_secret);
+      await initialCipher.readyPromise;
+      const conversationKeyBytes = await initialCipher.decryptBytes(base64decodebytes(iv),
+              base64decodebytes(hmac), base64decodebytes(ciphertext));
+      toAdd.cipher = new CipherStore(conversationKeyBytes);
+      await toAdd.cipher.readyPromise;
+      this.conversations.push(toAdd);
+
+      const conversationKeyWrapped = await wrapKey(conversationKeyBytes, this.keyWrapper);
+      return conversationKeyWrapped;  // Message handler should upload wrapped key to the server
+    }
   }
 }
 
-function chatClientBegin() {
+function chatClientBegin(messageHandler) {
   return new Promise((resolve2, reject2) => {
     new Promise((resolve, reject) => {
-      axios.post("/backend-chat.php", {command: "join"})
-      .then(function(response) { resolve(response.data); })
+      axios.post('/backend-chat.php', {command: 'join'})
+          .then((response) => { resolve(response.data); });
     })
     .then(uuid => {
-        var ref = new ChatSession(uuid, messageHandler);
+        const ref = new ChatSession(uuid, messageHandler);
         ref.keyWrapper = new CipherStore(base64decodebytes(sessionStorage.getItem('keyWrapper')), false);
         ref.keyWrapper.readyPromise.then(() => {
-          ref.enqueue("retrieve_keys_self", 0)
-          .then(() => ref.enqueue("conversation_ls", 0))
-          .then(() => resolve2(ref))
+          ref.enqueue('retrieve_keys_self', 0)
+            .then(() => ref.enqueue('conversation_ls', 0))
+            .then(() => resolve2(ref));
         });
     });
   });

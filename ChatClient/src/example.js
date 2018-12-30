@@ -2,135 +2,172 @@
 //
 //
 
-async function messageHandler(m, sess) {
-  console.log(m);
-  var mObj = {'id': -1};
-  var mFields = m.split(";", 2);
-  mObj['id'] = parseInt(mFields[0]);
-  if(mObj['id'] == 0) {
-    // server
-    // conversationID;classes;message
-    if(mFields[1] == "command") {
-      var message = m.substring(mFields.reduce((a, b) => a + b.length, 0) + mFields.length);
-      var commandIdx = message.indexOf(";");
-      var command = message.substring(0, commandIdx);
-      var commandResults = message.substring(commandIdx + 1);
-      if(command == "conversation_request") {
-        try {
-          var cr = JSON.parse(commandResults);
-          var ca = await sess.addConversationFromRequest(cr);
-          sess.enqueue("conversation_add " + JSON.stringify(ca), 0);
-        } catch(ignoreErr) {
-        }
-      } else if(command == "conversation_ls") {
-        var ls = JSON.parse(commandResults);
-        var keyReqs = {};
-        for(let conv of ls) {
-          var keysetsReady = false;
-          var wrk = await sess.addConversationFromLS(conv);
-          if(wrk === false) {
-            sess.pendingConversations.push(conv);
-            keyReqs[conv['role1']] = 1;
-          } else if(wrk !== true) {
-            sess.enqueue("conversation_set_key " + conv['id'] + " " + wrk, 0);
-          }
-        }
-        var toRequest = Object.keys(keyReqs).join(";");
-        if(toRequest.length > 0) {
-          sess.enqueue("retrieve_keys_other " + toRequest, 0);
-        } else if(sess.pendingConversations.length == 0) {
-          var toCat = sess.conversations.map(e => e['id']).filter(id => (sess.catSent.indexOf(id) == -1));
-          for(let id of toCat) sess.catSent.push(id);
-          window.setTimeout(function() {
-            for(let catID of toCat) {
-              if(sess.conversations.findIndex(e => (e['id'] == catID)) == -1) {
-                continue;
-              }
-              sess.enqueue("conversation_cat " + catID, 0);
-              sleep(300);
-            }
-          }, 1);
-        }
-      } else if(command == "conversation_cat") {
-        var pastMessages = JSON.parse(commandResults);
-        if(pastMessages.length > 0) {
-          var pmcID = parseInt(pastMessages[0].split(";")[0]);
-          var conv = sess.conversations.find(e => (e['id'] == pmcID));
-          if(conv == null) return null;
-          for(let pm of pastMessages) {
-            pmObj = {id: pmcID};
-            var pmFields = pm.split(";", 6);
-            var pmessage = pm.substring(pmFields.reduce((a, b) => a + b.length, 0) + pmFields.length);
-            pmObj['from'] = pmFields[1];
-            pmObj['time'] = parseInt(pmFields[2]);
-            pmObj['data'] = await conv.cipher.decrypt(base64decodebytes(pmFields[4]) /*iv*/,
-                    base64decodebytes(pmFields[5]) /*hmac*/,
-                    base64decodebytes(pmessage) /*b256e*/);
-            sess.messages.push(pmObj);
-            // Code to display the message to the screen goes here
-            // Should depend on the message classes `mFields[3]`, which is a
-            // space separated string specifying the type of message and the sender's
-            // preferred format (markdown or plaintext)
-          }
-        }
-      } else if(command == "retrieve_keys_self") {
-        var keyset = JSON.parse(commandResults);
-        sess.keysets.push(keyset);
-      } else if(command == "retrieve_keys_other") {
-        var otherKeysets = JSON.parse(commandResults);
-        for(let keyset of otherKeysets) {
-          sess.keysets.push(keyset);
-        }
-        if(otherKeysets.length > 0) {
-          for(var i = 0; i < sess.pendingConversations.length; i++) {
-            var wrk = await sess.addConversationFromLS(sess.pendingConversations[i]);
-            if(wrk !== false) {
-              var cID = sess.pendingConversations.splice(i, 1)[0]['id'];
-              i--;
-              if(wrk !== true) {
-                sess.enqueue("conversation_set_key " + cID + " " + wrk, 0);
-              }
-            }
-          }
-        }
-        if(sess.pendingConversations.length == 0) {
-          var toCat = sess.conversations.map(e => e['id']).filter(id => (sess.catSent.indexOf(id) == -1));
-          for(let id of toCat) sess.catSent.push(id);
-          new Promise((resolve, reject) => {
-            for(let catID of toCat) {
-              if(sess.conversations.findIndex(e => (e['id'] == catID)) == -1) {
-                continue;
-              }
-              sess.enqueue("conversation_cat " + catID, 0);
-              sleep(300);
-            }
-          });
-        }
-      }
-    }
-    return null;
-  } else {
-    // user
-    // conversationID;from;time;classes;iv;hmac;message
-    var conv = sess.conversations.find(e => (e['id'] == mObj['id']));
-    if(conv == null) return null;
-    mFields = m.split(";", 6);
-    var message = m.substring(mFields.reduce((a, b) => a + b.length, 0) + mFields.length);
-    mObj['from'] = mFields[1];
-    mObj['time'] = parseInt(mFields[2]);
-    mObj['data'] = await conv.cipher.decrypt(base64decodebytes(mFields[4]) /*iv*/,
-            base64decodebytes(mFields[5]) /*hmac*/,
-            base64decodebytes(message) /*b256e*/);
-    sess.messages.push(mObj);
+const commandHandlers = {
+  conversation_request(commandResults, session) {
+    const conversationRequest = JSON.parse(commandResults);
+    session.addConversationFromRequest(conversationRequest).then(toAdd => {
+      session.enqueue('conversation_add ' + JSON.stringify(toAdd), 0);
+    });
+  },
 
-    // Code to display the message to the screen goes here
-    // Should depend on the message classes `mFields[3]`, which is a
-    // space separated string specifying the type of message and the sender's
-    // preferred format (markdown or plaintext)
+  conversation_ls(commandResults, session) {
+    const conversationLS = JSON.parse(commandResults);
+    const keysToRequest = [];
+    const promises = [];
+    conversationLS.forEach(conversationObj => {
+      const promise = session.addConversationFromLS(conversationObj).then(conversationStatus => {
+        if(conversationStatus === false) {
+          if(keysToRequest.indexOf(conversationObj.role1) === -1) {
+            keysToRequest.push(conversationObj.role1);
+            session.pendingConversations.push(conversationObj);
+          }
+        } else if(conversationStatus === true) {
+          if(session.catSent.indexOf(conversationObj.id) === -1) {
+            session.catSent.push(conversationObj.id);
+            session.enqueue(`conversation_cat ${conversationObj.id}`, 0);
+          }
+        } else if(!empty(conversationStatus, 'string')) {
+          // conversationStatus is conversationKeyWrapped
+          // response to conversation_set_key will be conversation_ls
+          session.enqueue(`conversation_set_key ${conversationObj.id} ${conversationStatus}`, 0);
+        }
+      });
+      promises.push(promise);
+    });
+    Promise.all(promises).then(promiseResultArr => {
+      if(keysToRequest.length > 0) {
+        session.enqueue('retrieve_keys_other ' + keysToRequest.join(";"));
+      }
+    });
+  },
+
+  conversation_cat(commandResults, session) {
+    const pastMessages = JSON.parse(commandResults);
+    if(pastMessages.length > 0) {
+      const conversationID = parseInt(pastMessages[0].split(';')[0]);
+      const conversation = session.conversations.find(e => (e.id === conversationID));
+      if(conversation == null) {
+        throw new Error("Unknown conversation");
+      }
+      pastMessages.forEach(pastMsg => {
+        const msgObj = { id: conversationID };
+        const msgFields = pastMsg.split(';', 6);
+        const [ id, from, time, contentType, iv, hmac ] = msgFields;
+        if(empty(id, 'string') || empty(from, 'string') || empty(time, 'string') ||
+                empty(contentType, 'string') || empty(iv, 'string') || empty(hmac, 'string')) {
+          return;
+        }
+        if(parseInt(id) !== conversationID) {
+          return;
+        }
+        const ciphertext = pastMsg.substring(msgFields.reduce((acc, cur) => (acc + cur.length), 0) + 6);
+        msgObj.from = from;
+        msgObj.time = parseInt(time);
+        conversation.cipher.decrypt(base64decodebytes(iv),
+                base64decodebytes(hmac),
+                base64decodebytes(ciphertext)).then(msgData => {
+          msgObj.data = msgData;
+          session.messages.push(msgObj);
+
+          // Code to display the message to the screen goes here
+          // Should depend on the message classes `contentType`, which is a
+          // space separated string specifying the type of message (always 'user')
+          // and the sender's preferred format ('markdown' or 'plaintext')
+        });
+      });
+    }
+  },
+
+  retrieve_keys_self(commandResults, session) {
+    const keyset = JSON.parse(commandResults);
+    session.keysets.push(keyset);
+  },
+
+  retrieve_keys_other(commandResults, session) {
+    const otherKeysets = JSON.parse(commandResults);
+    otherKeysets.forEach(keyset => {
+      session.keysets.push(keyset);
+      const conversationObj = session.pendingConversations.find(e => (keyset.user === e.role1));
+      if(conversationObj != null) {
+        session.addConversationFromLS(conversationObj).then(conversationStatus => {
+          if(conversationStatus === false) {
+            throw new Error('retrieve_keys_self must be called before retrieve_keys_other');
+          } else if(conversationStatus === true) {
+            if(session.catSent.indexOf(conversationObj.id) === -1) {
+              session.catSent.push(conversationObj.id);
+              session.pendingConversations = session.pendingConversations.filter(e => (keyset.user !== e.role1));
+              session.enqueue(`conversation_cat ${conversationObj.id}`, 0);
+            }
+          } else if(!empty(conversationStatus, 'string')) {
+            // conversationStatus is conversationKeyWrapped
+            // response to conversation_set_key will be conversation_ls
+            session.pendingConversations = session.pendingConversations.filter(e => (keyset.user !== e.role1));
+            session.enqueue(`conversation_set_key ${conversationObj.id} ${conversationStatus}`, 0);
+          }
+        });
+      }
+    });
+  },
+
+  user_message(currentMsg, session) {
+    // user
+    // conversationID;from;time;classes;iv;hmac;messageData
+    const msgObj = {};
+    const msgFields = currentMsg.split(';', 6);
+    const conversationID = parseInt(msgFields[0]);
+    const [ from, time, contentType, iv, hmac ] = msgFields.slice(1);
+    if(empty(from, 'string') || empty(time, 'string') || empty(contentType, 'string') ||
+            empty(iv, 'string') || empty(hmac, 'string')) {
+      return;
+    }
+    if(conversationID <= 0) {
+      return;
+    }
+    const conversation = session.conversations.find(e => (e.id === conversationID));
+    if(conversation == null) {
+      throw new Error("Unknown conversation");
+    }
+    const ciphertext = currentMsg.substring(msgFields.reduce((acc, cur) => (acc + cur.length), 0) + 6);
+    msgObj.id = conversationID;
+    msgObj.from = from;
+    msgObj.time = parseInt(time);
+    conversation.cipher.decrypt(base64decodebytes(iv),
+            base64decodebytes(hmac),
+            base64decodebytes(ciphertext)).then(msgData => {
+      msgObj.data = msgData;
+      session.messages.push(msgObj);
+
+      // Code to display the message to the screen goes here
+      // Should depend on the message classes `contentType`, which is a
+      // space separated string specifying the type of message (always 'user')
+      // and the sender's preferred format ('markdown' or 'plaintext')
+    });
   }
 }
 
-var session;
-$(document).ready(function() {
-  chatClientBegin().then(s => { session = s; });
-});
+function messageHandler(message, session) {
+  console.log(message);
+  let [ conversationID, messageType ] = message.split(';', 2);
+  conversationID = parseInt(conversationID);
+  if(conversationID === 0) {
+    // server
+    // conversationID;messageType;messageData
+    if(messageType === 'command') {
+      const messageData = message.substring(conversationID.toString().length + messageType.length + 2);
+      const commandIdx = messageData.indexOf(';');
+      const command = messageData.substring(0, commandIdx);
+      const commandResults = messageData.substring(commandIdx + 1);
+      const commandHandler = commandHandlers[command];
+      if(!empty(commandHandler, 'function')) {
+        commandHandler(commandResults, session);
+      }
+    }
+  } else {
+    // user
+    // conversationID;from;time;classes;iv;hmac;messageData
+    commandHandlers.user_message(message, session);
+  }
+}
+
+let session;
+chatClientBegin(messageHandler).then(s => { session = s; });
