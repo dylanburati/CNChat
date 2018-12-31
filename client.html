@@ -90,12 +90,21 @@
           <p class="mb-2">
             To send a message to a conversation, the client executes:
           </p>
-          <code class="ml-3">session.enqueue(messageText, conversationID)</code>
-          <p class="mt-3">
-            These two actions should be accessible from the user interface. Everything else is done automatically in
+          <code class="ml-3">session.enqueue(messageText, conversationID)</code> or<br>
+          <code class="ml-3">session.enqueueWithContentType(messageText, contentType, conversationID)</code>
+          <p class="mt-3 mb-2">
+            To update preferences, the client executes:
+          </p>
+          <code class="ml-3">session.enqueue("conversation_request &lt;changed_preferences&gt;", 0)</code>
+          <p class="mt-2 mb-3">
+            where <i>changed_preferences</i> is a JSON string with the preference keys and new values
+            (currently only one preference is used: <i>markdown</i> is a Boolean indicating whether messages the user
+            sends with the default <i>contentType</i> should be formatted with Markdown).
+          </p>
+          <p class="mb-4">
+            These actions should be accessible from the user interface. Everything else is done automatically in
             <i>messageHandler</i>.
           </p>
-          <br>
           <p>
             The ChatSession stores an array called <i>conversations</i>, in which each element is an object with the
             following properties:
@@ -114,6 +123,69 @@
           <p>
             These arrays should be used to populate the conversation picker and message panel in the user interface.
           </p>
+        </div>
+
+        <div class="px-1 py-2">
+          <span class="anchor" id="compiling"></span>
+          <p class="h4">Compiling to ES5</p>
+          <p>
+            For better browser compatibility, the client JavaScript can be compiled from ECMAScript 6 to ECMAScript 5.
+            This will collapse the source files into one bundled file, which can be included in a web page. To do this:
+          </p>
+          <ol>
+            <li class="mb-2">
+              Install the following node.js modules:<br>
+              <code class="d-block">
+                npm install --save-dev @babel/core @babel/cli @babel/polyfill @babel/preset-env webpack webpack-cli
+              </code>
+            </li>
+            <li class="mb-2">
+              Create a Babel config file:<br>
+              <code class="d-block multiline-text">const presets = [
+  [
+    "@babel/env",
+    {
+      targets: {
+        ie: "11",
+        edge: "12",
+        firefox: "34",
+        chrome: "37",
+        safari: "8",
+        opera: "24",
+        ios: "8"
+      },
+      useBuiltIns: "usage"
+    },
+  ],
+];
+
+module.exports = { presets };</code>
+              These are the earliest versions that support SubtleCrypto, WebSockets, and Promises.
+            </li>
+            <li class="mb-2">
+              Concatenate the files to compile:<br>
+              <code class="d-block">
+                cat path/to/ChatUtils.js path/to/ChatClient.js path/to/example.js &gt; CNChat-es6.js
+              </code>
+              <p class="ml-4 mt-2 mb-0" style="line-height: 1.35;">
+                Note: the functions in the bundle will not be defined in the scope of the window. If your code for the
+                user interface needs to access one of them, you can add lines to the end of CNChat-es6.js like this:<br>
+                <code class="d-block">window.chatClientBegin = chatClientBegin</code>
+              </p>
+            </li>
+            <li class="mb-2">
+              Compile with Babel<br>
+              <code class="d-block">
+                ./node_modules/.bin/babel --config-file babel.config.js -o CNChat-es5.js CNChat-es6.js
+              </code>
+            </li>
+            <li class="mb-2">
+              Preload dependencies with Webpack<br>
+              <code class="d-block">
+                ./node_modules/.bin/webpack --optimize-minimize -o CNChat-bundle.js CNChat-es5.js
+              </code><br>
+            </li>
+          </ol>
         </div>
 
         <div class="px-1 py-2">

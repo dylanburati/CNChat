@@ -12,14 +12,6 @@
 srcREADME.txt
 
 # Other
-/ChatClient/src/config.txt
-android-update.sh
-cnupdate.sh
-checkout*.sh
-charsTo0xff.txt
-CodecCheck.class
-CryptoCheck.class
+.ignored
 precompile.sh
 postcompile.sh
-TestClient.jar
-WebsocketTest/
