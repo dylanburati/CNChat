@@ -323,7 +323,7 @@ public class ChatServer {
                     } else if(message.startsWith("quit")) {
                         return false;
                     } else if(message.startsWith("set_preferences ")) {
-                        messageClasses = "hide";
+                        messageClasses = "command";
                         String preferencesJson = message.substring(16);
                         JSONStructs.Preferences toUpdate = null;
                         try {

@@ -500,8 +500,22 @@ class DHKeyPair {
   }
 }
 
+let assertSubtle = false;
 class CipherStore {
   constructor(keyBytes, initializeIV = true) {
+    if(!assertSubtle) {
+      if(!empty(window.crypto)) {
+        if(!empty(window.crypto.subtle)) {
+          assertSubtle = true;
+        } else if(!empty(window.crypto.webkitSubtle)) {
+          window.crypto.subtle = window.crypto.webkitSubtle;
+          assertSubtle = true;
+        }
+      }
+      if(!assertSubtle) {
+        throw new Error('Cryptography support is not available (insecure page or outdated browser)');
+      }
+    }
     if(initializeIV) {
       this.iv = new ArrayBuffer(16);
       const ivView = new Uint8Array(this.iv);

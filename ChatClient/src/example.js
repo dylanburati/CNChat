@@ -109,6 +109,13 @@ const commandHandlers = {
     });
   },
 
+  set_preferences(commandResults, session) {
+    const preferences = JSON.parse(commandResults);
+    // Code to change the user's preferences goes here
+    // Currently the only preference is `markdown: Boolean`,
+    // which changes the default formatting of messages *sent* by the user
+  },
+
   user_message(currentMsg, session) {
     // user
     // conversationID;from;time;classes;iv;hmac;messageData
