@@ -12,14 +12,19 @@ import java.util.Map;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class MariaDBReader {
-    private static final String messagesTableName = "$cnchat_messages";
+    public static int databasePort = 3306;
+    public static String databaseUser = null;
+    public static String databasePassword = null;
+    public static String databaseName = null;
+    public static String messagesTableName = "$cnchat_messages";
+    public static String conversationsTableName = "$cnchat_conversations";
+    public static String conversationsUsersTableName = "$cnchat_conversations_users";
+
     private static boolean messagesCreateChecked = false;
-    private static final String conversationsTableName = "$cnchat_conversations";
     private static boolean conversationsCreateChecked = false;
-    private static final String conversationsUsersTableName = "$cnchat_conversations_users";
     private static boolean conversationsUsersCreateChecked = false;
 
-    private static final String databaseConnectionString = "jdbc:mariadb://127.0.0.1:3306/%s?user=test&password=";
+    private static final String databaseConnectionString = "jdbc:mariadb://127.0.0.1:%d/%s?user=%s&password=%s";
     
     public static String retrieveKeysSelf(String userName) {
         try {
@@ -29,7 +34,7 @@ public class MariaDBReader {
             PreparedStatement usersStmt = null;
             ResultSet usersResults = null;
             try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, "testing"));
+                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
                 String usersSql = "SELECT identity_public, identity_private, prekey_public, prekey_private FROM $keystore WHERE name = ?";
                 usersStmt = conn.prepareStatement(usersSql);
                 usersStmt.setString(1, userName);
@@ -62,7 +67,7 @@ public class MariaDBReader {
             PreparedStatement usersStmt = null;
             ResultSet usersResults = null;
             try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, "testing"));
+                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
                 String usersSql = "SELECT name, identity_public, prekey_public FROM $keystore WHERE name = ?";
                 usersStmt = conn.prepareStatement(usersSql);
                 usersStmt.setString(1, otherUserName);
@@ -96,7 +101,7 @@ public class MariaDBReader {
 
             PreparedStatement createStmt = null;
             try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, "testing"));
+                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
                 String createSql = String.format("CREATE TABLE IF NOT EXISTS %s (" +
                         "n INT NOT NULL AUTO_INCREMENT, " +
                         "id INT NOT NULL, " +
@@ -126,7 +131,7 @@ public class MariaDBReader {
 
             PreparedStatement createStmt = null;
             try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, "testing"));
+                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
                 String createSql = String.format("CREATE TABLE IF NOT EXISTS %s (" +
                         "id INT NOT NULL, " +
                         "exchange_complete BOOLEAN NOT NULL, " +
@@ -157,7 +162,7 @@ public class MariaDBReader {
 
             PreparedStatement createStmt = null;
             try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, "testing"));
+                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
                 String createSql = String.format("CREATE TABLE IF NOT EXISTS %s (" +
                         "id INT NOT NULL, " +
                         "role INT NOT NULL, " +
@@ -195,7 +200,7 @@ public class MariaDBReader {
             PreparedStatement msgStmt = null;
             ResultSet msgSet = null;
             try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, "testing"));
+                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
                 String msgSql = String.format("SELECT data FROM %s WHERE id = ? ORDER BY n DESC LIMIT ?", messagesTableName);
 
                 msgStmt = conn.prepareStatement(msgSql);
@@ -239,7 +244,7 @@ public class MariaDBReader {
 
             PreparedStatement writeStmt = null;
             try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, "testing"));
+                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
                 String writeSql = String.format("INSERT INTO %s (id, data) VALUES (?, ?)", messagesTableName);
 
                 writeStmt = conn.prepareStatement(writeSql);
@@ -269,7 +274,7 @@ public class MariaDBReader {
             PreparedStatement conv2Stmt = null;
             ResultSet conv2Set = null;
             try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, "testing"));
+                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
                 String convSql = String.format("SELECT id, exchange_complete, crypt_expiration FROM %s", conversationsTableName);
 
                 convStmt = conn.prepareStatement(convSql);
@@ -329,7 +334,7 @@ public class MariaDBReader {
             PreparedStatement writeStmt = null;
             PreparedStatement write2Stmt = null;
             try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, "testing"));
+                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
                 String writeSql = String.format("INSERT INTO %s (id, exchange_complete, crypt_expiration) VALUES (?, ?, ?) " +
                         "ON DUPLICATE KEY UPDATE id = ?, exchange_complete = ?, crypt_expiration = ?", conversationsTableName);
 

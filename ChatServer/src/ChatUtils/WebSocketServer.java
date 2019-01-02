@@ -155,8 +155,7 @@ public class WebSocketServer {
         return s;
     }
 
-    public WebSocketServer(String keyStoreLocation) throws Exception {
-        int portNumber = 8082;
+    public WebSocketServer(int portNumber, String keyStoreLocation) throws Exception {
         if(new File(keyStoreLocation).canRead()) {
             SSLContext sc = SSLContext.getInstance("TLSv1.2");
             KeyStore keyStore = KeyStore.getInstance("JKS");

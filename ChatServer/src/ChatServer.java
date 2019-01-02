@@ -24,15 +24,33 @@ interface peerUpdateCompat<T> {
 
 public class ChatServer {
 
+    // Config options
+    // "authPort": int
+    private static int authPortNumber = 8081;
+    // "websocketPort": int
+    private static int wsPortNumber = 8082;
+    // "keyStoreLocation": /absolute/path/to/file
+    private static String keyStoreLocation = null;
+
+    // options stored in ChatUtils.MariaDBReader
+    // "mariaDBPort": int, default=3306
+    // "mariaDBUser": username
+    // "mariaDBPassword": password
+    // "database": db name
+    // "tableForMessages": table name, default="$cnchat_messages"
+    // "tableForConversations": table name, default="$cnchat_conversations"
+    // "tableForConversationsUsers": table name, default="$cnchat_conversations_users"
+
     private static HttpServer authServer;
     private static WebSocketServer wsServer;
     private static volatile Map<Integer, JSONStructs.Conversation> conversations = null;
     private static final Object conversationsLock = new Object();
 
+    private static final String workingDirectory = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
+            getParent() + System.getProperty("file.separator");
     private static volatile Map<String, JSONStructs.Preferences> allPreferences = new HashMap<>();
     private static final Object preferencesLock = new Object();
-    private static final String preferenceStorePath = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
-            getParent() + System.getProperty("file.separator") + "preferences.json";
+    private static final String preferenceStorePath = workingDirectory + "user_preferences.json";
     private static ExecutorService storeWriter = Executors.newSingleThreadExecutor();
 
     private static volatile Map<String, String> userNamesMap = new HashMap<>();
@@ -532,24 +550,92 @@ public class ChatServer {
             }
         } // end class ClientThread
 
-        conversations = MariaDBReader.getConversationStore();
-        if(conversations == null) throw new RuntimeException("Failed to load conversations");
-
+        final String configPath = workingDirectory + "config.json";
         Any.registerEncoders();
         JsonIterator.setMode(DecodingMode.REFLECTION_MODE);
         JsonStream.setMode(EncodingMode.REFLECTION_MODE);
+        try(BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(configPath), UTF_8))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while((line = in.readLine()) != null) {
+                sb.append(line).append("\n");
+            }
+            if(sb.length() > 1) {
+                Any allSettings = JsonIterator.deserialize(sb.substring(0, sb.length() - 1));
+                Any.EntryIterator iter = allSettings.entries();
+                while(iter.next()) {
+                    String key = iter.key();
+                    switch(key) {
+                        case "authPort":
+                            authPortNumber = iter.value().toInt();
+                            break;
+                        case "websocketPort":
+                            wsPortNumber = iter.value().toInt();
+                            break;
+                        case "keyStoreLocation":
+                            keyStoreLocation = iter.value().toString();
+                            break;
+                        case "mariaDBPort":
+                            MariaDBReader.databasePort = iter.value().toInt();
+                            break;
+                        case "mariaDBUser":
+                            MariaDBReader.databaseUser = iter.value().toString();
+                            break;
+                        case "mariaDBPassword":
+                            MariaDBReader.databasePassword = iter.value().toString();
+                            break;
+                        case "database":
+                            MariaDBReader.databaseName = iter.value().toString();
+                            break;
+                        case "tableForMessages":
+                            MariaDBReader.messagesTableName = iter.value().toString();
+                            break;
+                        case "tableForConversations":
+                            MariaDBReader.conversationsTableName = iter.value().toString();
+                            break;
+                        case "tableForConversationsUsers":
+                            MariaDBReader.conversationsUsersTableName = iter.value().toString();
+                            break;
+                        default:
+                            System.out.format("Warning: unknown key in config.json: '%s'\n", key);
+                            break;
+                    }
+                }
+            }
+            if(authPortNumber <= 0 || authPortNumber > 65535 ||
+                    wsPortNumber <= 0 || wsPortNumber > 65535 ||
+                    keyStoreLocation == null ||
+                    MariaDBReader.databasePort <= 0 || MariaDBReader.databasePort > 65535 ||
+                    MariaDBReader.databaseUser == null ||
+                    MariaDBReader.databasePassword == null ||
+                    MariaDBReader.databaseName == null || MariaDBReader.databaseName.isEmpty() ||
+                    MariaDBReader.messagesTableName == null || MariaDBReader.messagesTableName.isEmpty() ||
+                    MariaDBReader.conversationsTableName == null || MariaDBReader.conversationsTableName.isEmpty() ||
+                    MariaDBReader.conversationsUsersTableName == null || MariaDBReader.conversationsUsersTableName.isEmpty()) {
+                throw new RuntimeException("Illegal value in configuration file");
+            }
+        } catch(IOException e) {
+            throw new RuntimeException("Failed to load configuration file");
+        }
+        // All variables set by the config are final after this point
+
+        conversations = MariaDBReader.getConversationStore();
+        if(conversations == null) throw new RuntimeException("Failed to load conversations");
+
         try(BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(preferenceStorePath), UTF_8))) {
             StringBuilder sb = new StringBuilder();
             String line;
             while((line = in.readLine()) != null) {
                 sb.append(line).append("\n");
             }
-            Any allPrefs = JsonIterator.deserialize(sb.substring(0, sb.length() - 1));
-            Any.EntryIterator iter = allPrefs.entries();
-            while(iter.next()) {
-                JSONStructs.Preferences p = new JSONStructs.Preferences();
-                p = iter.value().bindTo(p);
-                allPreferences.put(iter.key(), p);
+            if(sb.length() > 1) {
+                Any allPrefs = JsonIterator.deserialize(sb.substring(0, sb.length() - 1));
+                Any.EntryIterator iter = allPrefs.entries();
+                while(iter.next()) {
+                    JSONStructs.Preferences p = new JSONStructs.Preferences();
+                    p = iter.value().bindTo(p);
+                    allPreferences.put(iter.key(), p);
+                }
             }
         } catch(IOException ignored) {
         }
@@ -577,7 +663,6 @@ public class ChatServer {
             }
         };
 
-        int authPortNumber = 8081;
         InetSocketAddress bind = new InetSocketAddress(authPortNumber);
         System.out.println("Server @ " + bind.getAddress().getHostAddress() + ":" + bind.getPort());
 
@@ -586,7 +671,7 @@ public class ChatServer {
         authServer.start();
 
         try {
-            wsServer = new WebSocketServer("/root/0001.jks");
+            wsServer = new WebSocketServer(wsPortNumber, keyStoreLocation);
         } catch(Exception e) {
             throw new RuntimeException(e);
         }
