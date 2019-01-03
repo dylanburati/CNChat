@@ -70,7 +70,7 @@
           <span class="anchor" id="introduction"></span>
           <p class="h4">Introduction</p>
           <p>
-            This document describes a key agreement protocol based on the <a href="https://signal.org/docs/specifications/x3dh/">X3DH protocol</a> [1].
+            This document describes a key agreement protocol based on the X3DH protocol <a href="https://signal.org/docs/specifications/x3dh/">[1]</a>.
             It does not have all of the features included in the full protocol, which should be used if it is possible to include it in your application.
           </p>
           <p>
@@ -104,7 +104,7 @@
             <li>
               A <i>wrapped key</i> is the tuple <i>(IV, HMAC, key<sub>W</sub>)</i> where <i>key<sub>W</sub></i> is the key encrypted by a second key,
               <i>IV</i> is the initialization vector used, <i>HMAC</i> is the HMAC of <i>IV || key<sub>W</sub></i>
-              [<a href="https://tools.ietf.org/html/rfc2104">2</a>].
+              <a href="https://tools.ietf.org/html/rfc2104">[2]</a>.
             </li>
             <li>
               The end result of the key exchange is a <i>conversation key</i> for the client, and a <i>conversation object</i> stored on the server,
@@ -338,7 +338,7 @@
         <span class="anchor" id="security-considerations"></span>
         <p class="h4">Security Considerations</p>
         <p>
-          Signal.org's <a href="https://signal.org/docs/specifications/x3dh/">documentation for X3DH</a> gives a more complete analysis
+          Signal.org's documentation for X3DH <a href="https://signal.org/docs/specifications/x3dh/">[1]</a> gives a more complete analysis
           of the security risks that are present when using the key exchange protocol. These points are an overview of the consequences
           of using a server to store wrapped keys, and the consequences of the other deviations this protocol has from the original:
           the prekey is not signed by the identity key, and there are no one-time prekeys (used for a fourth DH secret calculation to

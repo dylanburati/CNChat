@@ -51,15 +51,17 @@
           <span class="anchor" id="overview"></span>
           <p class="h4">Overview</p>
           <p>
-            The ChatServer JAR uses port 8081 to handle users creating new chat sessions, and port 8082 to establish WebSocket connections
-            with users. Port 8081 should be firewalled, and a sepearate program on the server should be used to send the <i>join</i> command to
-            it after checking if the user is logged in. Port 8082 should be open to the internet.
+            The ChatServer JAR uses port 8081 to handle users creating new chat sessions,
+            and port 8082 to establish WebSocket connections with users.
+            Port 8081 should be firewalled, and a sepearate program on the server
+            should be used to send the <em>join</em> command to it after checking
+            if the user is logged in. Port 8082 should be open to the internet.
           </p>
           <p>
             <a href="#connection-diagram" data-toggle="modal">Show diagram</a>
           </p>
-          <div id="connection-diagram" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="connection-diagram-title" aria-hidden="true"
-                  style="padding-left: 15px;">
+          <div id="connection-diagram" class="modal fade" tabindex="-1" role="dialog"
+                  aria-labelledby="connection-diagram-title" aria-hidden="true" style="padding-left: 15px;">
             <div class="modal-dialog" role="document" style="max-width: 1200px !important;">
               <div class="modal-content">
                 <div class="modal-header">
@@ -75,26 +77,45 @@
             </div>
           </div>
           <p>
-            In order to run the chat app, the server needs to have access to an SSL certificate. If the client is run in a browser, the page needs
+            In order to run the chat app, the server needs to have access to an SSL certificate.
+            This is because the page in which the client runs needs
             to be loaded over HTTPS in order to use the <code>window.crypto.subtle</code> object.
           </p>
         </div>
 
         <div class="px-1 py-2">
           <span class="anchor" id="environment"></span>
-          <p class="h4 mb-0">Enviroment-Specific Code</p>
-          <p class="h5_5">(lines you have to edit to run the server yourself)</p>
-          <p class="ml-3">
-            The path for the SSL certificate, in <a href="https://github.com/dylanburati/CNChat/blob/master/ChatServer/src/ChatServer.java">
-              ChatServer.java
-            </a>
-            <br>
-            Ctrl-F: <code>new WebSocketServer</code>
+          <p class="h4">Configuration</p>
+          <p>
+            The server reads a configuration file at startup, called <code>config.json</code>.
+            It should be placed in the same directory as the executable, and contain a JSON object.
           </p>
-          <p class="ml-3">
-            The code for retrieving user keys from a database, in <a href="https://github.com/dylanburati/CNChat/blob/master/ChatServer/src/ChatUtils/MariaDBReader.java">
-              ChatUtils/MariaDBReader.java
-            </a>
+          <p class="mb-1">Configuration options:</p>
+          <code class="d-block multiline-text">{
+  <span style="color: #2c8147">// defaults to 8081</span>
+  "authPort": int,
+  <span style="color: #2c8147">// defaults to 8082</span>
+  "websocketPort": int,
+  <span style="color: #2c8147">// required</span>
+  "keyStoreLocation": absolute path to .jks file -- see below,
+
+  <span style="color: #2c8147">// defaults to 3306</span>
+  "mariaDBPort": int,
+  <span style="color: #2c8147">// required</span>
+  "mariaDBUser": string,
+  <span style="color: #2c8147">// required</span>
+  "mariaDBPassword": string,
+  <span style="color: #2c8147">// required</span>
+  "database": MariaDB database name,
+  <span style="color: #2c8147">// defaults to "$cnchat_messages"</span>
+  "tableForMessages": table name,
+  <span style="color: #2c8147">// defaults to "$cnchat_conversations"</span>
+  "tableForConversations": table name,
+  <span style="color: #2c8147">// defaults to "$cnchat_conversations_users"</span>
+  "tableForConversationsUsers": table name
+}</code>
+          <p>
+            Note: comments are not allowed in the config file.
           </p>
         </div>
 
@@ -102,18 +123,25 @@
           <span class="anchor" id="ssl"></span>
           <p class="h4">Creating a JKS from an SSL keychain</p>
           <p>
-            In order to import the SSL certificate at runtime, it must be converted to a Java KeyStore file using the following commands:
+            In order to import the SSL certificate at runtime, it must be converted to a
+            Java KeyStore file using the following commands:
           </p>
           <ol>
             <li class="mb-3">
-              <code>openssl pkcs12 -export -in /path/to/cert/fullchain.pem -inkey /path/to/cert/privkey.pem -out tmp.p12 -name &lt;domain_name&gt;</code>
-              <br>
-              This will prompt you for a password for the <i>tmp.p12</i> keystore.
+              <code class="d-block">
+                openssl pkcs12 -export -in /path/to/cert/fullchain.pem -inkey
+                /path/to/cert/privkey.pem -out tmp.p12 -name &lt;domain_name&gt;
+              </code>
+              This will prompt you for a password for the <code>tmp.p12</code> keystore.
             </li>
             <li>
-              <code>
-                keytool -importkeystore -deststorepass "nopassword" -destkeypass "nopassword" -destkeystore /root/0001.jks -srckeystore tmp.p12 -srcstoretype PKCS12 -srcstorepass &lt;above_password&gt; -alias &lt;domain_name&gt;
+              <code class="d-block">
+                keytool -importkeystore -deststorepass "nopassword" -destkeypass "nopassword"
+                -destkeystore keyStoreLocation.jks -srckeystore tmp.p12 -srcstoretype PKCS12
+                -srcstorepass &lt;above_password&gt; -alias &lt;domain_name&gt;
               </code>
+              The password to open the destination keystore and the password to
+              read the key are both expected to be "nopassword".
             </li>
           </ol>
         </div>
@@ -122,8 +150,20 @@
           <span class="anchor" id="libraries"></span>
           <p class="h4">Libraries used</p>
           <ul>
-            <li style="white-space: pre-wrap;">jsoniter    <a href="https://github.com/json-iterator/java">Github</a>    <a href="http://jsoniter.com/java-features.html">Docs</a></li>
-            <li style="white-space: pre-wrap;">MariaDB Connector/J    <a href="https://github.com/MariaDB/mariadb-connector-j">Github</a>    <a href="https://mariadb.com/kb/en/library/about-mariadb-connector-j/">Docs</a></li>
+            <li>
+              <div class="d-flex" style="max-width: 20em;">
+                <span style="flex-grow: 1;">jsoniter</span>
+                <a class="mr-3" href="https://github.com/json-iterator/java">Github</a>
+                <a href="http://jsoniter.com/java-features.html">Docs</a>
+              </div>
+            </li>
+            <li>
+              <div class="d-flex" style="max-width: 20em;">
+                <span style="flex-grow: 1;">MariaDB Connector/J</span>
+                <a class="mr-3" href="https://github.com/MariaDB/mariadb-connector-j">Github</a>
+                <a href="https://mariadb.com/kb/en/library/about-mariadb-connector-j/">Docs</a>
+              </div>
+            </li>
           </ul>
         </div>
 
