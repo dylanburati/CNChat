@@ -51,14 +51,14 @@
           <span class="anchor" id="overview"></span>
           <p class="h4">Overview</p>
           <p>
-            The JavaScript client is organized into 3 files: <i>ChatUtils.js</i>, <i>ChatClient.js</i>, and <i>example.js</i>.
+            The JavaScript client is organized into 3 files: <em>ChatUtils.js</em>, <em>ChatClient.js</em>, and <em>example.js</em>.
           </p>
           <ul>
             <li>ChatUtils provides support for base64 and defines 2 cryptography classes, DHKeyPair and CipherStore.</li>
             <li>
               ChatClient provides the ChatSession class, along with the implementation of the different steps in the
               <a href="./key-exchange.html">key-exchange protocol</a>. It also provides a wrapper around the constructor
-              for ChatSession, which attaches a <i>message handler</i> function.
+              for ChatSession, which attaches a <em>message handler</em> function.
             </li>
             <li>
               example.js is an example of a message handler, leaving out the communication with the user interface. It runs steps
@@ -85,7 +85,7 @@
           </p>
           <code class="ml-3">session.enqueue("conversation_request &lt;user_list&gt;", 0)</code>
           <p class="mt-2">
-            where <i>user_list</i> is a semicolon-delimited list of usernames.
+            where <em>user_list</em> is a semicolon-delimited list of usernames.
           </p>
           <p class="mb-2">
             To send a message to a conversation, the client executes:
@@ -97,23 +97,23 @@
           </p>
           <code class="ml-3">session.enqueue("conversation_request &lt;changed_preferences&gt;", 0)</code>
           <p class="mt-2 mb-3">
-            where <i>changed_preferences</i> is a JSON string with the preference keys and new values
-            (currently only one preference is used: <i>markdown</i> is a Boolean indicating whether messages the user
-            sends with the default <i>contentType</i> should be formatted with Markdown).
+            where <em>changed_preferences</em> is a JSON string with the preference keys and new values
+            (currently only one preference is used: <em>markdown</em> is a Boolean indicating whether messages the user
+            sends with the default <em>contentType</em> should be formatted with Markdown).
           </p>
           <p class="mb-4">
             These actions should be accessible from the user interface. Everything else is done automatically in
-            <i>messageHandler</i>.
+            <em>messageHandler</em>.
           </p>
           <p>
-            The ChatSession stores an array called <i>conversations</i>, in which each element is an object with the
+            The ChatSession stores an array called <em>conversations</em>, in which each element is an object with the
             following properties:
           </p>
           <code class="d-block multiline-text">  id: &lt;positive integer&gt;
   users: &lt;array of usernames, including own name&gt;
   cipher: &lt;CipherStore for encrypting and decrypting messages&gt;</code>
           <p>
-            The ChatSession stores an array called <i>messages</i>, in which each element is an object with the
+            The ChatSession stores an array called <em>messages</em>, in which each element is an object with the
             following properties:
           </p>
           <code class="d-block multiline-text">  id: &lt;id of conversation&gt;
@@ -141,7 +141,9 @@
             </li>
             <li class="mb-2">
               Create a Babel config file:<br>
-              <code class="d-block multiline-text">const presets = [
+              These are the earliest versions that support the required features: SubtleCrypto, WebSockets, and Promises.
+              <code class="mt-1 mb-3 d-block" style="white-space: pre-wrap;"
+>const presets = [
   [
     "@babel/env",
     {
@@ -160,7 +162,26 @@
 ];
 
 module.exports = { presets };</code>
-              These are the earliest versions that support SubtleCrypto, WebSockets, and Promises.
+              These are the earliest versions that support the required features, plus the Object.assign function, arrow functions and let declarations.
+              <code class="mt-1 d-block multiline-text"
+>const presets = [
+  [
+    "@babel/env",
+    {
+      targets: {
+        edge: "12",
+        firefox: "44",
+        chrome: "49",
+        safari: "10",
+        opera: "32",
+        ios: "10"
+      },
+      useBuiltIns: "usage"
+    },
+  ]
+];
+
+module.exports = { presets };</code>
             </li>
             <li class="mb-2">
               Concatenate the files to compile:<br>
