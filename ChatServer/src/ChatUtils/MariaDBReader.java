@@ -302,11 +302,13 @@ public class MariaDBReader {
                     c.users.add(u);
                 }
 
-                for(JSONStructs.Conversation c : conversations.values()) {
-                    if(!c.validate()) {
-                        throw new RuntimeException("invalid conversation found");
-                    }
-                }
+                conversations.entrySet().removeIf(e -> {
+                   if(!e.getValue().validate()) {
+                       System.out.format("Invalid conversation found, id = %d\n", e.getKey());
+                       return true;
+                   }
+                   return false;
+                });
                 return conversations;
             } catch(SQLException e) {
                 e.printStackTrace();
