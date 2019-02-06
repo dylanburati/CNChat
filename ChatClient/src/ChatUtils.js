@@ -568,6 +568,7 @@ class CipherStore {
 
   async encryptBytes(b256) {
     this.setParamsRandom();
+    const ivView = new Uint8Array(this.iv);
     const encBuffer = new ArrayBuffer(b256.length);
     const encBufferView = new Uint8Array(encBuffer);
     typedArrayCopy(b256, 0, encBufferView, 0, b256.length);
@@ -576,7 +577,6 @@ class CipherStore {
         {name: 'AES-CBC', iv: this.iv}, this.key, encBuffer);
     const outBufferView = new Uint8Array(outBuffer);
 
-    const ivView = new Uint8Array(this.iv);
     const keyMatView = new Uint8Array(this.keyMat);
     const hmac = {};
     hmac.b = new ArrayBuffer(64 + ivView.length + outBufferView.length);
