@@ -83,8 +83,7 @@ public class ChatServer {
             private JSONStructs.Preferences userPreferences = new JSONStructs.Preferences();
 
             private Socket wsSocket;
-            private volatile List<byte[]> outQueue = new ArrayList<>();
-            private final Object outQueueLock = new Object();
+            private final Object outStreamLock = new Object();
             private StringBuilder continuable = new StringBuilder();
 
             private ClientThread(String uuid, String userName, peerUpdateCompat<ClientThread> peerMessage) {
@@ -367,7 +366,7 @@ public class ChatServer {
                     outMessage.append(conversationID).append(";");
                     outMessage.append(messageClasses).append(";");
                     outMessage.append(outputBody);
-                    send(outMessage.toString());
+                    enqueue(outMessage.toString());
                 } else {
                     String cipherParams = "";
                     String hmac = "";
@@ -433,7 +432,7 @@ public class ChatServer {
                 }
 
                 System.out.format("WebSocket connected @ %s\n", uuid);
-                send(first);
+                enqueue(first);
                 synchronized(preferencesLock) {
                     JSONStructs.Preferences toUpdate = allPreferences.get(userName);
                     if(toUpdate == null) {
@@ -445,16 +444,13 @@ public class ChatServer {
                 try {
                     boolean finished = false;
                     while(!finished) {
-                        synchronized(outQueueLock) {
-                            while(outQueue.size() > 0) {
-                                sendFrame(outQueue.remove(0));
-                            }
-                        }
                         // getWSMessages blocks until a frame arrives
                         String[] messagesEnc = getWSMessages().split("\n");
                         for(int i = 0; i < messagesEnc.length && !finished; i++) {
                             String message = messagesEnc[i];
-                            finished = (handleMessage(message) == false);
+                            synchronized(outStreamLock) {
+                                finished = (handleMessage(message) == false);
+                            }
                         }
                     }
                 } catch(IOException e) {
@@ -544,23 +540,12 @@ public class ChatServer {
 
             private void enqueue(String outMessage) {
                 byte[] wsOutEnc = WebSocketDataframe.toFrame(1, outMessage);
-                synchronized(outQueueLock) {
-                    outQueue.add(wsOutEnc);
-                }
-            }
-
-            private void send(String outMessage) {
-                byte[] wsOutEnc = WebSocketDataframe.toFrame(1, outMessage);
-                sendFrame(wsOutEnc);
-            }
-
-            private void sendFrame(byte[] outEnc) {
-                synchronized(outQueueLock) {
-                    try {
-                        wsSocket.getOutputStream().write(outEnc);
-                    } catch (IOException e) {
-                        e.printStackTrace();
+                try {
+                    synchronized(outStreamLock) {
+                        wsSocket.getOutputStream().write(wsOutEnc);
                     }
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
             }
         } // end class ClientThread
