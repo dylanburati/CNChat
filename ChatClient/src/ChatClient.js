@@ -11,7 +11,7 @@ class ChatSession {
     this.catSent = [];
     this.keyWrapper = null;
 
-    this.websocket = new WebSocket('wss://' + window.location.host + ':8082/' + this.uuid);
+    this.websocket = new WebSocket(`wss://${window.location.hostname}:8082/${this.uuid}`);
     this.websocket.onmessage = (m) => {
       messageHandlerCallback(m.data, this);
     };
