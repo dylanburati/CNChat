@@ -132,7 +132,7 @@
   `prekey_public` VARCHAR(768) NOT NULL,
   `prekey_private` VARCHAR(256) NOT NULL,
   PRIMARY KEY (`name`)
-);</code>    
+);</code>
         </div>
 
         <div class="px-1 py-2">
@@ -157,7 +157,10 @@
                 -srcstorepass &lt;above_password&gt; -alias &lt;domain_name&gt;
               </code>
               The password to open the destination keystore and the password to
-              read the key are both expected to be "nopassword".
+              read the key are both expected to be "nopassword" - the password field exists only to
+              prevent people who don't own the keystore's certificate from using it. The chat server
+              needs to be able to start automatically, so using restrictive permissions on the
+              actual keystore file is the best substitute for a password.
             </li>
           </ol>
         </div>
