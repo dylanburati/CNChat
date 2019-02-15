@@ -587,6 +587,9 @@ public class ChatServer {
                         case "database":
                             MariaDBReader.databaseName = iter.value().toString();
                             break;
+                        case "tableForKeys":
+                            MariaDBReader.keystoreTableName = iter.value().toString();
+                            break;
                         case "tableForMessages":
                             MariaDBReader.messagesTableName = iter.value().toString();
                             break;

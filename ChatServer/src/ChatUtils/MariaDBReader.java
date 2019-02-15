@@ -16,6 +16,7 @@ public class MariaDBReader {
     public static String databaseUser = null;
     public static String databasePassword = null;
     public static String databaseName = null;
+    public static String keystoreTableName = "$keystore";
     public static String messagesTableName = "$cnchat_messages";
     public static String conversationsTableName = "$cnchat_conversations";
     public static String conversationsUsersTableName = "$cnchat_conversations_users";
@@ -35,7 +36,8 @@ public class MariaDBReader {
             ResultSet usersResults = null;
             try {
                 conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
-                String usersSql = "SELECT identity_public, identity_private, prekey_public, prekey_private FROM $keystore WHERE name = ?";
+                String usersSql = String.format(
+                        "SELECT identity_public, identity_private, prekey_public, prekey_private FROM %s WHERE name = ?", keystoreTableName);
                 usersStmt = conn.prepareStatement(usersSql);
                 usersStmt.setString(1, userName);
                 usersResults = usersStmt.executeQuery();
@@ -68,7 +70,7 @@ public class MariaDBReader {
             ResultSet usersResults = null;
             try {
                 conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
-                String usersSql = "SELECT name, identity_public, prekey_public FROM $keystore WHERE name = ?";
+                String usersSql = String.format("SELECT name, identity_public, prekey_public FROM %s WHERE name = ?", keystoreTableName);
                 usersStmt = conn.prepareStatement(usersSql);
                 usersStmt.setString(1, otherUserName);
                 usersResults = usersStmt.executeQuery();
