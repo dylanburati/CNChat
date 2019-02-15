@@ -85,16 +85,16 @@
           <span class="anchor" id="names-and-definitions"></span>
           <p class="h4">Names and Definitions</p>
           <ul>
-            <li><em>X || Y</i> represents the concatenation of byte sequences X and Y.</li>
+            <li><em>X || Y</em> represents the concatenation of byte sequences X and Y.</li>
             <li>
-              <i>DH(<span style="text-decoration: underline">K1</span></i>, <i>K2)</i> represents the shared secret output of
-              a Diffie-Hellman function involving <i>K1</i> and <i>K2</i>. The underline denotes the key pair which belongs to
+              <em>DH(<span style="text-decoration: underline">K1</span></em>, <em>K2)</em> represents the shared secret output of
+              a Diffie-Hellman function involving <em>K1</em> and <em>K2</em>. The underline denotes the key pair which belongs to
               the user calling the function.
             </li>
-            <li><i>Hash(X)</i> represents the SHA-256 hash of the byte sequence X.</li>
+            <li><em>Hash(X)</em> represents the SHA-256 hash of the byte sequence X.</li>
           </ul>
           <ul>
-            <li>A user computes their <i>key wrapper</i> when they log in. It is an AES-256 key derived from the password.</li>
+            <li>A user computes their <em>key wrapper</em> when they log in. It is an AES-256 key derived from the password.</li>
             <ul>
               <li>
                 If possible, the password that is sent to the server to verify the login should be hashed so that it is not
@@ -102,22 +102,22 @@
               </li>
             </ul>
             <li>
-              A <i>wrapped key</i> is the tuple <i>(IV, HMAC, key<sub>W</sub>)</i> where <i>key<sub>W</sub></i> is the key encrypted by a second key,
-              <i>IV</i> is the initialization vector used, <i>HMAC</i> is the HMAC of <i>IV || key<sub>W</sub></i>
+              A <em>wrapped key</em> is the tuple <em>(IV, HMAC, key<sub>W</sub>)</em> where <em>key<sub>W</sub></em> is the key encrypted by a second key,
+              <em>IV</em> is the initialization vector used, <em>HMAC</em> is the HMAC of <em>IV || key<sub>W</sub></em>
               <a href="https://tools.ietf.org/html/rfc2104">[2]</a>.
             </li>
             <li>
-              The end result of the key exchange is a <i>conversation key</i> for the client, and a <i>conversation object</i> stored on the server,
-              which contains an array of <i>user objects</i>.
+              The end result of the key exchange is a <em>conversation key</em> for the client, and a <em>conversation object</em> stored on the server,
+              which contains an array of <em>user objects</em>.
             </li>
             <li>
-              A <i>user object</i> stores the state of the user in the conversation. It allows the user who owns it to compute the conversation key,
+              A <em>user object</em> stores the state of the user in the conversation. It allows the user who owns it to compute the conversation key,
               by either completing the key exchange or unwrapping the conversation key (once the exchange is complete).
             </li>
           </ul>
           <ul>
             <li>
-              To participate in the protocol, a user must store 2 key pairs to the server: the identity key <i>IK</i> and the prekey <i>PK</i>.
+              To participate in the protocol, a user must store 2 key pairs to the server: the identity key <em>IK</em> and the prekey <em>PK</em>.
               The private key in each pair is wrapped with their key wrapper.
             </li>
           </ul>
@@ -156,8 +156,8 @@
               <span style="font-size: 1.25rem; cursor: default;">&#x21C4;</span>
             </div>
             <p class="card-text pt-1 mb-2">User requests a list of users to create a conversation with.
-              The server returns the public keys of each other user's <i>IK</i> and <i>PK</i>.
-              The list of users is called <i>other_users</i>.
+              The server returns the public keys of each other user's <em>IK</em> and <em>PK</em>.
+              The list of users is called <em>other_users</em>.
             </p>
           </div>
           <div class="card p-3 pb-2 mb-2">
@@ -166,8 +166,8 @@
               <div style="flex-grow: 1"></div>
               <span style="font-size: 1.25rem; cursor: default; color: #005fbf;">&#x25E7;</span>
             </div>
-            <p class="card-text pt-1 mb-2">Generates an initial key and initial message for each user in <i>other_users</i>.
-            The output is stored in an object called <i>conversation</i>, which contains an array of <i>user objects</i> (initially empty).</p>
+            <p class="card-text pt-1 mb-2">Generates an initial key and initial message for each user in <em>other_users</em>.
+            The output is stored in an object called <em>conversation</em>, which contains an array of <em>user objects</em> (initially empty).</p>
           </div>
           <div class="d-flex flex-row">
             <div style="width: 3px; background-color: rgba(52,58,64,.18);" class="mb-3 ml-1"></div>
@@ -178,7 +178,7 @@
                   <div style="flex-grow: 1"></div>
                   <span style="font-size: 1.25rem; cursor: default; color: #005fbf;">&#x25E7;</span>
                 </div>
-                <p class="card-text pt-1 mb-2">User creates a new AES-256 key from a secure random source, called <i>SKC</i>.</p>
+                <p class="card-text pt-1 mb-2">User creates a new AES-256 key from a secure random source, called <em>SKC</em>.</p>
               </div>
               <div class="card-border pt-1 pb-1 px-2 mb-2 ml-4" style="background-color: rgba(52,58,64,.12);">
                 <p class="text-muted text-uppercase" style="margin-bottom: 0; font-size: .875rem;">for each in other_users</p>
@@ -188,7 +188,7 @@
                     <div style="flex-grow: 1"></div>
                     <span style="font-size: 1.25rem; cursor: default; color: #005fbf;">&#x25E7;</span>
                   </div>
-                  <p class="card-text pt-1 mb-2">User creates a new DH key, called <i>EK</i>.</p>
+                  <p class="card-text pt-1 mb-2">User creates a new DH key, called <em>EK</em>.</p>
                 </div>
                 <div class="card p-3 pb-2 mb-2">
                   <div class="d-flex align-items-start">
@@ -197,7 +197,7 @@
                     <span style="font-size: 1.25rem; cursor: default; color: #005fbf;">&#x25E7;</span>
                 </div>
                 <p class="card-text pt-1 mb-2">
-                  User computes the following, where <i>role2</i> represents the current user in the loop over <i>other_users:</i>
+                  User computes the following, where <em>role2</em> represents the current user in the loop over <em>other_users:</em>
                 </p>
                 <code class="multiline-text">  DH1 = DH(<span style="text-decoration: underline">IK</span>, PK<sub>role2</sub>)
   DH2 = DH(<span style="text-decoration: underline">EK</span>, IK<sub>role2</sub>)
@@ -210,8 +210,8 @@
                   <div style="flex-grow: 1"></div>
                   <span style="font-size: 1.25rem; cursor: default; color: #005fbf;">&#x25E7;</span>
                 </div>
-                <p class="card-text pt-1 mb-2">User wraps the conversation key <i>SKC</i> using the initial key <i>SKI</i>.
-                  The <i>initial_message</i> equals the tuple <i>(IV, HMAC, SKC<sub>W</sub>).</i>
+                <p class="card-text pt-1 mb-2">User wraps the conversation key <em>SKC</em> using the initial key <em>SKI</em>.
+                  The <em>initial_message</em> equals the tuple <em>(IV, HMAC, SKC<sub>W</sub>).</em>
                 </p>
               </div>
               <div class="card p-3 pb-2 mb-2">
@@ -225,7 +225,7 @@
   role: 2
   key_ephemeral_public: EK<sub>pub</sub>
   initial_message: (IV, HMAC, SKC<sub>W</sub>)</code>
-                <p class="card-text pt-1 mb-2">The user object is appended to the array of user objects in <i>conversation</i>.</p>
+                <p class="card-text pt-1 mb-2">The user object is appended to the array of user objects in <em>conversation</em>.</p>
               </div>
             </div>
             <div class="card p-3 pb-2 mb-2 ml-4">
@@ -235,12 +235,12 @@
                 <span style="font-size: 1.25rem; cursor: default; color: #005fbf;">&#x25E7;</span>
               </div>
               <p class="card-text pt-1 mb-2">
-                User wraps <i>SKC</i> using their key wrapper, and creates an object with the following key-value pairs.
+                User wraps <em>SKC</em> using their key wrapper, and creates an object with the following key-value pairs.
               </p>
               <code class="multiline-text">  user: &lt;username&gt;
   role: 1
   key_wrapped: (IV, HMAC, SKC<sub>W</sub>)</code>
-              <p class="card-text pt-1 mb-2">The user object is appended to the array of user objects in <i>conversation</i>.</p>
+              <p class="card-text pt-1 mb-2">The user object is appended to the array of user objects in <em>conversation</em>.</p>
             </div>
           </div>
         </div>
@@ -290,7 +290,7 @@
   <span style="color: #2c8147">// only if key exchange has been completed</span>
   key_wrapped: key_wrapped</code>
           <p class="card-text pt-1 mb-2">
-            The following steps are applied to all conversations in the list which do not have <i>key_wrapped</i> set.
+            The following steps are applied to all conversations in the list which do not have <em>key_wrapped</em> set.
           </p>
         </div>
         <div class="card p-3 pb-2 mb-2">
@@ -300,10 +300,10 @@
             <span style="font-size: 1.25rem; cursor: default;">&#x21C4;</span>
           </div>
           <p class="card-text pt-1 mb-2">
-            User requests the keys of the conversation creator <i>role1</i>.
-            The server returns the public keys of their <i>IK</i> and <i>PK</i>.
+            User requests the keys of the conversation creator <em>role1</em>.
+            The server returns the public keys of their <em>IK</em> and <em>PK</em>.
             <!-- (The prekey is not needed for this part of the agreement, but if the user wants to create a conversation
-            with <i>role1</i> as a member, they will already have the keys downloaded.) -->
+            with <em>role1</em> as a member, they will already have the keys downloaded.) -->
           </p>
         </div>
         <div class="card p-3 pb-2 mb-2">
@@ -318,7 +318,7 @@
   DH3 = DH(<span style="text-decoration: underline">PK</span>, key_ephemeral_public)
   SKI = Hash(DH1 || DH2 || DH3)
   SKC = &lt;initial_message decrypted using SKI&gt;</code>
-          <p class="card-text pt-1 mb-2">The user associates the conversation ID with the conversation key <i>SKC</i>.</p>
+          <p class="card-text pt-1 mb-2">The user associates the conversation ID with the conversation key <em>SKC</em>.</p>
         </div>
         <div class="card p-3 pb-2 mb-4">
           <div class="d-flex align-items-start">
@@ -327,9 +327,9 @@
             <span style="font-size: 1.25rem; cursor: default;">&#x21C4;</span>
           </div>
           <p class="card-text pt-1 mb-2">
-            User wraps <i>SKC</i> using their key wrapper, and uploads the conversation ID and wrapped key (IV, HMAC, SKC<sub>W</sub>).
-            The server sets the user's <i>key_wrapped</i> for the specified conversation to the value given.
-            The user's <i>key_ephemeral_public</i> and <i>initial_message</i> are deleted, as they are no longer needed.
+            User wraps <em>SKC</em> using their key wrapper, and uploads the conversation ID and wrapped key (IV, HMAC, SKC<sub>W</sub>).
+            The server sets the user's <em>key_wrapped</em> for the specified conversation to the value given.
+            The user's <em>key_ephemeral_public</em> and <em>initial_message</em> are deleted, as they are no longer needed.
           </p>
         </div>
       </div>
@@ -351,15 +351,15 @@
           </li>
           <li>
             Someone with a user's private identity key and private prekey can compute conversation keys for any conversation
-            in which the <i>key_ephemeral_public</i> and <i>initial_message</i> values for the user have not been deleted. However,
-            these keys only need to be accessed in their unwrapped form when calculating <i>DH1</i>, <i>DH2</i>, and <i>DH3</i>,
+            in which the <em>key_ephemeral_public</em> and <em>initial_message</em> values for the user have not been deleted. However,
+            these keys only need to be accessed in their unwrapped form when calculating <em>DH1</em>, <em>DH2</em>, and <em>DH3</em>,
             so it is very unlikely that they will be compromised unless the key wrapper is.
           </li>
           <ul>
             <li>
               The use of one-time prekeys would force the attacker to compromise an extra private key for each conversation they
               want to compute the key for, but because the one-time prekey is only accessed by role 2 users (just before the
-              <i>key_ephemeral_public</i> and <i>initial_message</i> are deleted), it effectively prevents the key compromise attack
+              <em>key_ephemeral_public</em> and <em>initial_message</em> are deleted), it effectively prevents the key compromise attack
               unless the attacker knows the key wrapper. It does not provide any extra security if the key wrapper is known.
             </li>
           </ul>
@@ -372,8 +372,8 @@
           <li>
             Man-in-the-middle attacks are only possible if the server is malicious, since they require two separate conversations to appear
             like one conversation to users. The server would have to send forged public keys to both parties in order to execute this attack.
-            Since the keys sent in response to <i>retrieve_keys_self</i> must be authentic to be accepted, both parties can compare the other's
-            actual public keys to the ones used in their calculation of <i>SKI</i> using a separate channel to check if their conversation is secure.
+            Since the keys sent in response to <em>retrieve_keys_self</em> must be authentic to be accepted, both parties can compare the other's
+            actual public keys to the ones used in their calculation of <em>SKI</em> using a separate channel to check if their conversation is secure.
           </li>
         </ul>
       </div>
