@@ -107,6 +107,8 @@
   "mariaDBPassword": string,
   <span style="color: #2c8147">// required</span>
   "database": MariaDB database name,
+  <span style="color: #2c8147">// defaults to "$keystore"</span>
+  "tableForKeys": table name,
   <span style="color: #2c8147">// defaults to "$cnchat_messages"</span>
   "tableForMessages": table name,
   <span style="color: #2c8147">// defaults to "$cnchat_conversations"</span>
@@ -117,6 +119,20 @@
           <p>
             Note: comments are not allowed in the config file.
           </p>
+          <p class="mt-2">
+            The program can create the tables for messages, conversations, and conversation users at
+            runtime. It can't create the table for keys, because that has to be written whenever a user
+            registers an account. The keystore table can be created by the command:
+          </p>
+          <code class="d-block multiline-text"
+>CREATE TABLE $keystore (
+  `name` VARCHAR(64) NOT NULL,
+  `identity_public` VARCHAR(768) NOT NULL,
+  `identity_private` VARCHAR(256) NOT NULL,
+  `prekey_public` VARCHAR(768) NOT NULL,
+  `prekey_private` VARCHAR(256) NOT NULL,
+  PRIMARY KEY (`name`)
+);</code>    
         </div>
 
         <div class="px-1 py-2">
