@@ -569,6 +569,8 @@ class CipherStore {
   async encryptBytes(b256) {
     this.setParamsRandom();
     const ivView = new Uint8Array(this.iv);
+    const ivArr = new Array(16);
+    typedArrayCopy(ivView, 0, ivArr, 0, 16);
     const encBuffer = new ArrayBuffer(b256.length);
     const encBufferView = new Uint8Array(encBuffer);
     typedArrayCopy(b256, 0, encBufferView, 0, b256.length);
@@ -579,12 +581,12 @@ class CipherStore {
 
     const keyMatView = new Uint8Array(this.keyMat);
     const hmac = {};
-    hmac.b = new ArrayBuffer(64 + ivView.length + outBufferView.length);
+    hmac.b = new ArrayBuffer(64 + 16 + outBufferView.length);
     hmac.bView = new Uint8Array(hmac.b);
     typedArrayCopyAndMap(keyMatView, 0, hmac.bView, 0, 32, (byte) => (byte ^ 0x36));
     typedArrayFill(hmac.bView, 32, 32, 0x36);
-    typedArrayCopy(ivView, 0, hmac.bView, 64, ivView.length);
-    typedArrayCopy(outBufferView, 0, hmac.bView, 64 + ivView.length, outBufferView.length);
+    typedArrayCopy(ivArr, 0, hmac.bView, 64, 16);
+    typedArrayCopy(outBufferView, 0, hmac.bView, 64 + 16, outBufferView.length);
 
     hmac.bHash = await window.crypto.subtle.digest('sha-256', hmac.b);
     hmac.bHashView = new Uint8Array(hmac.bHash);
@@ -597,7 +599,7 @@ class CipherStore {
     hmac.result = await window.crypto.subtle.digest('sha-256', hmac.a);
     hmac.resultView = new Uint8Array(hmac.result);
 
-    return {iv: ivView, ciphertext: outBufferView, hmac: hmac.resultView};
+    return {iv: ivArr, ciphertext: outBufferView, hmac: hmac.resultView};
   }
 
   async decrypt(ivArr, hmacArr, b256e) {
