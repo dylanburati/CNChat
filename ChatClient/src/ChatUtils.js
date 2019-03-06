@@ -1,3 +1,4 @@
+/* global window bigInt */
 // Begin general utils
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -191,7 +192,7 @@ const DER_TAGS = {
   SequenceOf: 0x30,
   Set: 0x31,
   SetOf: 0x31
-}
+};
 
 class DerInterval {
   constructor(tag, skip, count) {
@@ -334,7 +335,7 @@ class DHKeyPair {
         const mask = (~(-1 << lastByteBits));
         randArr[0] &= mask;
 
-        this.privKey = bigInt.fromArray(Array(randLen).fill(0).map((e,i)=>randArr[i]), 256);
+        this.privKey = bigInt.fromArray(Array(randLen).fill(0).map((e, i) => randArr[i]), 256);
         valid = !(this.privKey.compare(1) < 0 ||
                 this.privKey.compare(DH_MODULUS.minus(2)) > 0 ||
                 this.privKey.bitLength().compare(this.expBits) !== 0);
@@ -345,7 +346,7 @@ class DHKeyPair {
   }
 
   static async fromSerialized(privWrapped, pubX509, keyWrapper) {
-    let [ privIV, privHMAC, privCiphertext ] = privWrapped.split(';');
+    let [privIV, privHMAC, privCiphertext] = privWrapped.split(';');
     if(empty(privIV, 'string') || empty(privHMAC, 'string') || empty(privCiphertext, 'string')) {
       throw new Error('Serialized private key is not properly formatted');
     }
@@ -377,7 +378,6 @@ class DHKeyPair {
             pair.privKey.compare(DH_MODULUS.minus(2)) > 0 ||
             pair.privKey.bitLength().compare(pair.expBits) !== 0) {
       throw new Error('invalid private key in serialized data');
-      return false;
     }
     pair.pubKey = pair.validateSelfPubKey(pubX509Bytes);
 
@@ -527,12 +527,9 @@ class CipherStore {
 
     this.key = null;
     this.readyPromise = this.readyPromise = new Promise((resolve, reject) => {
-      window.crypto.subtle.importKey('raw',
-                      this.keyMat,
-                      {name: 'AES-CBC'},
-                      false,
-                      ['encrypt', 'decrypt'])
-      .then(genKey => {
+      window.crypto.subtle.importKey(
+        'raw', this.keyMat, { name: 'AES-CBC' }, false, ['encrypt', 'decrypt']
+      ).then(genKey => {
         this.key = genKey;
         resolve();
       });
@@ -576,7 +573,8 @@ class CipherStore {
     typedArrayCopy(b256, 0, encBufferView, 0, b256.length);
 
     const outBuffer = await window.crypto.subtle.encrypt(
-        {name: 'AES-CBC', iv: this.iv}, this.key, encBuffer);
+      { name: 'AES-CBC', iv: this.iv }, this.key, encBuffer
+    );
     const outBufferView = new Uint8Array(outBuffer);
 
     const keyMatView = new Uint8Array(this.keyMat);
@@ -599,7 +597,7 @@ class CipherStore {
     hmac.result = await window.crypto.subtle.digest('sha-256', hmac.a);
     hmac.resultView = new Uint8Array(hmac.result);
 
-    return {iv: ivArr, ciphertext: outBufferView, hmac: hmac.resultView};
+    return { iv: ivArr, ciphertext: outBufferView, hmac: hmac.resultView };
   }
 
   async decrypt(ivArr, hmacArr, b256e) {
@@ -645,7 +643,8 @@ class CipherStore {
     const decBufferView = new Uint8Array(decBuffer);
     typedArrayCopy(b256e, 0, decBufferView, 0, b256e.length);
     const outBuffer = await window.crypto.subtle.decrypt(
-        {name: 'AES-CBC', iv: iv}, this.key, decBuffer);
+        { name: 'AES-CBC', iv: iv }, this.key, decBuffer
+    );
     const outBufferView = new Uint8Array(outBuffer);
     return outBufferView;
   }
@@ -717,7 +716,7 @@ async function unwrapKey(keyWrapped, keyWrapper) {
   if(!(keyWrapper instanceof CipherStore)) {
     throw new Error('keyWrapper is not a CipherStore');
   }
-  let [ iv, hmac, ciphertext ] = keyWrapped.split(';');
+  let [iv, hmac, ciphertext] = keyWrapped.split(';');
   if(empty(iv, 'string') || empty(hmac, 'string') || empty(ciphertext, 'string')) {
     throw new Error('Initial message is not properly formatted');
   }

@@ -1,3 +1,4 @@
+/* global window document axios */
 // Example ChatClient script
 //
 //
@@ -36,7 +37,7 @@ const commandHandlers = {
     });
     Promise.all(promises).then(promiseResultArr => {
       if(keysToRequest.length > 0) {
-        session.enqueue('retrieve_keys_other ' + keysToRequest.join(";"));
+        session.enqueue('retrieve_keys_other ' + keysToRequest.join(';'));
       }
     });
   },
@@ -47,12 +48,12 @@ const commandHandlers = {
       const conversationID = parseInt(pastMessages[0].split(';')[0]);
       const conversation = session.conversations.find(e => (e.id === conversationID));
       if(conversation == null) {
-        throw new Error("Unknown conversation");
+        throw new Error('Unknown conversation');
       }
       pastMessages.forEach(pastMsg => {
         const msgObj = { id: conversationID };
         const msgFields = pastMsg.split(';', 6);
-        const [ id, from, time, contentType, iv, hmac ] = msgFields;
+        const [id, from, time, contentType, iv, hmac] = msgFields;
         if(empty(id, 'string') || empty(from, 'string') || empty(time, 'string') ||
                 empty(contentType, 'string') || empty(iv, 'string') || empty(hmac, 'string')) {
           return;
@@ -63,9 +64,9 @@ const commandHandlers = {
         const ciphertext = pastMsg.substring(msgFields.reduce((acc, cur) => (acc + cur.length), 0) + 6);
         msgObj.from = from;
         msgObj.time = parseInt(time);
-        conversation.cipher.decrypt(base64decodebytes(iv),
-                base64decodebytes(hmac),
-                base64decodebytes(ciphertext)).then(msgData => {
+        conversation.cipher.decrypt(
+          base64decodebytes(iv), base64decodebytes(hmac), base64decodebytes(ciphertext)
+        ).then(msgData => {
           msgObj.data = msgData;
           session.messages.push(msgObj);
 
@@ -122,7 +123,7 @@ const commandHandlers = {
     const msgObj = {};
     const msgFields = currentMsg.split(';', 6);
     const conversationID = parseInt(msgFields[0]);
-    const [ from, time, contentType, iv, hmac ] = msgFields.slice(1);
+    const [from, time, contentType, iv, hmac] = msgFields.slice(1);
     if(empty(from, 'string') || empty(time, 'string') || empty(contentType, 'string') ||
             empty(iv, 'string') || empty(hmac, 'string')) {
       return;
@@ -132,15 +133,15 @@ const commandHandlers = {
     }
     const conversation = session.conversations.find(e => (e.id === conversationID));
     if(conversation == null) {
-      throw new Error("Unknown conversation");
+      throw new Error('Unknown conversation');
     }
     const ciphertext = currentMsg.substring(msgFields.reduce((acc, cur) => (acc + cur.length), 0) + 6);
     msgObj.id = conversationID;
     msgObj.from = from;
     msgObj.time = parseInt(time);
-    conversation.cipher.decrypt(base64decodebytes(iv),
-            base64decodebytes(hmac),
-            base64decodebytes(ciphertext)).then(msgData => {
+    conversation.cipher.decrypt(
+      base64decodebytes(iv), base64decodebytes(hmac), base64decodebytes(ciphertext)
+    ).then(msgData => {
       msgObj.data = msgData;
       session.messages.push(msgObj);
 
@@ -150,11 +151,11 @@ const commandHandlers = {
       // and the sender's preferred format ('markdown' or 'plaintext')
     });
   }
-}
+};
 
 function messageHandler(message, session) {
   console.log(message);
-  let [ conversationID, messageType ] = message.split(';', 2);
+  let [conversationID, messageType] = message.split(';', 2);
   conversationID = parseInt(conversationID);
   if(conversationID === 0) {
     // server

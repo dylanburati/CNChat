@@ -1,3 +1,4 @@
+/* global window WebSocket axios */
 class ChatSession {
   constructor(conn, messageHandlerCallback) {
     if(!isValidUUID(conn.data)) {
@@ -71,7 +72,7 @@ class ChatSession {
     const conversationCipher = new CipherStore(conversationKeyBytes);
     await conversationCipher.readyPromise;
 
-    const asyncLoopFunction = async (other) => {
+    const asyncLoopFunction = async(other) => {
       if(other === self) return;
       userNameList.push(other.user);
       const keyAgreement = await tripleKeyAgree(self, other, true, this.keyWrapper);
@@ -88,7 +89,8 @@ class ChatSession {
       otherUserObj.initial_message += base64encodebytes(hmac) + ';';
       otherUserObj.initial_message += base64encodebytes(ciphertext);
       toAdd.users.push(otherUserObj);
-    }
+    };
+
     const promises = [];
     conversationRequest.forEach(other => {
       promises.push(asyncLoopFunction(other));
@@ -114,7 +116,7 @@ class ChatSession {
 
     if(!empty(conversationObj.key_wrapped, 'string')) {
       // User's part of key exchange is complete
-      if(this.conversations.findIndex(e => (e.id === conversationObj.id)) != -1) {
+      if(this.conversations.findIndex(e => (e.id === conversationObj.id)) !== -1) {
         // Conversation has already been added
         return true;
       }
@@ -132,16 +134,17 @@ class ChatSession {
         return false;
       }
 
-      const [ iv, hmac, ciphertext ] = conversationObj.initial_message.split(';');
+      const [iv, hmac, ciphertext] = conversationObj.initial_message.split(';');
       if(empty(iv, 'string') || empty(hmac, 'string') || empty(ciphertext, 'string')) {
         throw new Error('Initial message is not properly formatted');
       }
-      const otherUserObj = Object.assign({}, other, {ephemeral_public: conversationObj.key_ephemeral_public});
+      const otherUserObj = Object.assign({}, other, { ephemeral_public: conversationObj.key_ephemeral_public });
       const keyAgreement = await tripleKeyAgree(self, otherUserObj, false, this.keyWrapper);
       const initialCipher = new CipherStore(keyAgreement.key_secret);
       await initialCipher.readyPromise;
-      const conversationKeyBytes = await initialCipher.decryptBytes(base64decodebytes(iv),
-              base64decodebytes(hmac), base64decodebytes(ciphertext));
+      const conversationKeyBytes = await initialCipher.decryptBytes(
+        base64decodebytes(iv), base64decodebytes(hmac), base64decodebytes(ciphertext)
+      );
       toAdd.cipher = new CipherStore(conversationKeyBytes);
       await toAdd.cipher.readyPromise;
       this.conversations.push(toAdd);
@@ -155,17 +158,16 @@ class ChatSession {
 function chatClientBegin(messageHandler) {
   return new Promise((resolve2, reject2) => {
     new Promise((resolve, reject) => {
-      axios.post('/backend-chat.php', {command: 'join'})
-          .then((response) => { resolve(response.data); });
-    })
-    .then(uuid => {
-        const ref = new ChatSession(uuid, messageHandler);
-        ref.keyWrapper = new CipherStore(base64decodebytes(sessionStorage.getItem('keyWrapper')), false);
-        ref.keyWrapper.readyPromise.then(() => {
-          ref.enqueue('retrieve_keys_self', 0)
-            .then(() => ref.enqueue('conversation_ls', 0))
-            .then(() => resolve2(ref));
-        });
+      axios.post('/backend-chat.php', { command: 'join' })
+        .then((response) => { resolve(response.data); });
+    }).then(uuid => {
+      const ref = new ChatSession(uuid, messageHandler);
+      ref.keyWrapper = new CipherStore(base64decodebytes(sessionStorage.getItem('keyWrapper')), false);
+      ref.keyWrapper.readyPromise.then(() => {
+        ref.enqueue('retrieve_keys_self', 0)
+          .then(() => ref.enqueue('conversation_ls', 0))
+          .then(() => resolve2(ref));
+      });
     });
   });
 }

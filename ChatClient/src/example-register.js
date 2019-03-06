@@ -1,3 +1,4 @@
+/* global window document axios */
 // Example script that uploads public keys + wrapped private keys
 // on user registration
 
@@ -21,7 +22,7 @@ async function generateKeyWrapper(pass) {
   };
 }
 
-function doRegister(formID) {
+async function doRegister(formID) {
   const form = document.getElementById(formID);
   const formVal = {};
   Array.from(form.elements).forEach(input => {
