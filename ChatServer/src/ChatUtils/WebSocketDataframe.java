@@ -58,4 +58,12 @@ public class WebSocketDataframe {
         System.arraycopy(b, 0, c, aLen, bLen);
         return c;
     }
+
+    public static long getLength(byte[] lengthBuffer, int lengthEncSize) {
+        long len = 0;
+        for(int k = 0; k < lengthEncSize - 1; k++) {
+            len = 256 * len + lengthBuffer[k];
+        }
+        return len;
+    }
 }

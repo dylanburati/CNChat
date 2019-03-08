@@ -48,13 +48,10 @@ public class ChatServer {
 
     private static final String workingDirectory = new File(ChatServer.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
             getParent() + System.getProperty("file.separator");
-    private static volatile Map<String, JSONStructs.Preferences> allPreferences = new HashMap<>();
+    private static final Map<String, JSONStructs.Preferences> allPreferences = new HashMap<>();
     private static final Object preferencesLock = new Object();
     private static final String preferenceStorePath = workingDirectory + "user_preferences.json";
-    private static ExecutorService storeWriter = Executors.newSingleThreadExecutor();
-
-    private static volatile Map<String, String> userNamesMap = new HashMap<>();
-    private static final Object userNamesMapLock = new Object();
+    private static final ExecutorService storeWriter = Executors.newSingleThreadExecutor();
 
     private static void updatePreferenceStore(String user, JSONStructs.Preferences prefs) {
         allPreferences.put(user, prefs);
@@ -75,12 +72,12 @@ public class ChatServer {
 
         class ClientThread extends Thread {
 
-        private String first = "0;server;Connected";
+        private final String first = "0;server;Connected";
 
             private final String uuid;
             private final peerUpdateCompat<ClientThread> peerMessage;
             String userName;
-            private JSONStructs.Preferences userPreferences = new JSONStructs.Preferences();
+            private final JSONStructs.Preferences userPreferences = new JSONStructs.Preferences();
 
             private Socket wsSocket;
             private final Object outStreamLock = new Object();
@@ -106,6 +103,7 @@ public class ChatServer {
                 if(conversationID < 0) {
                     return true;
                 } else if(conversationID == 0) {
+                    // command for server
                     message = message.substring(headerParsedL);
                     String outputBody = "";
                     if(message.startsWith("conversation_request ")) {
@@ -142,19 +140,19 @@ public class ChatServer {
                         if(collision) {
                             outputBody = "conversation_request;failure";
                         } else {
-                            StringBuilder _outputBody = new StringBuilder("[");
-                            _outputBody.append(MariaDBReader.retrieveKeysSelf(userName));
+                            StringBuilder responseBuilder = new StringBuilder("[");
+                            responseBuilder.append(MariaDBReader.retrieveKeysSelf(userName));
                             for(String u : otherUsers) {
                                 String ks = MariaDBReader.retrieveKeysOther(u, userName);
                                 if(ks == null) {
                                     return true;
                                 }
-                                _outputBody.append(",");
-                                _outputBody.append("\n");
-                                _outputBody.append(ks);
+                                responseBuilder.append(",");
+                                responseBuilder.append("\n");
+                                responseBuilder.append(ks);
                             }
-                            _outputBody.append("]");
-                            outputBody = "conversation_request;" + _outputBody.toString();
+                            responseBuilder.append("]");
+                            outputBody = "conversation_request;" + responseBuilder.toString();
                         }
                     } else if(message.startsWith("conversation_add ")) {
                         messageClasses = "command";
@@ -260,27 +258,27 @@ public class ChatServer {
                         }
                     } else if(message.startsWith("conversation_ls")) {
                         messageClasses = "command";
-                        StringBuilder _outputBody = new StringBuilder("[");
+                        StringBuilder responseBuilder = new StringBuilder("[");
                         synchronized(conversationsLock) {
                             for(JSONStructs.Conversation c : conversations.values()) {
                                 if(c.hasUser(userName)) {
-                                    String cs = c.sendToUser(userName);
-                                    _outputBody.append(cs);
-                                    _outputBody.append(",");
-                                    _outputBody.append("\n");
+                                    String conversationJson = c.sendToUser(userName);
+                                    responseBuilder.append(conversationJson);
+                                    responseBuilder.append(",");
+                                    responseBuilder.append("\n");
                                 }
                             }
                         }
-                        if(_outputBody.length() > 1) {
-                            _outputBody.setLength(_outputBody.length() - 2);  // remove last comma and line break
+                        if(responseBuilder.length() > 1) {
+                            responseBuilder.setLength(responseBuilder.length() - 2);  // remove last comma and line break
                         }
-                        _outputBody.append("]");
-                        outputBody = "conversation_ls;" + _outputBody.toString();
+                        responseBuilder.append("]");
+                        outputBody = "conversation_ls;" + responseBuilder.toString();
                     } else if(message.startsWith("conversation_cat ")) {
                         messageClasses = "command";
                         if(message.length() == 17) return true;
                         String[] fields = message.substring(17).split(" ");
-                        int nBack = 100;
+                        int numPastMessages = 100;
                         int cID = -1;
                         try {
                             cID = Integer.parseInt(fields[0]);
@@ -289,7 +287,7 @@ public class ChatServer {
                         }
                         if(fields.length >= 2) {
                             try {
-                                nBack = Integer.parseInt(fields[1]);
+                                numPastMessages = Integer.parseInt(fields[1]);
                             } catch(NumberFormatException ignored) {
                             }
                         }
@@ -298,20 +296,20 @@ public class ChatServer {
                             c = conversations.get(cID);
                             if(c == null || !c.hasUser(userName)) return true;
                         }
-                        StringBuilder _outputBody = new StringBuilder();
-                        List<String> cMessages = MariaDBReader.getMessages(cID, nBack);
+                        StringBuilder responseBuilder = new StringBuilder();
+                        List<String> cMessages = MariaDBReader.getMessages(cID, numPastMessages);
                         if(cMessages == null) {
                             return true;
                         }
-                        _outputBody.append(JsonStream.serialize(cMessages));
-                        outputBody = "conversation_cat;" + _outputBody.toString();
+                        responseBuilder.append(JsonStream.serialize(cMessages));
+                        outputBody = "conversation_cat;" + responseBuilder.toString();
                     } else if(message.startsWith("retrieve_keys_self")) {
                         messageClasses = "command";
-                        String ks = MariaDBReader.retrieveKeysSelf(userName);
-                        if(ks == null) {
+                        String keysetJson = MariaDBReader.retrieveKeysSelf(userName);
+                        if(keysetJson == null) {
                             return false;
                         }
-                        outputBody = "retrieve_keys_self;" + ks;
+                        outputBody = "retrieve_keys_self;" + keysetJson;
                     } else if(message.startsWith("retrieve_keys_other ")) {
                         messageClasses = "command";
                         if(message.length() == 20) return true;
@@ -323,21 +321,21 @@ public class ChatServer {
                                 return true;
                             }
                         }
-                        StringBuilder _outputBody = new StringBuilder("[");
+                        StringBuilder responseBuilder = new StringBuilder("[");
                         for(String u : otherUsers) {
-                            String ks = MariaDBReader.retrieveKeysOther(u, userName);
-                            if(ks == null) {
+                            String keysetJson = MariaDBReader.retrieveKeysOther(u, userName);
+                            if(keysetJson == null) {
                                 return true;
                             }
-                            _outputBody.append(ks);
-                            _outputBody.append(",");
-                            _outputBody.append("\n");
+                            responseBuilder.append(keysetJson);
+                            responseBuilder.append(",");
+                            responseBuilder.append("\n");
                         }
-                        if(_outputBody.length() > 1) {
-                            _outputBody.setLength(_outputBody.length() - 2);  // remove last comma and line break
+                        if(responseBuilder.length() > 1) {
+                            responseBuilder.setLength(responseBuilder.length() - 2);  // remove last comma and line break
                         }
-                        _outputBody.append("]");
-                        outputBody = "retrieve_keys_other;" + _outputBody.toString();
+                        responseBuilder.append("]");
+                        outputBody = "retrieve_keys_other;" + responseBuilder.toString();
                     } else if(message.startsWith("quit")) {
                         return false;
                     } else if(message.startsWith("set_preferences ")) {
@@ -362,12 +360,9 @@ public class ChatServer {
                         return true;
                     }
 
-                    StringBuilder outMessage = new StringBuilder();
-                    outMessage.append(conversationID).append(";");
-                    outMessage.append(messageClasses).append(";");
-                    outMessage.append(outputBody);
-                    enqueue(outMessage.toString());
+                    enqueue("" + conversationID + ";" + messageClasses + ";" + outputBody);
                 } else {
+                    // user message
                     String cipherParams = "";
                     String hmac = "";
                     String contentType = "";
@@ -396,15 +391,15 @@ public class ChatServer {
                     } else {
                         messageClasses = "user " + contentType;
                     }
-                    StringBuilder outMessage = new StringBuilder();
-                    outMessage.append(conversationID).append(";");
-                    outMessage.append(userName).append(";");
-                    outMessage.append(System.currentTimeMillis()).append(";");
-                    outMessage.append(messageClasses).append(";");
-                    outMessage.append(cipherParams).append(";");
-                    outMessage.append(hmac).append(";");
-                    outMessage.append(message);
-                    peerMessage.execute(this, outMessage.toString(), c.userNameList, conversationID);
+
+                    String outMessage = "" + conversationID + ";" +
+                            userName + ";" +
+                            System.currentTimeMillis() + ";" +
+                            messageClasses + ";" +
+                            cipherParams + ";" +
+                            hmac + ";" +
+                            message;
+                    peerMessage.execute(this, outMessage, c.userNameList, conversationID);
                 }
 
                 return true;
@@ -417,7 +412,6 @@ public class ChatServer {
                     } catch(IOException ignored) {
                     }
                 }
-                userNamesMap.remove(uuid);
             }
 
             @Override
@@ -471,39 +465,27 @@ public class ChatServer {
 
                 int opcode = (header1[0] & 0x0F);
                 boolean lastFrame = ((header1[0] & 0x80) != 0);
-                long len = (header1[1] & 0x7F);
+                long dataLen = (header1[1] & 0x7F);
                 boolean masked = ((header1[1] & 0x80) != 0);
                 if(!masked) {
-                    this.close();
+                    this.close();  // Unmasked client-to-server messages are prohibited by the WebSocket protocol
                 }
 
-                if(len == 126) {
-                    byte[] header2 = new byte[2];
+                // Determine length of data section in WebSocket frame
+                if(dataLen >= 126) {
+                    byte[] lengthBuffer = new byte[8];
+                    int lengthEncSize = (dataLen == 126 ? 2 : 8);  // 126 -> 16-bit unsigned integer, 127 -> 64-bit
                     int pos2 = 0;
-                    while(pos2 < 2) {
-                        pos2 += wsIn.read(header2, pos2, 2 - pos2);
+                    while(pos2 < lengthEncSize) {
+                        pos2 += wsIn.read(lengthBuffer, pos2, lengthEncSize - pos2);
                     }
-                    len = 0;
-                    for(int k = 0; k < 2; k++) {
-                        len |= (header2[k] & 0xFF);
-                        if(k < 1) len <<= 8;
-                    }
-                } else if(len == 127) {
-                    byte[] header2 = new byte[8];
-                    int pos2 = 0;
-                    while(pos2 < 8) {
-                        pos2 += wsIn.read(header2, pos2, 8 - pos2);
-                    }
-                    len = 0;
-                    for(int k = 0; k < 8; k++) {
-                        len |= (header2[k] & 0xFF);
-                        if(k < 7) len <<= 8;
-                    }
+                    dataLen = WebSocketDataframe.getLength(lengthBuffer, lengthEncSize);
                 }
-                if(len > 0x7FFFFFFB) {  // len doesn't include mask
+                if(dataLen > 0x7FFFFFFB) {  // len doesn't include mask
                     throw new RuntimeException("Message over 2GB");
                 }
-                byte[] data = new byte[(int)len + 4];
+
+                byte[] data = new byte[(int)dataLen + 4];
                 int pos = 0;
                 while(pos < data.length) {
                     pos += wsIn.read(data, pos, data.length - pos);
@@ -528,10 +510,10 @@ public class ChatServer {
                 } else if(!lastFrame) {
                     throw new RuntimeException("Non-text continuables are not supported");
                 } else if(opcode == 9) {
-                    wsSocket.getOutputStream().write(WebSocketDataframe.toFrame(10, msg));
+                    wsSocket.getOutputStream().write(WebSocketDataframe.toFrame(10, msg));  // if ping then pong
                     return "";
                 } else if(opcode == 8) {
-                    close();
+                    close();  // quit message
                     return "";
                 } else {
                     return "";

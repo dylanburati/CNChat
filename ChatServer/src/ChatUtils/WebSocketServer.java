@@ -18,13 +18,13 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class WebSocketServer {
     private ServerSocket serverSocket = null;
-    private volatile Map<String, Socket> pendingConnections = new HashMap<>();
+    private final Map<String, Socket> pendingConnections = new HashMap<>();
     private final Object pendingConnectionsLock = new Object();
-    public volatile List<String> authorized = new ArrayList<>();
+    public final List<String> authorized = new ArrayList<>();
     public final Object authorizedLock = new Object();
 
-    private Lock availLock = new ReentrantLock();
-    private Condition availCheck = availLock.newCondition();
+    private final Lock availLock = new ReentrantLock();
+    private final Condition availCheck = availLock.newCondition();
 
     private boolean upgradeFromHttp(Socket socket) {
         BufferedReader in = null;
