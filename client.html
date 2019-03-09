@@ -51,18 +51,19 @@
           <span class="anchor" id="overview"></span>
           <p class="h4">Overview</p>
           <p>
-            The JavaScript client is organized into 3 files: <em>ChatUtils.js</em>, <em>ChatClient.js</em>, and <em>example.js</em>.
+            The JavaScript client is organized into 2 files: <em>ChatUtils.js</em> and <em>ChatClient.js</em>.
           </p>
           <ul>
             <li>ChatUtils provides support for base64 and defines 2 cryptography classes, DHKeyPair and CipherStore.</li>
             <li>
               ChatClient provides the ChatSession class, along with the implementation of the different steps in the
-              <a href="./key-exchange.html">key-exchange protocol</a>. It also provides a wrapper around the constructor
-              for ChatSession, which attaches a <em>message handler</em> function.
+              <a href="./key-exchange.html">key-exchange protocol</a>. It also provides <code>chatClientBegin()</code>,
+              a wrapper around the constructor for ChatSession, which attaches your message handler functions.
             </li>
             <li>
-              example.js is an example of a message handler, leaving out the communication with the user interface. It runs steps
-              in the key-exchange protocol or updates the session data based on the content of the message.
+              <em>example.js</em> is a template for creating message handlers, which are called when the client receives
+              data that should be made available to the user, such as their current preferences or a message in a
+              conversation.
             </li>
           </ul>
           <p>
@@ -195,7 +196,7 @@ module.exports = { presets };</code>
               <p class="ml-4 mt-2 mb-0" style="line-height: 1.35;">
                 Note: the functions in the bundle will not be defined in the scope of the window. If your code for the
                 user interface needs to access one of them, you can add lines to the end of CNChat-es6.js like this:<br>
-                <code class="d-block">window.chatClientBegin = chatClientBegin</code>
+                <code class="d-block">window.chatClientBegin = chatClientBegin;</code>
               </p>
             </li>
             <li class="mb-2">
