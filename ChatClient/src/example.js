@@ -4,6 +4,12 @@
 //
 
 const handlers = {
+  conversation_ls(conversation) {
+    // Code to display the conversation to the screen goes here
+    // conversation.id gives the conversation's ID
+    //             .users gives the username of all members
+  },
+
   conversation_cat(conversation, pastMsgObj, processedArr) {
     // Code to display the message to the screen goes here
     // pastMsgObj.id gives the conversation ID of the message

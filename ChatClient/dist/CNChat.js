@@ -1335,6 +1335,10 @@ var commandHandlers = {
             session.catSent.push(conversationObj.id);
             session.enqueue("conversation_cat ".concat(conversationObj.id), 0);
           }
+
+          if (!empty(session.externalMessageHandlers, 'object') && !empty(session.externalMessageHandlers.conversation_ls, 'function')) {
+            session.externalMessageHandlers.conversation_ls(conversationObj);
+          }
         } else if (!empty(conversationStatus, 'string')) {
           // conversationStatus is conversationKeyWrapped
           // response to conversation_set_key will be conversation_ls
