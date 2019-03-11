@@ -72,7 +72,7 @@ public class ChatServer {
 
         class ClientThread extends Thread {
 
-        private final String first = "0;server;Connected";
+            private final String first = "0;server;Connected";
 
             private final String uuid;
             private final peerUpdateCompat<ClientThread> peerMessage;

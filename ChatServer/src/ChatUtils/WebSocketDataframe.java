@@ -61,8 +61,8 @@ public class WebSocketDataframe {
 
     public static long getLength(byte[] lengthBuffer, int lengthEncSize) {
         long len = 0;
-        for(int k = 0; k < lengthEncSize - 1; k++) {
-            len = 256 * len + lengthBuffer[k];
+        for(int k = 0; k < lengthEncSize; k++) {
+            len = 256 * len + (lengthBuffer[k] & 0xFF);
         }
         return len;
     }
