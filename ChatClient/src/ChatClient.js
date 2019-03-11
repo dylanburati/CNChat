@@ -37,7 +37,7 @@ const commandHandlers = {
     });
     Promise.all(promises).then(promiseResultArr => {
       if(keysToRequest.length > 0) {
-        session.enqueue('retrieve_keys_other ' + keysToRequest.join(';'));
+        session.enqueue('retrieve_keys_other ' + keysToRequest.join(';'), 0);
       }
     });
   },
