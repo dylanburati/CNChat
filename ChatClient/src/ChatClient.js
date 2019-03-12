@@ -345,10 +345,10 @@ class ChatSession {
   }
 }
 
-function chatClientBegin(externalMessageHandlers) {
+function chatClientBegin(externalMessageHandlers, authEndpoint, authData) {
   return new Promise((resolve2, reject2) => {
     new Promise((resolve, reject) => {
-      axios.post('/backend-chat.php', { command: 'join' })
+      axios.post(authEndpoint, authData)
         .then((response) => { resolve(response.data); });
     }).then(uuid => {
       const ref = new ChatSession(uuid, externalMessageHandlers);

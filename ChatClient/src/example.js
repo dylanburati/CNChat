@@ -44,4 +44,7 @@ const handlers = {
 };
 
 let session;
-chatClientBegin(handlers).then(s => { session = s; });
+// ChatClient requests a UUID from the given authorization endpoint. The endpoint should check
+// if the user is logged in, and then forward the join request to the server
+chatClientBegin(handlers, '/CNChat-auth-proxy.php', { command: 'join' })
+  .then(s => { session = s; });

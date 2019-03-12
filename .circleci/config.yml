@@ -4,6 +4,7 @@ jobs:
     working_directory: ~/CNChat
     docker:
       - image: circleci/openjdk:8-stretch-node
+      - image: circleci/mariadb:stretch
     steps:
       - checkout
       - run:
