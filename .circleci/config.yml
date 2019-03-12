@@ -1,0 +1,16 @@
+version: 2
+jobs:
+  build:
+    working_directory: ~/CNChat
+    docker:
+      - image: circleci/openjdk:8-stretch-node
+    steps:
+      - checkout
+      - run:
+          name: Build1
+          command: echo 1
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build

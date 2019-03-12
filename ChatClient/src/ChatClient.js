@@ -1,4 +1,4 @@
-/* global window WebSocket axios */
+/* global window WebSocket localStorage axios */
 const commandHandlers = {
   conversation_request(commandResults, session) {
     const conversationRequest = JSON.parse(commandResults);

@@ -8,12 +8,13 @@ function empty(v, type) {
   if(v === undefined || v === null) return true;
   if(type !== undefined) {
     if(type === 'array') {
-      return (Array.isArray(v) && v.length === 0);
+      return (!Array.isArray(v) || v.length === 0);
     }
     if(typeof v !== type) return true;
     if(type === 'string') {
       return (v.length === 0);
-    } else if(type === 'object') {
+    }
+    if(type === 'object') {
       return (Object.keys(v).length === 0);
     }
     return false;
@@ -526,7 +527,7 @@ class CipherStore {
     typedArrayCopy(keyBytes, 0, keyMatView, 0, 32);
 
     this.key = null;
-    this.readyPromise = this.readyPromise = new Promise((resolve, reject) => {
+    this.readyPromise = new Promise((resolve, reject) => {
       window.crypto.subtle.importKey(
         'raw', this.keyMat, { name: 'AES-CBC' }, false, ['encrypt', 'decrypt']
       ).then(genKey => {

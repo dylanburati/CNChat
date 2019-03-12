@@ -140,14 +140,16 @@ function empty(v, type) {
 
   if (type !== undefined) {
     if (type === 'array') {
-      return Array.isArray(v) && v.length === 0;
+      return !Array.isArray(v) || v.length === 0;
     }
 
     if (typeof v !== type) return true;
 
     if (type === 'string') {
       return v.length === 0;
-    } else if (type === 'object') {
+    }
+
+    if (type === 'object') {
       return Object.keys(v).length === 0;
     }
 
@@ -826,7 +828,7 @@ function () {
     var keyMatView = new Uint8Array(this.keyMat);
     typedArrayCopy(keyBytes, 0, keyMatView, 0, 32);
     this.key = null;
-    this.readyPromise = this.readyPromise = new Promise(function (resolve, reject) {
+    this.readyPromise = new Promise(function (resolve, reject) {
       window.crypto.subtle.importKey('raw', _this2.keyMat, {
         name: 'AES-CBC'
       }, false, ['encrypt', 'decrypt']).then(function (genKey) {
@@ -1260,7 +1262,7 @@ function _wrapKey() {
 function unwrapKey(_x19, _x20) {
   return _unwrapKey.apply(this, arguments);
 }
-/* global window WebSocket axios */
+/* global window WebSocket localStorage axios */
 
 
 function _unwrapKey() {
