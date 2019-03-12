@@ -3,13 +3,32 @@ jobs:
   build:
     working_directory: ~/CNChat
     docker:
-      - image: circleci/openjdk:8-stretch-node
-      - image: circleci/mariadb:stretch
+      - image: circleci/openjdk:8-stretch-node-browsers
+      - image: circleci/mariadb:jessie
     steps:
       - checkout
+      - run: sudo apt-get update
       - run:
-          name: Build1
-          command: echo 1
+          name: Install dependencies (apt)
+          command: sudo apt-get install xvfb libgtk2.0-0 libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2 mariadb-client
+      - run:
+          name: Install http-server (npm)
+          command: sudo npm install http-server -g
+      - run:
+          name: Install cypress (npm)
+          command: npm install cypress --save-dev
+      - run:
+          name: Start http-server
+          command: cd integration_tests && http-server -a localhost
+          background: true
+      - run:
+          name: Create database and start chat server
+          command: integration_tests/setup.sh
+          background: true
+      - run:
+          name: Run cypress
+          command: node_modules/.bin/cypress run --spec 'integration_tests/*.spec.js'
+
 workflows:
   version: 2
   build_and_test:
