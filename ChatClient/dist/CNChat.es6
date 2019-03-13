@@ -728,6 +728,24 @@ async function unwrapKey(keyWrapped, keyWrapper) {
   const decrypted = await keyWrapper.decryptBytes(iv, hmac, ciphertext);
   return decrypted;
 }
+
+async function generateKeyWrapper(pass) {
+  const passUTF8 = toUTF8Bytes(pass);
+  const securePad = [];
+
+  const inHashBuf = new ArrayBuffer(passUTF8.length);
+  const inHashBufV = new Uint8Array(inHashBuf);
+  typedArrayCopy(passUTF8, 0, inHashBufV, 0, passUTF8.length);
+  const hash = await window.crypto.subtle.digest('sha-256', inHashBuf);
+  const hashV = new Uint8Array(hash);
+
+  const keyWrapper = new CipherStore(hashV, true);
+  await keyWrapper.readyPromise;
+  return {
+    storage: base64encodebytes(hashV),
+    keyWrapper: keyWrapper
+  };
+}
 /* global window WebSocket localStorage axios */
 const commandHandlers = {
   conversation_request(commandResults, session) {
@@ -1075,10 +1093,10 @@ class ChatSession {
   }
 }
 
-function chatClientBegin(externalMessageHandlers) {
+function chatClientBegin(externalMessageHandlers, authEndpoint, authData) {
   return new Promise((resolve2, reject2) => {
     new Promise((resolve, reject) => {
-      axios.post('/backend-chat.php', { command: 'join' })
+      axios.post(authEndpoint, authData)
         .then((response) => { resolve(response.data); });
     }).then(uuid => {
       const ref = new ChatSession(uuid, externalMessageHandlers);
@@ -1092,4 +1110,5 @@ function chatClientBegin(externalMessageHandlers) {
   });
 }
 window.chatClientBegin = chatClientBegin;
+window.generateKeyWrapper = generateKeyWrapper;
 window.base64decodebytes = base64decodebytes;

@@ -7,7 +7,33 @@
 }
 
 .container {
-  max-width: 848px;
+  max-width: 848px !important;
+  width: 100%;
+}
+
+.flex-01 {
+  flex-grow: 0 !important;
+}
+
+.flex-11 {
+  flex-grow: 1 !important;
+}
+
+.form-control {
+  margin-left: .5rem;
+  margin-right: 1.5rem;
+  padding: .25rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .m-0 {

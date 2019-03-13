@@ -728,3 +728,21 @@ async function unwrapKey(keyWrapped, keyWrapper) {
   const decrypted = await keyWrapper.decryptBytes(iv, hmac, ciphertext);
   return decrypted;
 }
+
+async function generateKeyWrapper(pass) {
+  const passUTF8 = toUTF8Bytes(pass);
+  const securePad = [];
+
+  const inHashBuf = new ArrayBuffer(passUTF8.length);
+  const inHashBufV = new Uint8Array(inHashBuf);
+  typedArrayCopy(passUTF8, 0, inHashBufV, 0, passUTF8.length);
+  const hash = await window.crypto.subtle.digest('sha-256', inHashBuf);
+  const hashV = new Uint8Array(hash);
+
+  const keyWrapper = new CipherStore(hashV, true);
+  await keyWrapper.readyPromise;
+  return {
+    storage: base64encodebytes(hashV),
+    keyWrapper: keyWrapper
+  };
+}

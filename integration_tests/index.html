@@ -8,12 +8,26 @@
 </head>
 <body>
   <main class="d-flex" style="flex-direction: column; align-items: center">
+    <div class="container pt-5 flex-01 d-flex" style=>
+      <label for="inputName" class="sr-only">Username</label>
+      <input type="text" name="name" id="inputName" class="form-control flex-11" placeholder="Username" required autofocus>
+      <label for="inputPass" class="sr-only">Password</label>
+      <input type="password" name="pass" id="inputPass" class="form-control flex-11" placeholder="Password" required>
+      <button id="credentialSubmit" onclick="login()">Login</button>
+    </div>
+    <div class="container pt-5 flex-01 d-flex" style=>
+      <input type="text" id="stdin" class="form-control flex-11" placeholder="Send a message">
+      <button id="send" onclick="send()">Send</button>
+    </div>
     <div class="container">
       <div class="p-3 pb-5">
         <code id="stdout" class="d-block mr-3" style="font-size: .875rem; flex-grow: 1; white-space: pre-wrap">Test output</code>
       </div>
     </div>
   </main>
+  <script src="https://cdn.jsdelivr.net/npm/axios@0.18.0/dist/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/big-integer@1.6.36/BigInteger.min.js"></script>
+  <script src="./CNChat.js"></script>
   <script src="./index.js"></script>
 </body>
 </html>

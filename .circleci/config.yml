@@ -8,6 +8,7 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get update
+      - run: mkdir log
       - run:
           name: Install dependencies (apt)
           command: sudo apt-get install xvfb libgtk2.0-0 libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2 mariadb-client openssl
@@ -24,17 +25,29 @@ jobs:
           name: Start http-server
           command: |
             cd integration_tests &&
+            cp ../ChatClient/dist/CNChat.js ./ &&
             http-server -a localhost -S -C $HOME/cert.crt -K $HOME/cert.key
           background: true
       - run:
-          name: Start chat server
-          command: java -jar bin/ChatServer.jar
+          name: Start auth proxy
+          command: node integration_tests/proxy.js > log/proxy.js.log
+          background: true
       - run:
-          name: Check index.html
-          command: curl https://localhost:8000/index.html
+          name: Start chat server
+          command: java -jar bin/ChatServer.jar > log/ChatServer.jar.log
+          background: true
       - run:
           name: Run cypress
-          command: node_modules/.bin/cypress run --spec 'integration_tests/*.spec.js'
+          command: |
+            mv integration_tests/cypress.json ./ &&
+            mkdir -p cypress/integration &&
+            cp integration_tests/*.spec.js cypress/integration/ &&
+            node_modules/.bin/cypress run --record --key $CYPRESS_RECORD_KEY
+
+      - store_artifacts:
+          path: cypress/screenshots
+      - store_artifacts:
+          path: log
 
 workflows:
   version: 2

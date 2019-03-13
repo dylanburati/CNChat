@@ -1262,8 +1262,6 @@ function _wrapKey() {
 function unwrapKey(_x19, _x20) {
   return _unwrapKey.apply(this, arguments);
 }
-/* global window WebSocket localStorage axios */
-
 
 function _unwrapKey() {
   _unwrapKey = _asyncToGenerator(
@@ -1311,6 +1309,52 @@ function _unwrapKey() {
     }, _callee14, this);
   }));
   return _unwrapKey.apply(this, arguments);
+}
+
+function generateKeyWrapper(_x21) {
+  return _generateKeyWrapper.apply(this, arguments);
+}
+/* global window WebSocket localStorage axios */
+
+
+function _generateKeyWrapper() {
+  _generateKeyWrapper = _asyncToGenerator(
+  /*#__PURE__*/
+  regeneratorRuntime.mark(function _callee15(pass) {
+    var passUTF8, securePad, inHashBuf, inHashBufV, hash, hashV, keyWrapper;
+    return regeneratorRuntime.wrap(function _callee15$(_context15) {
+      while (1) {
+        switch (_context15.prev = _context15.next) {
+          case 0:
+            passUTF8 = toUTF8Bytes(pass);
+            securePad = [];
+            inHashBuf = new ArrayBuffer(passUTF8.length);
+            inHashBufV = new Uint8Array(inHashBuf);
+            typedArrayCopy(passUTF8, 0, inHashBufV, 0, passUTF8.length);
+            _context15.next = 7;
+            return window.crypto.subtle.digest('sha-256', inHashBuf);
+
+          case 7:
+            hash = _context15.sent;
+            hashV = new Uint8Array(hash);
+            keyWrapper = new CipherStore(hashV, true);
+            _context15.next = 12;
+            return keyWrapper.readyPromise;
+
+          case 12:
+            return _context15.abrupt("return", {
+              storage: base64encodebytes(hashV),
+              keyWrapper: keyWrapper
+            });
+
+          case 13:
+          case "end":
+            return _context15.stop();
+        }
+      }
+    }, _callee15, this);
+  }));
+  return _generateKeyWrapper.apply(this, arguments);
 }
 
 var commandHandlers = {
@@ -1642,7 +1686,7 @@ function () {
         }, _callee7, this);
       }));
 
-      function enqueueWithContentType(_x21, _x22, _x23) {
+      function enqueueWithContentType(_x22, _x23, _x24) {
         return _enqueueWithContentType.apply(this, arguments);
       }
 
@@ -1673,7 +1717,7 @@ function () {
         }, _callee8, this);
       }));
 
-      function enqueue(_x24, _x25) {
+      function enqueue(_x25, _x26) {
         return _enqueue.apply(this, arguments);
       }
 
@@ -1773,7 +1817,7 @@ function () {
                     }, _callee9, this);
                   }));
 
-                  return function asyncLoopFunction(_x27) {
+                  return function asyncLoopFunction(_x28) {
                     return _ref3.apply(this, arguments);
                   };
                 }();
@@ -1807,7 +1851,7 @@ function () {
         }, _callee10, this);
       }));
 
-      function addConversationFromRequest(_x26) {
+      function addConversationFromRequest(_x27) {
         return _addConversationFromRequest.apply(this, arguments);
       }
 
@@ -1925,7 +1969,7 @@ function () {
         }, _callee11, this);
       }));
 
-      function addConversationFromLS(_x28) {
+      function addConversationFromLS(_x29) {
         return _addConversationFromLS.apply(this, arguments);
       }
 
@@ -1968,12 +2012,10 @@ function () {
   return ChatSession;
 }();
 
-function chatClientBegin(externalMessageHandlers) {
+function chatClientBegin(externalMessageHandlers, authEndpoint, authData) {
   return new Promise(function (resolve2, reject2) {
     new Promise(function (resolve, reject) {
-      axios.post('/backend-chat.php', {
-        command: 'join'
-      }).then(function (response) {
+      axios.post(authEndpoint, authData).then(function (response) {
         resolve(response.data);
       });
     }).then(function (uuid) {
@@ -1991,6 +2033,7 @@ function chatClientBegin(externalMessageHandlers) {
 }
 
 window.chatClientBegin = chatClientBegin;
+window.generateKeyWrapper = generateKeyWrapper;
 window.base64decodebytes = base64decodebytes;
 
 
