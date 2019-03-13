@@ -10,7 +10,7 @@ jobs:
       - run: sudo apt-get update
       - run:
           name: Install dependencies (apt)
-          command: sudo apt-get install xvfb libgtk2.0-0 libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2 mariadb-client
+          command: sudo apt-get install xvfb libgtk2.0-0 libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2 mariadb-client openssl
       - run:
           name: Install http-server (npm)
           command: sudo npm install http-server -g
@@ -18,13 +18,20 @@ jobs:
           name: Install cypress (npm)
           command: npm install cypress --save-dev
       - run:
+          name: Create database and SSL certificates
+          command: integration_tests/setup.sh
+      - run:
           name: Start http-server
-          command: cd integration_tests && http-server -a localhost
+          command: |
+            cd integration_tests &&
+            http-server -a localhost -S -C $HOME/cert.crt -K $HOME/cert.key
           background: true
       - run:
-          name: Create database and start chat server
-          command: integration_tests/setup.sh
-          background: true
+          name: Start chat server
+          command: java -jar bin/ChatServer.jar
+      - run:
+          name: Check index.html
+          command: curl https://localhost:8000/index.html
       - run:
           name: Run cypress
           command: node_modules/.bin/cypress run --spec 'integration_tests/*.spec.js'
