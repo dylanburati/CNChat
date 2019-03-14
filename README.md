@@ -1,4 +1,4 @@
-## Cyber Naysh Chat
+## Cyber Naysh Chat  [![CircleCI](https://circleci.com/gh/dylanburati/CNChat.svg?style=svg)](https://circleci.com/gh/dylanburati/CNChat)
 
 CNChat is a simple end-to-end encrypted chat application.
 The server runs on Java and can accept any number of clients.
