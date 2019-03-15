@@ -21,6 +21,7 @@ const commandHandlers = {
         } else if(conversationStatus === true) {
           if(session.catSent.indexOf(conversationObj.id) === -1) {
             session.catSent.push(conversationObj.id);
+            session.pendingMessageHandler(conversationObj.id);
             session.enqueue(`conversation_cat ${conversationObj.id}`, 0);
           }
           if(!empty(session.externalMessageHandlers, 'object') &&
@@ -48,7 +49,12 @@ const commandHandlers = {
       const conversationID = parseInt(pastMessages[0].split(';')[0]);
       const conversation = session.conversations.find(e => (e.id === conversationID));
       if(conversation == null) {
-        throw new Error('Unknown conversation');
+        session.pendingMessages.push({
+          handler: 'conversation_cat',
+          conversationID: conversationID,
+          messages: commandResults
+        });
+        return;
       }
       pastMessages.forEach(pastMsg => {
         const msgObj = { id: conversationID };
@@ -138,7 +144,14 @@ const commandHandlers = {
     }
     const conversation = session.conversations.find(e => (e.id === conversationID));
     if(conversation == null) {
-      throw new Error('Unknown conversation');
+      if(session.catSent.indexOf(conversationID) !== -1) {
+        session.pendingMessages.push({
+          handler: 'user_message',
+          conversationID: conversationID,
+          messages: currentMsg
+        });
+      }
+      return;
     }
     const ciphertext = currentMsg.substring(msgFields.reduce((acc, cur) => (acc + cur.length), 0) + 6);
     msgObj.id = conversationID;
@@ -173,6 +186,7 @@ class ChatSession {
     this.keysets = [];
     this.messages = [];
     this.pendingConversations = [];
+    this.pendingMessages = [];
     this.catSent = [];
     this.keyWrapper = null;
 
@@ -342,6 +356,18 @@ class ChatSession {
       // conversationID;from;time;classes;iv;hmac;messageData
       commandHandlers.user_message(message, this);
     }
+  }
+
+  pendingMessageHandler(conversationID) {
+    const toHandle = this.pendingMessages.filter(e => (e.conversationID === conversationID));
+    toHandle.forEach(pendingObj => {
+      if(pendingObj.handler === 'conversation_cat') {
+        commandHandlers.conversation_cat(pendingObj.messages, this);
+      } else if(pendingObj.handler === 'user_message') {
+        commandHandlers.user_message(pendingObj.messages, this);
+      }
+    });
+    this.pendingMessages = this.pendingMessages.filter(e => (e.conversationID !== conversationID));
   }
 }
 

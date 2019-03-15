@@ -1373,6 +1373,7 @@ var commandHandlers = {
         } else if (conversationStatus === true) {
           if (session.catSent.indexOf(conversationObj.id) === -1) {
             session.catSent.push(conversationObj.id);
+            session.pendingMessageHandler(conversationObj.id);
             session.enqueue("conversation_cat ".concat(conversationObj.id), 0);
           }
 
@@ -1404,7 +1405,12 @@ var commandHandlers = {
       });
 
       if (conversation == null) {
-        throw new Error('Unknown conversation');
+        session.pendingMessages.push({
+          handler: 'conversation_cat',
+          conversationID: conversationID,
+          messages: commandResults
+        });
+        return;
       }
 
       pastMessages.forEach(function (pastMsg) {
@@ -1525,7 +1531,15 @@ var commandHandlers = {
     });
 
     if (conversation == null) {
-      throw new Error('Unknown conversation');
+      if (session.catSent.indexOf(conversationID) !== -1) {
+        session.pendingMessages.push({
+          handler: 'user_message',
+          conversationID: conversationID,
+          messages: currentMsg
+        });
+      }
+
+      return;
     }
 
     var ciphertext = currentMsg.substring(msgFields.reduce(function (acc, cur) {
@@ -1568,6 +1582,7 @@ function () {
     this.keysets = [];
     this.messages = [];
     this.pendingConversations = [];
+    this.pendingMessages = [];
     this.catSent = [];
     this.keyWrapper = null;
     this.externalMessageHandlers = externalMessageHandlers;
@@ -2000,6 +2015,25 @@ function () {
         // conversationID;from;time;classes;iv;hmac;messageData
         commandHandlers.user_message(message, this);
       }
+    }
+  }, {
+    key: "pendingMessageHandler",
+    value: function pendingMessageHandler(conversationID) {
+      var _this6 = this;
+
+      var toHandle = this.pendingMessages.filter(function (e) {
+        return e.conversationID === conversationID;
+      });
+      toHandle.forEach(function (pendingObj) {
+        if (pendingObj.handler === 'conversation_cat') {
+          commandHandlers.conversation_cat(pendingObj.messages, _this6);
+        } else if (pendingObj.handler === 'user_message') {
+          commandHandlers.user_message(pendingObj.messages, _this6);
+        }
+      });
+      this.pendingMessages = this.pendingMessages.filter(function (e) {
+        return e.conversationID !== conversationID;
+      });
     }
   }]);
 

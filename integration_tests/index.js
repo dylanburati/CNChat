@@ -75,6 +75,9 @@ async function login() {
   const keyWrapper = await generateKeyWrapper(credentials.pass);
   localStorage.setItem('keyWrapper', keyWrapper.storage);
   const currentSession = await chatClientBegin(handlers, 'https://localhost:8083', `join ${credentials.name}`);
+  if(sessionArr.length > 0) {
+    sessionArr[0].externalMessageHandlers = {};
+  }
   sessionArr = [currentSession].concat(sessionArr);
   println(`New session @ ${currentSession.websocket.url}`);
   
