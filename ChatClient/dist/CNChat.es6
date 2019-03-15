@@ -1,9 +1,5 @@
 /* global window bigInt */
 // Begin general utils
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 function empty(v, type) {
   if(v === undefined || v === null) return true;
   if(type !== undefined) {

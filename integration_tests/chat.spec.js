@@ -16,7 +16,8 @@ describe('CNChat test', function() {
       cy.get('#inputPass').type('{selectall}{backspace}' + u.pass);
       cy.get('#credentialSubmit').click();
       cy.wait('@chat-join');
-      cy.contains('conversation_ls', { timeout: 10000 });
+      cy.contains('conversation_ls', { timeout: 10000 }).should('exist');
+      cy.contains('user_message', { timeout: 10000 }).should('exist');
     });
   });
 });

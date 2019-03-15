@@ -1,3 +1,7 @@
+function sleep(ms) {
+  return new Promise(resolve => window.setTimeout(resolve, ms));
+}
+
 const stdOut = document.getElementById('stdout');
 const stdIn = document.getElementById('stdin');
 
@@ -5,13 +9,33 @@ function println(line) {
   stdOut.textContent += line + '\n';
 }
 
+function rangeInclusive(start, end) {
+  const r = new Array(end - start + 1).fill(start);
+  return r.map((e, i) => e + i);
+}
+
+let credentials = {};
+let sessionArr = [];
+let activeChat = -1;
 const handlers = {
   conversation_ls: function(conversation) {
     activeChat = conversation.id;
     println('conversation_ls\n' +
       `  id: ${conversation.id}\n` +
+      `  role1: ${conversation.role1}\n` +
       `  users: ${conversation.users}`
     );
+    if(conversation.role1 === credentials.name) {
+      console.log('25');
+      rangeInclusive(0, conversation.users.length * 10).forEach(secs => {
+        console.log('27');
+        const _session = sessionArr[0];
+        sleep(secs * 1000).then(() => {
+          console.log('30');
+          _session.enqueue(`delay=${secs}`, conversation.id);
+        });
+      });
+    }
   },
 
   conversation_cat: function(conversation, msgObj, processedArr) {
@@ -26,25 +50,23 @@ const handlers = {
   },
 
   user_message: function(conversation, msgObj, processedArr) {
-    println('user_message\n' +
-      `  id: ${msgObj.id}\n` +
-      `  from: ${msgObj.from}\n` +
-      `  time: ${msgObj.time}\n` +
-      `  contentType: ${msgObj.contentType}\n` +
-      `  data: ${msgObj.data}`
-    );
+    if(conversation.id === activeChat) {
+      println('user_message\n' +
+        `  id: ${msgObj.id}\n` +
+        `  from: ${msgObj.from}\n` +
+        `  time: ${msgObj.time}\n` +
+        `  contentType: ${msgObj.contentType}\n` +
+        `  data: ${msgObj.data}`
+      );
+    }
     return false;
   }
-}
+};
 
 
-let credentials = {};
-let session;
-let activeChat = -1;
 async function login() {
-  session = null;
   stdOut.textContent = '';
-  const credentials = {
+  credentials = {
     name: document.getElementById('inputName').value,
     pass: document.getElementById('inputPass').value,
   };
@@ -52,8 +74,9 @@ async function login() {
   println('--');
   const keyWrapper = await generateKeyWrapper(credentials.pass);
   localStorage.setItem('keyWrapper', keyWrapper.storage);
-  session = await chatClientBegin(handlers, 'https://localhost:8083', `join ${credentials.name}`);
-  println(`New session @ ${session.websocket.url}`);
+  const currentSession = await chatClientBegin(handlers, 'https://localhost:8083', `join ${credentials.name}`);
+  sessionArr = [currentSession].concat(sessionArr);
+  println(`New session @ ${currentSession.websocket.url}`);
   
   let userNameFields = credentials.name.split('.', 2);
   let suffix = credentials.name.substring(userNameFields.reduce((acc, cur) =>
@@ -64,13 +87,13 @@ async function login() {
     let selectUsers = new Array(chatCardinality - 1).fill(0).map((e, i) => {
       return userNameFields[0] + '.' + (i + 2) + suffix;
     });
-    session.enqueue('conversation_request ' + selectUsers.join(';'), 0);
+    currentSession.enqueue('conversation_request ' + selectUsers.join(';'), 0);
   }
 }
 
 function send() {
   if(session != null) {
-    session.enqueue(stdin.textContent, activeChat);
-    stdin.textContent = '';
+    sessionArr[0].enqueue(stdin.textContent, activeChat);
+    stdIn.textContent = '';
   }
 }
