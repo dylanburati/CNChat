@@ -12,6 +12,8 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.text.SimpleDateFormat;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -453,7 +455,7 @@ public class ChatServer {
                     close();
                 }
             }
-            
+
             private String getWSMessages() throws IOException {
                 InputStream wsIn = wsSocket.getInputStream();
 
@@ -531,6 +533,9 @@ public class ChatServer {
                 }
             }
         } // end class ClientThread
+
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        System.out.format("\nCNChat started at %s\n\n", dateFormat.format(new Date()));
 
         final String configPath = workingDirectory + "config.json";
         Any.registerEncoders();
