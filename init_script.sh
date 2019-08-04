@@ -1,7 +1,7 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides:	cnchat 
+# Provides:    cnchat 
 # Required-Start:    $remote_fs $network $syslog
 # Required-Stop:     $remote_fs $network $syslog
 # Default-Start:     2 3 4 5
@@ -13,9 +13,12 @@
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 PID_FILE=/var/run/cnchat.pid
 LOG_FILE=/var/log/cnchat.log
+DESC=CNChat
 NAME=cnchat
 CHECK_TIME=1
-CNCHAT_DIR="/home/dylan/CNChat"
+CNCHAT_DIR=""
+
+. /lib/lsb/init-functions
 
 is_running() {
     [ -f "$PID_FILE" ] && ps -p $(cat "$PID_FILE") > /dev/null 2>&1
@@ -23,76 +26,93 @@ is_running() {
 
 do_start() {
     cd "$CNCHAT_DIR"
-    sudo java -jar bin/ChatServer.jar >> $LOG_FILE &
+    echo >> "$LOG_FILE"
+    java -jar bin/ChatServer.jar >> $LOG_FILE 2>&1 &
     echo $! > "$PID_FILE"
+
+    sleep $CHECK_TIME
+    is_running || return 1
 }
 
 do_stop() {
     kill $(cat "$PID_FILE")
+    sleep $CHECK_TIME
+    is_running && return 1 || return 0
 }
 
 do_upgrade() {
     cd "$CNCHAT_DIR"
-    sudo git fetch
-    sudo git stash save
-    sudo git reset --hard origin/master
-    sudo git stash pop
+    git fetch >/dev/null
+    git stash save >/dev/null
+    git reset --hard origin/master >/dev/null
+    git stash pop >/dev/null
 }
 
 case "$1" in
-	start)
+    start)
         if is_running; then
             echo "already started"
         else
-            echo "starting $NAME"
+            log_action_begin_msg "starting $DESC"
             do_start
+            log_action_end_msg "$?"
         fi
-		;;
-	stop)
-	    if ! is_running; then
+        ;;
+    stop)
+        if ! is_running; then
             echo "not running"
         else
-            echo "stopping $NAME"
+            log_action_begin_msg "stopping $DESC"
             do_stop
+            log_action_end_msg "$?"
         fi
-		;;
-	restart)
+        ;;
+    restart)
+        IS_STOPPED=1
         if is_running; then
-            echo "stopping $NAME"
+            log_action_begin_msg "stopping $DESC"
             do_stop
-            sleep $CHECK_TIME
+            IS_STOPPED="$?"
+            log_action_end_msg "$IS_STOPPED"
         fi
 
-        if ! is_running; then
-            echo "starting $NAME"
+        if [ $IS_STOPPED -eq 0 ]; then
+            log_action_begin_msg "starting $DESC"
             do_start
-        else
-            echo "failed to stop $NAME"
+            log_action_end_msg "$?"
         fi
-		;;
-	status)
-		is_running && exit 0 || exit $1
-		;;
-	upgrade)
-        WAS_RUNNING=""
-        if is_running; then
-            echo "stopping $NAME"
+        ;;
+    status)
+        is_running && exit 0 || exit 1
+        ;;
+    upgrade)
+        is_running
+        WAS_RUNNING="$?"
+        IS_STOPPED=0
+        if [ $WAS_RUNNING -eq 0 ]; then
+            log_action_begin_msg "stopping $DESC"
             do_stop
-            sleep $CHECK_TIME
-            WAS_RUNNING="true"
+            IS_STOPPED="$?"
+            log_action_end_msg "$IS_STOPPED"
         fi
+        [ $IS_STOPPED -eq 0 ] || exit 1
         
-        echo "upgrading $NAME"
+        log_action_begin_msg "upgrading $DESC"
         do_upgrade
-        if [ -n "$WAS_RUNNING" ]; then
-            echo "starting $NAME"
+        UPGRADE_SUCCESS="$?"
+        log_action_end_msg "$UPGRADE_SUCCESS"
+        [ $UPGRADE_SUCCESS -eq 0 ] || exit 1
+                
+        if [ $WAS_RUNNING -eq 0 ]; then
+            log_action_begin_msg "starting $DESC"
             do_start
+            log_action_end_msg "$?"
         fi
-		;;
-	*)
-		echo "Usage: $NAME {start|stop|restart|status|upgrade}" >&2
-		exit 1
-		;;
+        ;;
+    *)
+        echo "Usage: $NAME {start|stop|restart|status|upgrade}" >&2
+        exit 1
+        ;;
 esac
 
 exit 0
