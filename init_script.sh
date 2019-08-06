@@ -43,9 +43,7 @@ do_stop() {
 do_upgrade() {
     cd "$CNCHAT_DIR"
     git fetch >/dev/null
-    git stash save >/dev/null
     git reset --hard origin/master >/dev/null
-    git stash pop >/dev/null
 }
 
 case "$1" in
