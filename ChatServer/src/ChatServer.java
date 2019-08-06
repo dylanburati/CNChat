@@ -523,6 +523,9 @@ public class ChatServer {
             }
 
             private void enqueue(String outMessage) {
+                if(wsSocket == null) {
+                    return;
+                }
                 byte[] wsOutEnc = WebSocketDataframe.toFrame(1, outMessage);
                 try {
                     synchronized(outStreamLock) {
