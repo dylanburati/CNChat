@@ -91,31 +91,8 @@
             It should be placed in the same directory as the executable, and contain a JSON object.
           </p>
           <p class="mb-1">Configuration options:</p>
-          <code class="d-block multiline-text">{
-  <span style="color: #2c8147">// defaults to 8081</span>
-  "authPort": int,
-  <span style="color: #2c8147">// defaults to 8082</span>
-  "websocketPort": int,
-  <span style="color: #2c8147">// required</span>
-  "keyStoreLocation": absolute path to .jks file -- see below,
-
-  <span style="color: #2c8147">// defaults to 3306</span>
-  "mariaDBPort": int,
-  <span style="color: #2c8147">// required</span>
-  "mariaDBUser": string,
-  <span style="color: #2c8147">// required</span>
-  "mariaDBPassword": string,
-  <span style="color: #2c8147">// required</span>
-  "database": MariaDB database name,
-  <span style="color: #2c8147">// defaults to "$keystore"</span>
-  "tableForKeys": table name,
-  <span style="color: #2c8147">// defaults to "$cnchat_messages"</span>
-  "tableForMessages": table name,
-  <span style="color: #2c8147">// defaults to "$cnchat_conversations"</span>
-  "tableForConversations": table name,
-  <span style="color: #2c8147">// defaults to "$cnchat_conversations_users"</span>
-  "tableForConversationsUsers": table name
-}</code>
+          <code class="d-block multiline-text eol-comment" id="define-config">
+          </code>
           <p>
             Note: comments are not allowed in the config file.
           </p>
@@ -124,15 +101,8 @@
             runtime. It can't create the table for keys, because that has to be written whenever a user
             registers an account. The keystore table can be created by the command:
           </p>
-          <code class="d-block multiline-text"
->CREATE TABLE $keystore (
-  `name` VARCHAR(64) NOT NULL,
-  `identity_public` VARCHAR(768) NOT NULL,
-  `identity_private` VARCHAR(256) NOT NULL,
-  `prekey_public` VARCHAR(768) NOT NULL,
-  `prekey_private` VARCHAR(256) NOT NULL,
-  PRIMARY KEY (`name`)
-);</code>
+          <code class="d-block multiline-text" id="define-keystore">
+          </code>
         </div>
 
         <div class="px-1 py-2">
@@ -140,29 +110,10 @@
           <p class="h4">Creating a JKS from an SSL keychain</p>
           <p>
             In order to import the SSL certificate at runtime, it must be converted to a
-            Java KeyStore file using the following commands:
+            Java key store file with the password "nopassword".
           </p>
-          <ol>
-            <li class="mb-3">
-              <code class="d-block">
-                openssl pkcs12 -export -in /path/to/cert/fullchain.pem -inkey
-                /path/to/cert/privkey.pem -out tmp.p12 -name &lt;domain_name&gt;
-              </code>
-              This will prompt you for a password for the <code>tmp.p12</code> keystore.
-            </li>
-            <li>
-              <code class="d-block">
-                keytool -importkeystore -deststorepass "nopassword" -destkeypass "nopassword"
-                -destkeystore keyStoreLocation.jks -srckeystore tmp.p12 -srcstoretype PKCS12
-                -srcstorepass &lt;above_password&gt; -alias &lt;domain_name&gt;
-              </code>
-              The password to open the destination keystore and the password to
-              read the key are both expected to be "nopassword" - the password field exists only to
-              prevent people who don't own the keystore's certificate from using it. The chat server
-              needs to be able to start automatically, so using restrictive permissions on the
-              actual keystore file is the best substitute for a password.
-            </li>
-          </ol>
+          <code class="d-block multiline-text eol-comment-hash" id="define-exportjks">
+          </code>
         </div>
 
         <div class="px-1 py-2">
@@ -198,6 +149,89 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"
             integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
     <script type="text/javascript">
+
+document.getElementById('define-config').textContent =
+`{
+  // defaults to 8081
+  "authPort": int,
+  // defaults to 8082
+  "websocketPort": int,
+  // required
+  "keyStoreLocation": absolute path to .jks file -- see below,
+
+  // defaults to 3306
+  "mariaDBPort": int,
+  // required
+  "mariaDBUser": string,
+  // required
+  "mariaDBPassword": string,
+  // required
+  "database": MariaDB database name,
+  // defaults to "$keystore"
+  "tableForKeys": table name,
+  // defaults to "$cnchat_messages"
+  "tableForMessages": table name,
+  // defaults to "$cnchat_conversations"
+  "tableForConversations": table name,
+  // defaults to "$cnchat_conversations_users"
+  "tableForConversationsUsers": table name
+}`;
+
+document.getElementById('define-keystore').textContent =
+`CREATE TABLE $keystore (
+  \`name\` VARCHAR(64) NOT NULL,
+  \`identity_public\` VARCHAR(768) NOT NULL,
+  \`identity_private\` VARCHAR(256) NOT NULL,
+  \`prekey_public\` VARCHAR(768) NOT NULL,
+  \`prekey_private\` VARCHAR(256) NOT NULL,
+  PRIMARY KEY (\`name\`)
+);`;
+
+document.getElementById('define-exportjks').textContent =
+`#!/bin/bash
+#
+# Convert a certificate and key to a JKS file
+# $1: path to fullchain / certificate
+# $2: path to private key
+
+openssl pkcs12 -export \\
+    -in "$1" \\
+    -inkey "$2" \\
+    -out tmp.p12 \\
+    -password "pass:1nopassword"
+
+keytool -importkeystore \\
+    -deststorepass "nopassword" \\
+    -destkeypass "nopassword" \\
+    -destkeystore cert.jks \\
+    -srckeystore tmp.p12 \\
+    -srcstoretype PKCS12 \\
+    -srcstorepass "1nopassword"
+
+rm -f tmp.p12
+echo "Wrote key store to cert.jks"
+`;
+
+function commentAll(el, regex) {
+  let parsed = 0;
+  const prev = el.innerHTML;
+  let inner = '';
+  while(parsed < prev.length) {
+    const m = regex.exec(prev.substring(parsed));
+    if(m == null) {
+      break;
+    }
+    console.log(m);
+    const replace = `<span style="color: #2c8147">${m[0]}</span>`;
+    const replaceIdx = m.index + parsed;
+    inner += prev.substring(parsed, replaceIdx) + replace;
+    parsed = replaceIdx + m[0].length;
+  }
+  inner += prev.substring(parsed);
+  el.innerHTML = inner;
+}
+Array.from(document.querySelectorAll('.eol-comment')).forEach(el => commentAll(el, /\/\/.*\n/));
+Array.from(document.querySelectorAll('.eol-comment-hash')).forEach(el => commentAll(el, /#.*\n/));
     </script>
   </body>
 </html>
