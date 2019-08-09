@@ -1,8 +1,12 @@
-/* global window WebSocket localStorage axios */
+import { base64decodebytes, base64encodebytes,
+    isValidUUID, isValidBase64Triplet,
+    CipherStore, wrapKey, unwrapKey, tripleKeyAgree } from './ChatUtils';
+
+/* global window WebSocket localStorage */
 const commandHandlers = {
   conversation_request(commandResults, session) {
     const conversationRequest = JSON.parse(commandResults);
-    session.addConversationFromRequest(conversationRequest).then(toAdd => {
+    session.makeConversationRequest(conversationRequest).then(toAdd => {
       session.enqueue('conversation_add ' + JSON.stringify(toAdd), 0);
     });
   },
@@ -12,7 +16,7 @@ const commandHandlers = {
     const keysToRequest = [];
     const promises = [];
     conversationLS.forEach(conversationObj => {
-      const promise = session.addConversationFromLS(conversationObj).then(conversationStatus => {
+      const promise = session.addConversation(conversationObj).then(conversationStatus => {
         if(conversationStatus === false) {
           if(keysToRequest.indexOf(conversationObj.role1) === -1) {
             keysToRequest.push(conversationObj.role1);
@@ -24,11 +28,11 @@ const commandHandlers = {
             session.pendingMessageHandler(conversationObj.id);
             session.enqueue(`conversation_cat ${conversationObj.id}`, 0);
           }
-          if(!empty(session.externalMessageHandlers, 'object') &&
-                  !empty(session.externalMessageHandlers.conversation_ls, 'function')) {
+          if(session.externalMessageHandlers != null &&
+                  typeof session.externalMessageHandlers.conversation_ls === 'function') {
             session.externalMessageHandlers.conversation_ls(conversationObj);
           }
-        } else if(!empty(conversationStatus, 'string')) {
+        } else if(typeof conversationStatus === 'string') {
           // conversationStatus is conversationKeyWrapped
           // response to conversation_set_key will be conversation_ls
           session.enqueue(`conversation_set_key ${conversationObj.id} ${conversationStatus}`, 0);
@@ -60,10 +64,6 @@ const commandHandlers = {
         const msgObj = { id: conversationID };
         const msgFields = pastMsg.split(';', 6);
         const [id, from, time, contentType, iv, hmac] = msgFields;
-        if(empty(id, 'string') || empty(from, 'string') || empty(time, 'string') ||
-                empty(contentType, 'string') || empty(iv, 'string') || empty(hmac, 'string')) {
-          return;
-        }
         if(parseInt(id) !== conversationID) {
           return;
         }
@@ -76,13 +76,10 @@ const commandHandlers = {
         ).then(msgData => {
           msgObj.data = msgData;
 
-          let msgPushed = false;
-          if(!empty(session.externalMessageHandlers, 'object') &&
-                  !empty(session.externalMessageHandlers.conversation_cat, 'function')) {
-            msgPushed = session.externalMessageHandlers.conversation_cat(conversation, msgObj, session.messages);
-          }
-          if(!msgPushed) {
-            session.messages.push(msgObj);
+          conversation.messages.push(msgObj);
+          if(session.externalMessageHandlers != null &&
+            typeof session.externalMessageHandlers.conversation_cat === 'function') {
+            session.externalMessageHandlers.conversation_cat(conversation, msgObj);
           }
         });
       });
@@ -100,7 +97,7 @@ const commandHandlers = {
       session.keysets.push(keyset);
       const conversationObj = session.pendingConversations.find(e => (keyset.user === e.role1));
       if(conversationObj != null) {
-        session.addConversationFromLS(conversationObj).then(conversationStatus => {
+        session.addConversation(conversationObj).then(conversationStatus => {
           if(conversationStatus === false) {
             throw new Error('retrieve_keys_self must be called before retrieve_keys_other');
           } else if(conversationStatus === true) {
@@ -109,7 +106,7 @@ const commandHandlers = {
               session.pendingConversations = session.pendingConversations.filter(e => (keyset.user !== e.role1));
               session.enqueue(`conversation_cat ${conversationObj.id}`, 0);
             }
-          } else if(!empty(conversationStatus, 'string')) {
+          } else if(typeof conversationStatus === 'string') {
             // conversationStatus is conversationKeyWrapped
             // response to conversation_set_key will be conversation_ls
             session.pendingConversations = session.pendingConversations.filter(e => (keyset.user !== e.role1));
@@ -122,8 +119,9 @@ const commandHandlers = {
 
   set_preferences(commandResults, session) {
     const preferences = JSON.parse(commandResults);
-    if(!empty(session.externalMessageHandlers, 'object') &&
-            !empty(session.externalMessageHandlers.set_preferences, 'function')) {
+    Object.assign(session.preferences, preferences);
+    if(session.externalMessageHandlers != null &&
+            typeof session.externalMessageHandlers.set_preferences === 'function') {
       session.externalMessageHandlers.set_preferences(preferences);
     }
   },
@@ -135,10 +133,6 @@ const commandHandlers = {
     const msgFields = currentMsg.split(';', 6);
     const conversationID = parseInt(msgFields[0]);
     const [from, time, contentType, iv, hmac] = msgFields.slice(1);
-    if(empty(from, 'string') || empty(time, 'string') || empty(contentType, 'string') ||
-            empty(iv, 'string') || empty(hmac, 'string')) {
-      return;
-    }
     if(conversationID <= 0) {
       return;
     }
@@ -163,28 +157,47 @@ const commandHandlers = {
     ).then(msgData => {
       msgObj.data = msgData;
 
-      let msgPushed = false;
-      if(!empty(session.externalMessageHandlers, 'object') &&
-              !empty(session.externalMessageHandlers.user_message, 'function')) {
-        msgPushed = session.externalMessageHandlers.user_message(conversation, msgObj, session.messages);
-      }
-      if(!msgPushed) {
-        session.messages.push(msgObj);
+      conversation.messages.push(msgObj);
+      if(session.externalMessageHandlers != null &&
+          typeof session.externalMessageHandlers.user_message === 'function') {
+        session.externalMessageHandlers.user_message(conversation, msgObj);
       }
     });
   }
 };
 
+export class ChatSessionLoader {
+  constructor(uuidResolver) {
+    this.session = null;
+    this.error = false;
+    this.ready = uuidResolver
+      .then(uuid => {
+        this.session = new ChatSession(uuid, {})
+        this.session.keyWrapper = new CipherStore(base64decodebytes(localStorage.getItem('keyWrapper')), false);
+        return this.session.keyWrapper.readyPromise;
+      }).then(() => {
+        return this.session.enqueue('retrieve_keys_self', 0);
+      }).then(() => {
+        this.session.enqueue('conversation_ls', 0);
+        return this.session;
+      }, (error) => {
+        this.error = error;
+        throw error;
+      });
+  }
+}
+
 class ChatSession {
-  constructor(conn, externalMessageHandlers) {
-    if(!isValidUUID(conn.data)) {
+  constructor(uuid, externalMessageHandlers) {
+    if(!isValidUUID(uuid)) {
       throw new Error('Not connected');
     }
-    this.uuid = conn.data;
+    this.uuid = uuid;
 
     this.conversations = [];
     this.keysets = [];
     this.messages = [];
+    this.preferences = {};
     this.pendingConversations = [];
     this.pendingMessages = [];
     this.catSent = [];
@@ -239,7 +252,7 @@ class ChatSession {
     const result = await this.enqueueWithContentType(str, '', conversationID);
   }
 
-  async addConversationFromRequest(conversationRequest) {
+  async makeConversationRequest(conversationRequest) {
     const self = conversationRequest.find(e => ('identity_private' in e));
     if(self == null) {
       throw new Error('Request is missing required keys');
@@ -287,14 +300,15 @@ class ChatSession {
     return toAdd;
   }
 
-  async addConversationFromLS(conversationObj) {
+  async addConversation(conversationObj) {
     const toAdd = {
       id: conversationObj.id,
       users: conversationObj.users,
+      messages: [],
       cipher: null
     };
 
-    if(!empty(conversationObj.key_wrapped, 'string')) {
+    if(typeof conversationObj.key_wrapped === 'string') {
       // User's part of key exchange is complete
       if(this.conversations.findIndex(e => (e.id === conversationObj.id)) !== -1) {
         // Conversation has already been added
@@ -315,7 +329,7 @@ class ChatSession {
       }
 
       const [iv, hmac, ciphertext] = conversationObj.initial_message.split(';');
-      if(empty(iv, 'string') || empty(hmac, 'string') || empty(ciphertext, 'string')) {
+      if(!isValidBase64Triplet(iv, hmac, ciphertext)) {
         throw new Error('Initial message is not properly formatted');
       }
       const otherUserObj = Object.assign({}, other, { ephemeral_public: conversationObj.key_ephemeral_public });
@@ -347,7 +361,7 @@ class ChatSession {
         const command = messageData.substring(0, commandIdx);
         const commandResults = messageData.substring(commandIdx + 1);
         const commandHandler = commandHandlers[command];
-        if(!empty(commandHandler, 'function')) {
+        if(typeof commandHandler === 'function') {
           commandHandler(commandResults, this);
         }
       }
@@ -369,21 +383,4 @@ class ChatSession {
     });
     this.pendingMessages = this.pendingMessages.filter(e => (e.conversationID !== conversationID));
   }
-}
-
-function chatClientBegin(externalMessageHandlers, authEndpoint, authData) {
-  return new Promise((resolve2, reject2) => {
-    new Promise((resolve, reject) => {
-      axios.post(authEndpoint, authData)
-        .then((response) => { resolve(response.data); });
-    }).then(uuid => {
-      const ref = new ChatSession(uuid, externalMessageHandlers);
-      ref.keyWrapper = new CipherStore(base64decodebytes(localStorage.getItem('keyWrapper')), false);
-      ref.keyWrapper.readyPromise.then(() => {
-        ref.enqueue('retrieve_keys_self', 0)
-          .then(() => ref.enqueue('conversation_ls', 0))
-          .then(() => resolve2(ref));
-      });
-    });
-  });
 }

@@ -13,5 +13,6 @@ srcREADME.txt
 
 # Other
 .ignored
+node_modules/
 precompile.sh
 postcompile.sh

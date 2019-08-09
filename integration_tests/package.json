@@ -1,0 +1,19 @@
+{
+  "name": "cnchat-test",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {},
+  "author": "Dylan Burati",
+  "dependencies": {
+    "big-integer": "^1.6.36",
+    "regenerator-runtime": "^0.13.3"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.5.5",
+    "@babel/preset-env": "^7.5.5",
+    "babel-loader": "^8.0.6",
+    "cypress": "^3.4.1",
+    "webpack": "^4.39.1",
+    "webpack-cli": "^3.3.6"
+  }
+}

@@ -26,19 +26,16 @@ const handlers = {
       `  users: ${conversation.users}`
     );
     if(conversation.role1 === credentials.name) {
-      console.log('25');
       rangeInclusive(0, conversation.users.length * 10).forEach(secs => {
-        console.log('27');
         const _session = sessionArr[0];
         sleep(secs * 1000).then(() => {
-          console.log('30');
           _session.enqueue(`delay=${secs}`, conversation.id);
         });
       });
     }
   },
 
-  conversation_cat: function(conversation, msgObj, processedArr) {
+  conversation_cat: function(conversation, msgObj) {
     println('conversation_cat\n' +
       `  id: ${msgObj.id}\n` +
       `  from: ${msgObj.from}\n` +
@@ -46,10 +43,9 @@ const handlers = {
       `  contentType: ${msgObj.contentType}\n` +
       `  data: ${msgObj.data}`
     );
-    return false;
   },
 
-  user_message: function(conversation, msgObj, processedArr) {
+  user_message: function(conversation, msgObj) {
     if(conversation.id === activeChat) {
       println('user_message\n' +
         `  id: ${msgObj.id}\n` +
@@ -59,7 +55,6 @@ const handlers = {
         `  data: ${msgObj.data}`
       );
     }
-    return false;
   }
 };
 
@@ -74,7 +69,14 @@ async function login() {
   println('--');
   const keyWrapper = await generateKeyWrapper(credentials.pass);
   localStorage.setItem('keyWrapper', keyWrapper.storage);
-  const currentSession = await chatClientBegin(handlers, 'https://localhost:8083', `join ${credentials.name}`);
+  const sessionLoader = new ChatSessionLoader(
+    axios.post('https://localhost:8083', `join ${credentials.name}`)
+      .then((response) => {
+        return (response.data != null) && response.data.data;
+      })
+  );
+  const currentSession = await sessionLoader.ready;
+  currentSession.externalMessageHandlers = handlers;
   if(sessionArr.length > 0) {
     sessionArr[0].externalMessageHandlers = {};
   }

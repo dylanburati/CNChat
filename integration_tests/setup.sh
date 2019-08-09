@@ -40,5 +40,5 @@ INSERT INTO \$keystore (name, identity_public, identity_private, prekey_public, 
 
 echo "function credentials() {
   return $CREDENTIALS_JSON;
-}" >> integration_tests/chat.spec.js
+}" >> integration_tests/cypress/integration/chat.spec.js
 

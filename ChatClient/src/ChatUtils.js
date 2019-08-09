@@ -1,25 +1,21 @@
-/* global window bigInt */
+import bigInt from 'big-integer';
+/* global window */
 // Begin general utils
-function empty(v, type) {
-  if(v === undefined || v === null) return true;
-  if(type !== undefined) {
-    if(type === 'array') {
-      return (!Array.isArray(v) || v.length === 0);
+export function isValidBase64Triplet(iv, hmac, ciphertext) {
+  if(/^[0-9A-Za-z+/]{22}[=]{0,2}$/.test(iv)) {
+    if(/^[0-9A-Za-z+/]{43}[=]{0,1}$/.test(hmac)) {
+      if(/^[0-9A-Za-z+/]{22}/.test(ciphertext)) {
+        // iv has exactly 16 bytes
+        // hmac has exactly 32 bytes
+        // ciphertext has at least 16 bytes
+        return true;
+      }
     }
-    if(typeof v !== type) return true;
-    if(type === 'string') {
-      return (v.length === 0);
-    }
-    if(type === 'object') {
-      return (Object.keys(v).length === 0);
-    }
-    return false;
   }
-
   return false;
 }
 
-function isValidUUID(s) {
+export function isValidUUID(s) {
   if(typeof s !== 'string' || s.length !== 32) {
     return false;
   }
@@ -98,7 +94,7 @@ function base64decode(str) {
 }
 
 const BASE64_ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-function base64decodebytes(str) {
+export function base64decodebytes(str) {
   const b64 = [];
   for(let i = 0; i < str.length; i++) {
     const rep = BASE64_ALPHA.indexOf(str[i]);
@@ -136,7 +132,7 @@ function base64encode(str) {
   return base64encodebytes(toUTF8Bytes(str));
 }
 
-function base64encodebytes(b256) {
+export function base64encodebytes(b256) {
   const b64 = [];
   const tail = b256.length % 3;
   let i256 = 0;
@@ -317,7 +313,7 @@ const DH_MODULUS = bigInt('24103124269210325885520760221975' +
               '896320919633919');
 const DH_BASE = bigInt(2);
 
-class DHKeyPair {
+export class DHKeyPair {
   constructor(isEphemeral) {
     this.modBits = DH_MODULUS.bitLength().value;
     this.expBits = Math.max(384, this.modBits >> 1);
@@ -344,7 +340,7 @@ class DHKeyPair {
 
   static async fromSerialized(privWrapped, pubX509, keyWrapper) {
     let [privIV, privHMAC, privCiphertext] = privWrapped.split(';');
-    if(empty(privIV, 'string') || empty(privHMAC, 'string') || empty(privCiphertext, 'string')) {
+    if(!isValidBase64Triplet(privIV, privHMAC, privCiphertext)) {
       throw new Error('Serialized private key is not properly formatted');
     }
     privIV = base64decodebytes(privIV);
@@ -497,21 +493,19 @@ class DHKeyPair {
   }
 }
 
-let assertSubtle = false;
-class CipherStore {
+export class CipherStore {
   constructor(keyBytes, initializeIV = true) {
+    let assertSubtle = false;
+    if(window.crypto != null) {
+      if(window.crypto.subtle != null) {
+        assertSubtle = true;
+      } else if(window.crypto.webkitSubtle != null) {
+        window.crypto.subtle = window.crypto.webkitSubtle;
+        assertSubtle = true;
+      }
+    }
     if(!assertSubtle) {
-      if(!empty(window.crypto)) {
-        if(!empty(window.crypto.subtle)) {
-          assertSubtle = true;
-        } else if(!empty(window.crypto.webkitSubtle)) {
-          window.crypto.subtle = window.crypto.webkitSubtle;
-          assertSubtle = true;
-        }
-      }
-      if(!assertSubtle) {
-        throw new Error('Cryptography support is not available (insecure page or outdated browser)');
-      }
+      throw new Error('Cryptography support is not available (insecure page or outdated browser)');
     }
     if(initializeIV) {
       this.iv = new ArrayBuffer(16);
@@ -534,7 +528,7 @@ class CipherStore {
   }
 
   getParamsEncoded() {
-    if(empty(this.iv)) {
+    if(!(this.iv instanceof ArrayBuffer)) {
       throw new Error('IV has not been initialized');
     }
     let out = [];
@@ -647,7 +641,7 @@ class CipherStore {
   }
 }
 
-async function tripleKeyAgree(selfSerializedKeys, otherSerializedKeys, party1, keyWrapper) {
+export async function tripleKeyAgree(selfSerializedKeys, otherSerializedKeys, party1, keyWrapper) {
   const keyAgreement = {};
   if(!(keyWrapper instanceof CipherStore)) {
     return false;
@@ -697,7 +691,7 @@ async function tripleKeyAgree(selfSerializedKeys, otherSerializedKeys, party1, k
   return keyAgreement;
 }
 
-async function wrapKey(keyBytes, keyWrapper) {
+export async function wrapKey(keyBytes, keyWrapper) {
   if(!(keyWrapper instanceof CipherStore)) {
     throw new Error('keyWrapper is not a CipherStore');
   }
@@ -709,12 +703,15 @@ async function wrapKey(keyBytes, keyWrapper) {
   return keyWrapped;
 }
 
-async function unwrapKey(keyWrapped, keyWrapper) {
+export async function unwrapKey(keyWrapped, keyWrapper) {
   if(!(keyWrapper instanceof CipherStore)) {
     throw new Error('keyWrapper is not a CipherStore');
   }
   let [iv, hmac, ciphertext] = keyWrapped.split(';');
-  if(empty(iv, 'string') || empty(hmac, 'string') || empty(ciphertext, 'string')) {
+  if(!isValidBase64Triplet(iv, hmac, ciphertext)) {
+    // iv must be 22 chars for 16 bytes
+    // hmac must be 43 chars for 32 bytes
+    // ciphertext must be at least 22 chars
     throw new Error('Initial message is not properly formatted');
   }
   iv = base64decodebytes(iv);
@@ -725,7 +722,7 @@ async function unwrapKey(keyWrapped, keyWrapper) {
   return decrypted;
 }
 
-async function generateKeyWrapper(pass) {
+export async function generateKeyWrapper(pass) {
   const passUTF8 = toUTF8Bytes(pass);
   const securePad = [];
 

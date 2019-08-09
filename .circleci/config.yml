@@ -16,17 +16,22 @@ jobs:
           name: Install http-server (npm)
           command: sudo npm install http-server -g
       - run:
-          name: Install cypress (npm)
-          command: npm install cypress --save-dev
+          name: Install dependencies (npm)
+          command: |
+            cd integration_tests &&
+            npm install
+      - run:
+          name: Build ChatClient
+          command: |
+            cd integration_tests &&
+            cp -r ../ChatClient/src ./src
+            node_modules/.bin/webpack --mode production
       - run:
           name: Create database and SSL certificates
           command: integration_tests/setup.sh
       - run:
           name: Start http-server
-          command: |
-            cd integration_tests &&
-            cp ../ChatClient/dist/CNChat.js ./ &&
-            http-server -a localhost -S -C $HOME/cert.crt -K $HOME/cert.key
+          command: http-server integration_tests/ -a localhost -S -C $HOME/cert.crt -K $HOME/cert.key
           background: true
       - run:
           name: Start auth proxy
@@ -39,9 +44,7 @@ jobs:
       - run:
           name: Run cypress
           command: |
-            mv integration_tests/cypress.json ./ &&
-            mkdir -p cypress/integration &&
-            cp integration_tests/*.spec.js cypress/integration/ &&
+            cd integration_tests &&
             node_modules/.bin/cypress run --record --key $CYPRESS_RECORD_KEY
 
       - store_artifacts:
