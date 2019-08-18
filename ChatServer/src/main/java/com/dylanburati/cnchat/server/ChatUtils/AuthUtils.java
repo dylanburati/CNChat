@@ -1,4 +1,4 @@
-package ChatUtils;
+package com.dylanburati.cnchat.server.ChatUtils;
 
 public class AuthUtils {
     public static boolean isValidUUID(String s) {

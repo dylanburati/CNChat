@@ -5,7 +5,7 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-if [ ! -f ./bin/ChatServer.jar ]; then
+if [ ! -f ./ChatServer/bin/ChatServer.jar ]; then
     echo "Error: this script must be run from the CNChat directory" 1>&2
     exit 2
 fi

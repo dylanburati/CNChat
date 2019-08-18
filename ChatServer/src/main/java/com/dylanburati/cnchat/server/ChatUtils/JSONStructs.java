@@ -1,4 +1,4 @@
-package ChatUtils;
+package com.dylanburati.cnchat.server.ChatUtils;
 
 import com.jsoniter.annotation.JsonCreator;
 import com.jsoniter.annotation.JsonIgnore;
@@ -71,6 +71,29 @@ public class JSONStructs {
             this.key_ephemeral_public = key_ephemeral_public;
             this.key_wrapped = key_wrapped;
             this.initial_message = initial_message;
+        }
+
+        public boolean validateWrappedKey(String wrappedKey) {
+            String[] keyFields = wrappedKey.split(";");
+            if(keyFields.length != 3) {
+                return false;
+            }
+            if(!keyFields[0].matches("[0-9A-Za-z+/]{22}[=]{0,2}")) {
+                // IV is 16 bytes -> 22 base64 chars
+                return false;
+            }
+            if(!keyFields[1].matches("[0-9A-Za-z+/]{43}[=]{0,1}")) {
+                // HMAC is exactly 32 bytes -> 43 base64 chars
+                return false;
+            }
+            if(!keyFields[2].matches("[0-9A-Za-z+/]{43}[=]{0,1}") &&
+                    !keyFields[2].matches("[0-9A-Za-z+/]{64}")) {
+                // Wrapped key can be 32 or 48 bytes (multiple of AES block size)
+                // 43 base64 chars or 64
+                return false;
+            }
+
+            return true;
         }
     }
 

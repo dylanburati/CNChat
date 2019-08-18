@@ -15,7 +15,7 @@ echo '{
     "mariaDBUser": "'$DB_USER'",
     "mariaDBPassword": "",
     "database": "testing"
-}' > bin/config.json
+}' > ChatServer/bin/config.json
 
 echo "CREATE DATABASE testing;
 USE testing;

@@ -27,7 +27,7 @@ is_running() {
 do_start() {
     cd "$CNCHAT_DIR"
     echo >> "$LOG_FILE"
-    java -jar bin/ChatServer.jar >> $LOG_FILE 2>&1 &
+    java -jar ChatServer/bin/ChatServer.jar >> $LOG_FILE 2>&1 &
     echo $! > "$PID_FILE"
 
     sleep $CHECK_TIME

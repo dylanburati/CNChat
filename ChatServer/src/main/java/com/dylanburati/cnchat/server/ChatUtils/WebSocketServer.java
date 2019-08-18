@@ -1,4 +1,4 @@
-package ChatUtils;
+package com.dylanburati.cnchat.server.ChatUtils;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -17,6 +17,10 @@ import java.util.concurrent.locks.ReentrantLock;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class WebSocketServer {
+    public interface AuthCallback {
+        void addAuthorizedUuid(String uuid);
+    }
+
     private ServerSocket serverSocket = null;
     private final Map<String, Socket> pendingConnections = new HashMap<>();
     private final Object pendingConnectionsLock = new Object();
@@ -174,16 +178,13 @@ public class WebSocketServer {
 
         System.out.println("Server @ " + serverSocket.getInetAddress().getHostAddress() + ":" + serverSocket.getLocalPort());
 
-        Thread upgrader = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while(true) {
-                    try {
-                        Socket socket = serverSocket.accept();
-                        upgradeFromHttp(socket);
-                    } catch(IOException e) {
-                        e.printStackTrace();
-                    }
+        Thread upgrader = new Thread(() -> {
+            while(true) {
+                try {
+                    Socket socket = serverSocket.accept();
+                    upgradeFromHttp(socket);
+                } catch(IOException e) {
+                    e.printStackTrace();
                 }
             }
         });

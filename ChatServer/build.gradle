@@ -1,0 +1,48 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group 'com.dylanburati'
+version '1.0'
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+application {
+    mainClassName = 'com.dylanburati.cnchat.server.Main'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.jsoniter:jsoniter:0.9.23'
+    implementation 'org.mariadb.jdbc:mariadb-java-client:2.4.3'
+    testImplementation 'junit:junit:4.12'
+}
+
+distZip.shouldRunAfter(jar)
+
+jar {
+    manifest {
+        attributes 'Main-Class': mainClassName
+    }
+}
+
+task('uberJar', type: Jar) {
+    from sourceSets.main.output
+
+    dependsOn configurations.runtimeClasspath
+    from {
+        configurations.runtimeClasspath.findAll { it.name.endsWith('jar') }.collect { zipTree(it) }
+    }
+
+    setDestinationDir(file('bin'))
+    setArchiveName(project.name + ".jar")
+
+    manifest {
+        attributes 'Main-Class': mainClassName
+    }
+}

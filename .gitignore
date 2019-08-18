@@ -1,18 +1,2 @@
-# Created by .ignore support plugin (hsz.mobi)
-
-# IntelliJ project files
-.idea
-*.iml
-
-# IntelliJ builds
-/out/
-
-# Only .zip needed
-/src/
-srcREADME.txt
-
-# Other
 .ignored
 node_modules/
-precompile.sh
-postcompile.sh

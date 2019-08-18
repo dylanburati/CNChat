@@ -1,4 +1,4 @@
-package ChatUtils;
+package com.dylanburati.cnchat.server.ChatUtils;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 

@@ -1,4 +1,4 @@
-package ChatUtils;
+package com.dylanburati.cnchat.server.ChatUtils;
 
 import com.jsoniter.output.JsonStream;
 
