@@ -193,8 +193,7 @@ class ChatSession {
       throw new Error('Not connected');
     }
     this.uuid = options.uuid;
-    this.url = options.url || window.location.hostname;
-    this.port = options.port || 8082;
+    this.url = options.url || `${window.location.hostname}:8082`;
     this.scheme = options.secure === false ? 'ws' : 'wss';
 
     this.conversations = [];
@@ -208,7 +207,7 @@ class ChatSession {
 
     this.externalMessageHandlers = externalMessageHandlers;
 
-    this.websocket = new WebSocket(`${this.scheme}://${this.url}:${this.port}/${this.uuid}`);
+    this.websocket = new WebSocket(`${this.scheme}://${this.url}/${this.uuid}`);
     this.websocket.onmessage = (m) => {
       this.internalMessageHandler(m.data);
     };

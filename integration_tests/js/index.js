@@ -75,6 +75,7 @@ async function login() {
         const uuid = response.data && response.data.data;
         return {
           uuid: uuid,
+          url: 'localhost:8082',
           secure: false
         };
       })
