@@ -274,4 +274,33 @@ public class MariaDBReader {
             e.printStackTrace();
         }
     }
+
+    public void updateKeys(JSONStructs.KeySet keySet) {
+        try {
+            Connection conn = null;
+
+            PreparedStatement writeStmt = null;
+            try {
+                conn = DriverManager.getConnection(dbConnectionString);
+                String writeSql = String.format("INSERT INTO %s " +
+                        "(name, identity_public, identity_private, prekey_public, prekey_private) VALUES (?, ?, ?, ?, ?) " +
+                        "ON DUPLICATE KEY UPDATE id = id", keystoreTableName);
+
+                writeStmt = conn.prepareStatement(writeSql);
+                writeStmt.setString(1, keySet.user);
+                writeStmt.setString(2, keySet.identity_public);
+                writeStmt.setString(3, keySet.identity_private);
+                writeStmt.setString(4, keySet.prekey_public);
+                writeStmt.setString(5, keySet.prekey_private);
+                writeStmt.executeUpdate();
+            } catch(SQLException e) {
+                e.printStackTrace();
+            } finally {
+                if(writeStmt != null) writeStmt.close();
+                if(conn != null) conn.close();
+            }
+        } catch(SQLException e) {
+            e.printStackTrace();
+        }
+    }
 }

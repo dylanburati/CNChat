@@ -168,8 +168,7 @@ public class JSONStructs {
                 }
                 this.userNameList.add(u.user);
             }
-            if(!(hasRole1 && hasRole2)) return false;
-            return true;
+            return hasRole1 && hasRole2;
         }
 
         public synchronized boolean validateNew(String userName) {

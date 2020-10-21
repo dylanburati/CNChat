@@ -4,10 +4,18 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -21,111 +29,124 @@ public class WebSocketServer {
     private final Object pendingConnectionsLock = new Object();
     public final List<String> authorized = new ArrayList<>();
     public final Object authorizedLock = new Object();
+    private static final DateTimeFormatter dateFormatter = DateTimeFormatter
+            .ofPattern("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH).withZone(ZoneId.of("GMT"));
 
     private final Lock availLock = new ReentrantLock();
     private final Condition availCheck = availLock.newCondition();
 
     private boolean upgradeFromHttp(Socket socket) {
-        BufferedReader in = null;
-        PrintWriter out = null;
-        boolean upgrade = true;
-        boolean complete = false;
+        String input = "";
         try {
+            // intentionally not closed
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), UTF_8));
             StringBuilder inputB = new StringBuilder();
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream(), UTF_8));
             String inLine;
             while((inLine = in.readLine()) != null) {
                 if(inLine.isEmpty()) break;
                 inputB.append(inLine).append("\n");
             }
-            String input = "";
             if(inputB.length() > 0) {
                 input = inputB.substring(0, inputB.length() - 1);
             }
+        } catch (IOException e) {
+            return false;
+        }
 
-            String uuid = null;
-            String wsKey = null;
-            for(int i = 0; i < 4 && upgrade; i++) {
-                switch(i) {
-                    case 0:
-                        if(!input.startsWith("GET ")) {
-                            upgrade = false;
-                        }
-                        break;
-                    case 1:
-                        int secondSpace = input.indexOf(" ", 4);
-                        if(secondSpace == -1) {
-                            upgrade = false;
-                        }
-                        String path = input.substring(4, secondSpace);
-                        if(path.length() == 33 && path.startsWith("/")) {
-                            uuid = path.substring(1);
-                        }
-                        if(!AuthUtils.isValidUUID(uuid)) {
-                            upgrade = false;
-                        }
-                        if(upgrade) {
-                            synchronized(authorizedLock) {
-                                upgrade = authorized.remove(uuid);
-                            }
-                        }
-                        break;
-                    case 2:
-                        int wsKeyIdx = input.indexOf("Sec-WebSocket-Key: ");
-                        if(wsKeyIdx == -1 || wsKeyIdx >= (input.length() - 19)) {
-                            upgrade = false;
-                        } else {
-                            input = input.substring(wsKeyIdx + 19);
-                        }
-                        break;
-                    case 3:
-                        int endKeyIdx = input.indexOf("\n");
-                        if(endKeyIdx == -1) {
-                            upgrade = false;
-                        } else {
-                            wsKey = input.substring(0, endKeyIdx);
-                        }
-                        break;
-                }
+        String uuid = getUpgradeUUID(input);
+        HttpResponse response = parseUpgrade(uuid, input);
+        response = response.withHeader("Date", dateFormatter.format(ZonedDateTime.now()));
+        if (response.code != 101) {
+            response = response.withHeader("Content-Length", String.valueOf(response.output.length()));
+        }
+        try {
+            // intentionally not closed
+            PrintWriter out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), UTF_8), true);
+            out.print(response.getStatusLine() + "\r\n");
+            for (String header : response.getHeaderLines()) {
+                out.print(header + "\r\n");
             }
-
-            String output = "";
-            if(!upgrade || wsKey == null) {
-                output = "HTTP/1.1 400 Bad Request\r\n" +
-                        "Content-Length: 2\r\n" +
-                        "\r\n" +
-                        "\r\n";
-            } else {
-                output = "HTTP/1.1 101 Switching Protocols\r\n" +
-                        "Upgrade: websocket\r\n" +
-                        "Connection: Upgrade\r\n" +
-                        "Sec-WebSocket-Accept: ";
-                byte[] wsKeyEnc = MessageDigest.getInstance("SHA-1").digest(
-                        (wsKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").getBytes(UTF_8));
-                output += Base64.getEncoder().encodeToString(wsKeyEnc);
-                output += "\r\n\r\n";
-            }
-
-            out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), UTF_8), true);
-            out.print(output);
+            out.print(response.output.toString());
             out.flush();
 
-            if(upgrade) {
-                availLock.lock();
-                try {
-                    synchronized(pendingConnectionsLock) {
-                        pendingConnections.put(uuid, socket);
-                    }
-                    availCheck.signal();
-                } finally {
-                    availLock.unlock();
-                }
-                complete = true;
+            if (response.code != 101) {
+                return false;
             }
-        } catch(Exception e) {
+            availLock.lock();
+            try {
+                synchronized(pendingConnectionsLock) {
+                    pendingConnections.put(uuid, socket);
+                }
+                availCheck.signal();
+            } finally {
+                availLock.unlock();
+            }
+            return true;
+        } catch(IOException e) {
             e.printStackTrace();
         }
-        return (upgrade && complete);
+        return false;
+    }
+
+    private HttpResponse parseUpgrade(String uuid, String input) {
+        if (uuid == null) {
+            return new HttpResponse(400);
+        }
+
+        synchronized(authorizedLock) {
+            if (!authorized.remove(uuid)) {
+                System.out.format("WebSocket rejected @ %s\n", uuid);
+                return new HttpResponse(400);
+            }
+        }
+
+        boolean isUpgrade = false;
+        boolean isWebsocket = false;
+        String wsKey = null;
+        String wsKeyHeaderName = "Sec-WebSocket-Key: ";
+        for (String line : input.split("[\\r\\n]+")) {
+            isUpgrade |= line.equalsIgnoreCase("Connection: Upgrade");
+            isWebsocket |= line.equalsIgnoreCase("Upgrade: websocket");
+            if (line.length() > wsKeyHeaderName.length() &&
+                    line.substring(0, wsKeyHeaderName.length()).equalsIgnoreCase(wsKeyHeaderName)) {
+                wsKey = line.substring(wsKeyHeaderName.length());
+            }
+        }
+
+        if (!isUpgrade || !isWebsocket || wsKey == null) {
+            return new HttpResponse(400);
+        }
+
+        HttpResponse result = new HttpResponse(101)
+                .withHeader("Connection", "Upgrade")
+                .withHeader("Upgrade", "WebSocket");
+        try {
+            byte[] wsKeyEnc = MessageDigest.getInstance("SHA-1").digest(
+                    (wsKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").getBytes(UTF_8));
+            result = result.withHeader("Sec-WebSocket-Accept", Base64.getEncoder().encodeToString(wsKeyEnc));
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-1 algorithm not found");
+        }
+        return result;
+    }
+
+    private String getUpgradeUUID(String input) {
+        Scanner sc = new Scanner(input);
+        if (!sc.hasNext() || !"GET".equals(sc.next())) {
+            return null;
+        }
+        if (!sc.hasNext()) {
+            return null;
+        }
+        String path = sc.next();
+        if (path.length() < 33) {
+            return null;
+        }
+        String uuid = path.substring(1);
+        if (!AuthUtils.isValidUUID(uuid)) {
+            return null;
+        }
+        return uuid;
     }
 
     public Socket getSocketWhenAvailable(String uuid) {

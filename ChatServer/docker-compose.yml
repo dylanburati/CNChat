@@ -1,4 +1,4 @@
-version: '2.3'
+version: '2'
 
 services:
   cnchat-server:
@@ -26,7 +26,6 @@ services:
       MYSQL_USER:
       MYSQL_PASSWORD:
       MYSQL_ROOT_PASSWORD:
-    mem_limit: 256M
     ports:
       - 3306
 

@@ -3,9 +3,7 @@ package com.dylanburati.cnchat.server;
 import com.dylanburati.cnchat.server.ChatUtils.*;
 import com.jsoniter.JsonIterator;
 import com.jsoniter.any.Any;
-import com.jsoniter.output.EncodingMode;
 import com.jsoniter.output.JsonStream;
-import com.jsoniter.spi.DecodingMode;
 import com.jsoniter.spi.JsonException;
 import com.sun.net.httpserver.HttpServer;
 
@@ -25,31 +23,14 @@ public class ChatServer {
         void execute(ClientThread thread, String message, List<String> specify, Integer addToHistory);
     }
 
-    // Config options
-    // "authPort": int
-    private int authPortNumber = 8081;
-    // "websocketPort": int
-    private int wsPortNumber = 8082;
-    // "keyStoreLocation": /absolute/path/to/file
-    private String keyStoreLocation = null;
-
-    // options stored in com.dylanburati.cnchat.MariaDBReader
-    // "mariaDBPort": int, default=3306
-    // "mariaDBUser": username
-    // "mariaDBPassword": password
-    // "database": db name
-    // "tableForMessages": table name, default="$cnchat_messages"
-    // "tableForConversations": table name, default="$cnchat_conversations"
-    // "tableForConversationsUsers": table name, default="$cnchat_conversations_users"
-
-    private HttpServer authServer;
-    private WebSocketServer wsServer;
+    private final HttpServer authServer;
+    private final WebSocketServer wsServer;
     public volatile Map<Integer, JSONStructs.Conversation> conversations = null;
     public final Object conversationsLock = new Object();
 
     private final Map<String, JSONStructs.Preferences> allPreferences = new HashMap<>();
     private final Object preferencesLock = new Object();
-    private String preferenceStorePath;
+    private final String preferenceStorePath;
     private final ExecutorService storeWriter = Executors.newSingleThreadExecutor();
 
     private final List<ClientThread> threads = new ArrayList<>();
@@ -119,7 +100,6 @@ public class ChatServer {
     }
 
     public String listConversationsForUser(String userName) {
-        StringBuilder responseBuilder = new StringBuilder("[");
         List<String> conversationJsonList = new ArrayList<>();
         synchronized(conversationsLock) {
             for(JSONStructs.Conversation c : conversations.values()) {
@@ -191,14 +171,14 @@ public class ChatServer {
         }
         System.out.format("%d conversation(s) loaded\n", conversations.size());
 
-        InetSocketAddress bind = new InetSocketAddress(authPortNumber);
+        InetSocketAddress bind = new InetSocketAddress(config.AUTH_PORT);
         System.out.println("Server @ " + bind.getAddress().getHostAddress() + ":" + bind.getPort());
 
         authServer = HttpServer.create(bind, 0);
         authServer.setExecutor(null);
         authServer.start();
 
-        wsServer = new WebSocketServer(wsPortNumber);
+        wsServer = new WebSocketServer(config.WS_PORT);
 
         authServer.createContext("/", new DelegateHandler() {
             @Override
@@ -212,6 +192,11 @@ public class ChatServer {
                     threads.add(thread);
                 }
                 thread.start();
+            }
+
+            @Override
+            public void onRegister(JSONStructs.KeySet keySet) {
+                database.updateKeys(keySet);
             }
         });
     }
