@@ -171,8 +171,8 @@ export class ChatSessionLoader {
     this.session = null;
     this.error = false;
     this.ready = uuidResolver
-      .then(uuid => {
-        this.session = new ChatSession(uuid, {})
+      .then(opts => {
+        this.session = new ChatSession(opts, {})
         this.session.keyWrapper = new CipherStore(base64decodebytes(localStorage.getItem('keyWrapper')), false);
         return this.session.keyWrapper.readyPromise;
       }).then(() => {
@@ -188,11 +188,14 @@ export class ChatSessionLoader {
 }
 
 class ChatSession {
-  constructor(uuid, externalMessageHandlers) {
-    if(!isValidUUID(uuid)) {
+  constructor(options, externalMessageHandlers) {
+    if(!isValidUUID(options.uuid)) {
       throw new Error('Not connected');
     }
-    this.uuid = uuid;
+    this.uuid = options.uuid;
+    this.url = options.url || window.location.hostname;
+    this.port = options.port || 8082;
+    this.scheme = options.secure === false ? 'ws' : 'wss';
 
     this.conversations = [];
     this.keysets = [];
@@ -205,7 +208,7 @@ class ChatSession {
 
     this.externalMessageHandlers = externalMessageHandlers;
 
-    this.websocket = new WebSocket(`wss://${window.location.hostname}:8082/${this.uuid}`);
+    this.websocket = new WebSocket(`${this.scheme}://${this.url}:${this.port}/${this.uuid}`);
     this.websocket.onmessage = (m) => {
       this.internalMessageHandler(m.data);
     };

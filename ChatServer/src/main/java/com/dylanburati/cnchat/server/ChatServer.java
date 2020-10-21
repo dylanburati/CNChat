@@ -1,9 +1,6 @@
 package com.dylanburati.cnchat.server;
 
-import com.dylanburati.cnchat.server.ChatUtils.DelegateHandler;
-import com.dylanburati.cnchat.server.ChatUtils.JSONStructs;
-import com.dylanburati.cnchat.server.ChatUtils.MariaDBReader;
-import com.dylanburati.cnchat.server.ChatUtils.WebSocketServer;
+import com.dylanburati.cnchat.server.ChatUtils.*;
 import com.jsoniter.JsonIterator;
 import com.jsoniter.any.Any;
 import com.jsoniter.output.EncodingMode;
@@ -21,6 +18,9 @@ import java.util.concurrent.Executors;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class ChatServer {
+    private final Config config;
+    private final MariaDBReader database;
+
     interface OnlineMessagePasser {
         void execute(ClientThread thread, String message, List<String> specify, Integer addToHistory);
     }
@@ -57,12 +57,12 @@ public class ChatServer {
         @Override
         public void execute(ClientThread caller, String message, List<String> recipients, Integer addToHistory) {
             if(addToHistory != null && addToHistory > 0) {
-                storeWriter.submit(() -> MariaDBReader.updateMessageStore(addToHistory, message));
+                storeWriter.submit(() -> database.updateMessageStore(addToHistory, message));
             }
             synchronized(threads) {
                 for(Iterator<ClientThread> threadIter = threads.iterator(); threadIter.hasNext(); /* nothing */) {
                     ClientThread currentThread = threadIter.next();
-                    if(recipients.indexOf(currentThread.getUserName()) != -1) {
+                    if(recipients.contains(currentThread.getUserName())) {
                         if(!currentThread.isAlive()) {
                             threadIter.remove();
                             continue;
@@ -152,7 +152,7 @@ public class ChatServer {
                     }
 
                     conversations.put(toAdd.id, toAdd);
-                    MariaDBReader.updateConversationStore(toAdd);
+                    database.updateConversationStore(toAdd);
                 }
             }
         } catch(JsonException e) {
@@ -163,81 +163,13 @@ public class ChatServer {
         return toAdd;
     }
 
-    public ChatServer(String configPath, String preferenceStorePath) throws IOException {
+    public ChatServer(String preferenceStorePath) throws IOException {
         this.preferenceStorePath = preferenceStorePath;
+        this.config = Config.loadFromEnv();
+        new MariaDBSchemaManager(config).createTables();
+        this.database = new MariaDBReader(config);
 
-        Any.registerEncoders();
-        JsonIterator.setMode(DecodingMode.REFLECTION_MODE);
-        JsonStream.setMode(EncodingMode.REFLECTION_MODE);
-        try(BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(configPath), UTF_8))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while((line = in.readLine()) != null) {
-                sb.append(line).append("\n");
-            }
-            if(sb.length() > 1) {
-                Any allSettings = JsonIterator.deserialize(sb.substring(0, sb.length() - 1));
-                Any.EntryIterator iter = allSettings.entries();
-                while(iter.next()) {
-                    String key = iter.key();
-                    switch(key) {
-                        case "authPort":
-                            authPortNumber = iter.value().toInt();
-                            break;
-                        case "websocketPort":
-                            wsPortNumber = iter.value().toInt();
-                            break;
-                        case "keyStoreLocation":
-                            keyStoreLocation = iter.value().toString();
-                            break;
-                        case "mariaDBPort":
-                            MariaDBReader.databasePort = iter.value().toInt();
-                            break;
-                        case "mariaDBUser":
-                            MariaDBReader.databaseUser = iter.value().toString();
-                            break;
-                        case "mariaDBPassword":
-                            MariaDBReader.databasePassword = iter.value().toString();
-                            break;
-                        case "database":
-                            MariaDBReader.databaseName = iter.value().toString();
-                            break;
-                        case "tableForKeys":
-                            MariaDBReader.keystoreTableName = iter.value().toString();
-                            break;
-                        case "tableForMessages":
-                            MariaDBReader.messagesTableName = iter.value().toString();
-                            break;
-                        case "tableForConversations":
-                            MariaDBReader.conversationsTableName = iter.value().toString();
-                            break;
-                        case "tableForConversationsUsers":
-                            MariaDBReader.conversationsUsersTableName = iter.value().toString();
-                            break;
-                        default:
-                            System.out.format("Warning: unknown key in config.json: '%s'\n", key);
-                            break;
-                    }
-                }
-            }
-            if(authPortNumber <= 0 || authPortNumber > 65535 ||
-                    wsPortNumber <= 0 || wsPortNumber > 65535 ||
-                    keyStoreLocation == null ||
-                    MariaDBReader.databasePort <= 0 || MariaDBReader.databasePort > 65535 ||
-                    MariaDBReader.databaseUser == null ||
-                    MariaDBReader.databasePassword == null ||
-                    MariaDBReader.databaseName == null || MariaDBReader.databaseName.isEmpty() ||
-                    MariaDBReader.messagesTableName == null || MariaDBReader.messagesTableName.isEmpty() ||
-                    MariaDBReader.conversationsTableName == null || MariaDBReader.conversationsTableName.isEmpty() ||
-                    MariaDBReader.conversationsUsersTableName == null || MariaDBReader.conversationsUsersTableName.isEmpty()) {
-                throw new RuntimeException("Illegal value in configuration file");
-            }
-        } catch(IOException e) {
-            throw new RuntimeException("Failed to load configuration file");
-        }
-        // All variables set by the config are final after this point
-
-        conversations = MariaDBReader.getConversationStore();
+        conversations = database.getConversationStore();
         if(conversations == null) throw new RuntimeException("Failed to load conversations");
 
         try(BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(preferenceStorePath), UTF_8))) {
@@ -266,16 +198,12 @@ public class ChatServer {
         authServer.setExecutor(null);
         authServer.start();
 
-        try {
-            wsServer = new WebSocketServer(wsPortNumber, keyStoreLocation);
-        } catch(Exception e) {
-            throw new RuntimeException(e);
-        }
+        wsServer = new WebSocketServer(wsPortNumber);
 
         authServer.createContext("/", new DelegateHandler() {
             @Override
             public void onJoinRequest(String uuid, String userName) {
-                ClientThread thread = new ClientThread(ChatServer.this, wsServer, uuid, userName);
+                ClientThread thread = new ClientThread(ChatServer.this, wsServer, uuid, userName, database);
                 synchronized(wsServer.authorizedLock) {
                     wsServer.authorized.add(uuid);
                 }

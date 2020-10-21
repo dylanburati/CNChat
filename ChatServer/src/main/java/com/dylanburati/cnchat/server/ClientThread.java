@@ -24,18 +24,20 @@ public class ClientThread extends Thread {
     private final WebSocketServer wsServer;
 
     private final String uuid;
-    private String userName;
+    private final MariaDBReader database;
+    private final String userName;
     private final JSONStructs.Preferences userPreferences = new JSONStructs.Preferences();
 
     private Socket wsSocket;
     private final Object outStreamLock = new Object();
     private StringBuilder continuable = new StringBuilder();
 
-    public ClientThread(ChatServer server, WebSocketServer wsServer, String uuid, String userName) {
+    public ClientThread(ChatServer server, WebSocketServer wsServer, String uuid, String userName, MariaDBReader database) {
         this.server = server;
         this.wsServer = wsServer;
         this.uuid = uuid;
         this.userName = userName;
+        this.database = database;
     }
 
     public String getUserName() {
@@ -63,7 +65,7 @@ public class ClientThread extends Thread {
                 messageClasses = "command";
                 if(message.length() == 21) return true;
                 List<String> otherUsers = Arrays.asList(message.substring(21).split(";"));
-                if(otherUsers.indexOf(userName) != -1) return true;
+                if(otherUsers.contains(userName)) return true;
                 for(int i = 0; i < otherUsers.size(); i++) {
                     if(otherUsers.lastIndexOf(otherUsers.get(i)) != i) {
                         // must be unique
@@ -74,9 +76,9 @@ public class ClientThread extends Thread {
                     outputBody = "conversation_request;failure";
                 } else {
                     StringBuilder responseBuilder = new StringBuilder("[");
-                    responseBuilder.append(MariaDBReader.retrieveKeysSelf(userName));
+                    responseBuilder.append(database.retrieveKeysSelf(userName));
                     for(String u : otherUsers) {
-                        String ks = MariaDBReader.retrieveKeysOther(u, userName);
+                        String ks = database.retrieveKeysOther(u, userName);
                         if(ks == null) {
                             return true;
                         }
@@ -114,7 +116,7 @@ public class ClientThread extends Thread {
                                 u.key_ephemeral_public = null;
                                 u.initial_message = null;
                                 c.checkExchangeComplete();
-                                MariaDBReader.updateConversationStore(c);
+                                database.updateConversationStore(c);
                                 outputBody = "conversation_ls;[" + c.sendToUser(userName) + "]";
                             } else {
                                 outputBody = "conversation_set_key;failure";
@@ -154,7 +156,7 @@ public class ClientThread extends Thread {
                     if(c == null || !c.hasUser(userName)) return true;
                 }
                 StringBuilder responseBuilder = new StringBuilder();
-                List<String> cMessages = MariaDBReader.getMessages(cID, numPastMessages);
+                List<String> cMessages = database.getMessages(cID, numPastMessages);
                 if(cMessages == null) {
                     return true;
                 }
@@ -162,7 +164,7 @@ public class ClientThread extends Thread {
                 outputBody = "conversation_cat;" + responseBuilder.toString();
             } else if(message.startsWith("retrieve_keys_self")) {
                 messageClasses = "command";
-                String keysetJson = MariaDBReader.retrieveKeysSelf(userName);
+                String keysetJson = database.retrieveKeysSelf(userName);
                 if(keysetJson == null) {
                     return false;
                 }
@@ -171,7 +173,7 @@ public class ClientThread extends Thread {
                 messageClasses = "command";
                 if(message.length() == 20) return true;
                 List<String> otherUsers = Arrays.asList(message.substring(20).split(";"));
-                if(otherUsers.indexOf(userName) != -1) return true;
+                if(otherUsers.contains(userName)) return true;
                 for(int i = 0; i < otherUsers.size(); i++) {
                     if(otherUsers.lastIndexOf(otherUsers.get(i)) != i) {
                         // must be unique
@@ -180,7 +182,7 @@ public class ClientThread extends Thread {
                 }
                 StringBuilder responseBuilder = new StringBuilder("[");
                 for(String u : otherUsers) {
-                    String keysetJson = MariaDBReader.retrieveKeysOther(u, userName);
+                    String keysetJson = database.retrieveKeysOther(u, userName);
                     if(keysetJson == null) {
                         return true;
                     }

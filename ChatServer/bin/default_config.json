@@ -1,7 +1,0 @@
-{
-    "keyStoreLocation": "/root/0001.jks",
-  
-    "mariaDBUser": "test",
-    "mariaDBPassword": "",
-    "database": "testing"
-}

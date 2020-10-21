@@ -1,14 +1,9 @@
 package com.dylanburati.cnchat.server.ChatUtils;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
-import javax.xml.bind.DatatypeConverter;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.security.KeyStore;
 import java.security.MessageDigest;
-import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -107,7 +102,7 @@ public class WebSocketServer {
                         "Sec-WebSocket-Accept: ";
                 byte[] wsKeyEnc = MessageDigest.getInstance("SHA-1").digest(
                         (wsKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").getBytes(UTF_8));
-                output += DatatypeConverter.printBase64Binary(wsKeyEnc);
+                output += Base64.getEncoder().encodeToString(wsKeyEnc);
                 output += "\r\n\r\n";
             }
 
@@ -130,7 +125,7 @@ public class WebSocketServer {
         } catch(Exception e) {
             e.printStackTrace();
         }
-        return (upgrade & complete);
+        return (upgrade && complete);
     }
 
     public Socket getSocketWhenAvailable(String uuid) {
@@ -159,22 +154,8 @@ public class WebSocketServer {
         return s;
     }
 
-    public WebSocketServer(int portNumber, String keyStoreLocation) throws Exception {
-        if(new File(keyStoreLocation).canRead()) {
-            SSLContext sc = SSLContext.getInstance("TLSv1.2");
-            KeyStore keyStore = KeyStore.getInstance("JKS");
-            try(InputStream ksin = new FileInputStream(keyStoreLocation)
-            ) {
-                keyStore.load(ksin, "nopassword".toCharArray());
-            }
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            kmf.init(keyStore, "nopassword".toCharArray());
-            sc.init(kmf.getKeyManagers(), null, new SecureRandom());
-            this.serverSocket = sc.getServerSocketFactory().createServerSocket(portNumber);
-        } else {
-            System.out.println("Warning: SSL certificate not found, falling back to HTTP");
-            this.serverSocket = new ServerSocket(portNumber);
-        }
+    public WebSocketServer(int portNumber) throws IOException {
+        this.serverSocket = new ServerSocket(portNumber);
 
         System.out.println("Server @ " + serverSocket.getInetAddress().getHostAddress() + ":" + serverSocket.getLocalPort());
 

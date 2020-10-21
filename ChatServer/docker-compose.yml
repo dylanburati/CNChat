@@ -1,0 +1,34 @@
+version: '2.3'
+
+services:
+  cnchat-server:
+    build: .
+    restart: always
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER:
+      MYSQL_PASSWORD:
+    mem_limit: 512M
+    ports:
+      - "8081:8081"
+      - "8082:8082"
+    volumes:
+      - cn_data:/var/lib/cnchat/data
+    depends_on:
+      - mysql
+    command: ["./wait-for-mysql.sh", "mysql", "java", "-server", "-jar", "ChatServer.jar"]
+
+  mysql:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_DATABASE: cnchat
+      MYSQL_USER:
+      MYSQL_PASSWORD:
+      MYSQL_ROOT_PASSWORD:
+    mem_limit: 256M
+    ports:
+      - 3306
+
+volumes:
+  cn_data: {}

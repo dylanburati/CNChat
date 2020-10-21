@@ -3,10 +3,10 @@ describe('CNChat test', function() {
     cy.server();
     cy.route({
       method: 'POST',
-      url: 'https://localhost:8083'
+      url: 'http://localhost:8083'
     }).as('chat-join');
 
-    cy.visit('https://localhost:8080/index.html');
+    cy.visit('http://localhost:8080/index.html');
     cy.window().then((win) => {
       cy.spy(win.console, "log");
       cy.spy(win.console, "error");

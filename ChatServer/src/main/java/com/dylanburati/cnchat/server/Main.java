@@ -9,12 +9,22 @@ public class Main {
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         System.out.format("\nCNChat started at %s\n\n", dateFormat.format(new Date()));
 
-        String workingDirectory = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().getFile()).
-                getParent() + System.getProperty("file.separator");
-        String preferenceStorePath = workingDirectory + "user_preferences.json";
+        String dataDirectory = null;
+        final String prodDataDirectory = "/var/lib/cnchat/data/";
+        try {
+            if (new File(prodDataDirectory).isDirectory()) {
+                dataDirectory = prodDataDirectory;
+            }
+        } catch (SecurityException ignored) {
+        }
 
-        final String configPath = workingDirectory + "config.json";
+        if (dataDirectory == null) {
+            dataDirectory = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().getFile())
+                    .getParent() + System.getProperty("file.separator");
+        }
+        String preferenceStorePath = dataDirectory + "user_preferences.json";
+        System.out.println("Preference store path: " + preferenceStorePath);
 
-        new ChatServer(configPath, preferenceStorePath);
+        new ChatServer(preferenceStorePath);
     }
 }

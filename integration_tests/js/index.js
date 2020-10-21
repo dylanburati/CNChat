@@ -70,9 +70,13 @@ async function login() {
   const keyWrapper = await generateKeyWrapper(credentials.pass);
   localStorage.setItem('keyWrapper', keyWrapper.storage);
   const sessionLoader = new ChatSessionLoader(
-    axios.post('https://localhost:8083', `join ${credentials.name}`)
+    axios.post('http://localhost:8083', `join ${credentials.name}`)
       .then((response) => {
-        return (response.data != null) && response.data.data;
+        const uuid = response.data && response.data.data;
+        return {
+          uuid: uuid,
+          secure: false
+        };
       })
   );
   const currentSession = await sessionLoader.ready;

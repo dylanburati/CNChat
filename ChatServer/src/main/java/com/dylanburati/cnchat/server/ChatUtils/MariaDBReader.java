@@ -1,5 +1,6 @@
 package com.dylanburati.cnchat.server.ChatUtils;
 
+import com.dylanburati.cnchat.server.Config;
 import com.jsoniter.output.JsonStream;
 
 import java.io.*;
@@ -12,30 +13,25 @@ import java.util.Map;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class MariaDBReader {
-    public static int databasePort = 3306;
-    public static String databaseUser = null;
-    public static String databasePassword = null;
-    public static String databaseName = null;
     public static String keystoreTableName = "$keystore";
     public static String messagesTableName = "$cnchat_messages";
     public static String conversationsTableName = "$cnchat_conversations";
     public static String conversationsUsersTableName = "$cnchat_conversations_users";
 
-    private static boolean messagesCreateChecked = false;
-    private static boolean conversationsCreateChecked = false;
-    private static boolean conversationsUsersCreateChecked = false;
+    private final String dbConnectionString;
 
-    private static final String databaseConnectionString = "jdbc:mariadb://127.0.0.1:%d/%s?user=%s&password=%s";
+    public MariaDBReader(Config config) {
+        this.dbConnectionString = MariaDBSchemaManager.getDbConnectionString(config);
+    }
     
-    public static String retrieveKeysSelf(String userName) {
+    public String retrieveKeysSelf(String userName) {
         try {
-            Class.forName("org.mariadb.jdbc.Driver");
             Connection conn = null;
 
             PreparedStatement usersStmt = null;
             ResultSet usersResults = null;
             try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
+                conn = DriverManager.getConnection(dbConnectionString);
                 String usersSql = String.format(
                         "SELECT identity_public, identity_private, prekey_public, prekey_private FROM %s WHERE name = ?", keystoreTableName);
                 usersStmt = conn.prepareStatement(usersSql);
@@ -55,21 +51,20 @@ public class MariaDBReader {
                 if(conn != null) conn.close();
             }
             return null;
-        } catch(ClassNotFoundException | SQLException e) {
+        } catch(SQLException e) {
             e.printStackTrace();
             return null;
         }
     }
 
-    public static String retrieveKeysOther(String otherUserName, String selfUserName) {
+    public String retrieveKeysOther(String otherUserName, String selfUserName) {
         try {
-            Class.forName("org.mariadb.jdbc.Driver");
             Connection conn = null;
 
             PreparedStatement usersStmt = null;
             ResultSet usersResults = null;
             try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
+                conn = DriverManager.getConnection(dbConnectionString);
                 String usersSql = String.format("SELECT name, identity_public, prekey_public FROM %s WHERE name = ?", keystoreTableName);
                 usersStmt = conn.prepareStatement(usersSql);
                 usersStmt.setString(1, otherUserName);
@@ -88,121 +83,23 @@ public class MariaDBReader {
                 if(conn != null) conn.close();
             }
             return null;
-        } catch(ClassNotFoundException | SQLException e) {
+        } catch(SQLException e) {
             e.printStackTrace();
             return null;
         }
     }
 
-    // Each row is the message's conversation id and the UTF-8 decoded representation
-    // of the message string "conversationID;from;time;classes;iv;hmac;message_encrypted"
-    private static void createMessagesTable() {
-        try {
-            Class.forName("org.mariadb.jdbc.Driver");
-            Connection conn = null;
-
-            PreparedStatement createStmt = null;
-            try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
-                String createSql = String.format("CREATE TABLE IF NOT EXISTS %s (" +
-                        "n INT NOT NULL AUTO_INCREMENT, " +
-                        "id INT NOT NULL, " +
-                        "data LONGBLOB NOT NULL, " +
-                        "PRIMARY KEY (n)" +
-                    ")", messagesTableName);
-
-                createStmt = conn.prepareStatement(createSql);
-                createStmt.execute();
-                messagesCreateChecked = true;
-            } catch(SQLException e) {
-                e.printStackTrace();
-            } finally {
-                if(createStmt != null) createStmt.close();
-                if(conn != null) conn.close();
-            }
-        } catch(ClassNotFoundException | SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    // Each row is equivalent to a JSONStructs.Conversation object, minus the field `users`
-    private static void createConversationsTable() {
-        try {
-            Class.forName("org.mariadb.jdbc.Driver");
-            Connection conn = null;
-
-            PreparedStatement createStmt = null;
-            try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
-                String createSql = String.format("CREATE TABLE IF NOT EXISTS %s (" +
-                        "id INT NOT NULL, " +
-                        "exchange_complete BOOLEAN NOT NULL, " +
-                        "crypt_expiration BIGINT NOT NULL, " +
-                        "PRIMARY KEY (id), " +
-                        "CHECK (id > 0)" +
-                    ")", conversationsTableName);
-
-                createStmt = conn.prepareStatement(createSql);
-                createStmt.execute();
-                conversationsCreateChecked = true;
-            } catch(SQLException e) {
-                e.printStackTrace();
-            } finally {
-                if(createStmt != null) createStmt.close();
-                if(conn != null) conn.close();
-            }
-        } catch(ClassNotFoundException | SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    // Each row is equivalent to a JSONStructs.ConversationUser object
-    private static void createConversationsUsersTable() {
-        try {
-            Class.forName("org.mariadb.jdbc.Driver");
-            Connection conn = null;
-
-            PreparedStatement createStmt = null;
-            try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
-                String createSql = String.format("CREATE TABLE IF NOT EXISTS %s (" +
-                        "id INT NOT NULL, " +
-                        "role INT NOT NULL, " +
-                        "user VARCHAR(64) NOT NULL, " +
-                        "key_ephemeral_public VARCHAR(768), " +
-                        "initial_message VARCHAR(768), " +
-                        "key_wrapped VARCHAR(256), " +
-                        "PRIMARY KEY (id, user), " +
-                        "CHECK (id > 0 AND (role = 1 OR role = 2))" +
-                    ")", conversationsUsersTableName);
-
-                createStmt = conn.prepareStatement(createSql);
-                createStmt.execute();
-                conversationsUsersCreateChecked = true;
-            } catch(SQLException e) {
-                e.printStackTrace();
-            } finally {
-                if(createStmt != null) createStmt.close();
-                if(conn != null) conn.close();
-            }
-        } catch(ClassNotFoundException | SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public static List<String> getMessages(int cID, int nBack) {
+    public List<String> getMessages(int cID, int nBack) {
         if(cID <= 0 || nBack <= 0) {
             return null;
         }
-        if(!messagesCreateChecked) createMessagesTable();
         try {
-            Class.forName("org.mariadb.jdbc.Driver");
             Connection conn = null;
 
             PreparedStatement msgStmt = null;
             ResultSet msgSet = null;
             try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
+                conn = DriverManager.getConnection(dbConnectionString);
                 String msgSql = String.format("SELECT data FROM %s WHERE id = ? ORDER BY n DESC LIMIT ?", messagesTableName);
 
                 msgStmt = conn.prepareStatement(msgSql);
@@ -231,22 +128,20 @@ public class MariaDBReader {
                 if(conn != null) conn.close();
             }
             return null;
-        } catch(ClassNotFoundException | SQLException e) {
+        } catch(SQLException e) {
             e.printStackTrace();
             return null;
         }
     }
 
-    public static void updateMessageStore(Integer cID, String msg) {
+    public void updateMessageStore(Integer cID, String msg) {
         if(cID <= 0 || msg.isEmpty()) return;
-        if(!messagesCreateChecked) createMessagesTable();
         try {
-            Class.forName("org.mariadb.jdbc.Driver");
             Connection conn = null;
 
             PreparedStatement writeStmt = null;
             try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
+                conn = DriverManager.getConnection(dbConnectionString);
                 String writeSql = String.format("INSERT INTO %s (id, data) VALUES (?, ?)", messagesTableName);
 
                 writeStmt = conn.prepareStatement(writeSql);
@@ -259,16 +154,13 @@ public class MariaDBReader {
                 if(writeStmt != null) writeStmt.close();
                 if(conn != null) conn.close();
             }
-        } catch(ClassNotFoundException | SQLException e) {
+        } catch(SQLException e) {
             e.printStackTrace();
         }
     }
 
-    public static Map<Integer, JSONStructs.Conversation> getConversationStore() {
-        if(!conversationsCreateChecked) createConversationsTable();
-        if(!conversationsUsersCreateChecked) createConversationsUsersTable();
+    public Map<Integer, JSONStructs.Conversation> getConversationStore() {
         try {
-            Class.forName("org.mariadb.jdbc.Driver");
             Connection conn = null;
 
             PreparedStatement convStmt = null;
@@ -276,7 +168,7 @@ public class MariaDBReader {
             PreparedStatement conv2Stmt = null;
             ResultSet conv2Set = null;
             try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
+                conn = DriverManager.getConnection(dbConnectionString);
                 String convSql = String.format("SELECT id, exchange_complete, crypt_expiration FROM %s", conversationsTableName);
 
                 convStmt = conn.prepareStatement(convSql);
@@ -322,23 +214,20 @@ public class MariaDBReader {
                 if(conn != null) conn.close();
             }
             return null;
-        } catch(ClassNotFoundException | SQLException e) {
+        } catch(SQLException e) {
             e.printStackTrace();
             return null;
         }
     }
 
-    public static void updateConversationStore(JSONStructs.Conversation c) {
-        if(!conversationsCreateChecked) createConversationsTable();
-        if(!conversationsUsersCreateChecked) createConversationsUsersTable();
+    public void updateConversationStore(JSONStructs.Conversation c) {
         try {
-            Class.forName("org.mariadb.jdbc.Driver");
             Connection conn = null;
 
             PreparedStatement writeStmt = null;
             PreparedStatement write2Stmt = null;
             try {
-                conn = DriverManager.getConnection(String.format(databaseConnectionString, databasePort, databaseName, databaseUser, databasePassword));
+                conn = DriverManager.getConnection(dbConnectionString);
                 String writeSql = String.format("INSERT INTO %s (id, exchange_complete, crypt_expiration) VALUES (?, ?, ?) " +
                         "ON DUPLICATE KEY UPDATE id = ?, exchange_complete = ?, crypt_expiration = ?", conversationsTableName);
 
@@ -381,7 +270,7 @@ public class MariaDBReader {
                 if(write2Stmt != null) write2Stmt.close();
                 if(conn != null) conn.close();
             }
-        } catch(ClassNotFoundException | SQLException e) {
+        } catch(SQLException e) {
             e.printStackTrace();
         }
     }

@@ -27,11 +27,11 @@ jobs:
             cp -r ../ChatClient/src ./src
             node_modules/.bin/webpack --mode production
       - run:
-          name: Create database and SSL certificates
+          name: Create database
           command: integration_tests/setup.sh
       - run:
           name: Start http-server
-          command: http-server integration_tests/ -p 8080 -a localhost -S -C $HOME/cert.crt -K $HOME/cert.key
+          command: http-server integration_tests/ -p 8080 -a localhost
           background: true
       - run:
           name: Start auth proxy
@@ -56,4 +56,7 @@ workflows:
   version: 2
   build_and_test:
     jobs:
-      - build
+      - build:
+          filters:
+            branches:
+              only: 'master'
